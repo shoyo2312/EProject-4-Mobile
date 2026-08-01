@@ -11,6 +11,24 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+.claude/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+.Trash-*
 
 # IntelliJ related
 *.iml
