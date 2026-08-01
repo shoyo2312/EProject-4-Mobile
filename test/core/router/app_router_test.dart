@@ -32,7 +32,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Login'), findsOneWidget);
+    expect(find.text('Log in to TikTok'), findsOneWidget);
   });
 
   testWidgets('redirects to /feed when signed in and /login is requested', (tester) async {
