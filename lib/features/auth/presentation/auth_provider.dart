@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tiktok_mobile/core/network/api_client.dart';
+import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/network/secure_token_storage.dart';
 import 'package:tiktok_mobile/features/auth/data/auth_remote_datasource.dart';
 import 'package:tiktok_mobile/features/auth/data/auth_repository.dart';
@@ -24,10 +25,21 @@ AuthRepository authRepository(Ref ref) => AuthRepository(
 @riverpod
 class AuthState extends _$AuthState {
   @override
-  FutureOr<UserModel?> build() {
-    // No "restore session" call to the backend yet (endpoint not defined
-    // in the provisional contract) — app always starts signed out.
-    return null;
+  FutureOr<UserModel?> build() async {
+    final tokenStorage = ref.watch(tokenStorageProvider);
+    if (await tokenStorage.readAccessToken() == null) return null;
+    try {
+      return await ref.read(authRepositoryProvider).getCurrentUser();
+    } on UnauthorizedException {
+      // Access token invalid and the interceptor's refresh attempt already
+      // failed (or there's no refresh token) — sign out for real.
+      await tokenStorage.clear();
+      return null;
+    } on AppException {
+      // Network/server hiccup during restore — stay signed out for this
+      // session without wiping tokens; retry on next app launch.
+      return null;
+    }
   }
 
   Future<void> login({required String email, required String password}) async {

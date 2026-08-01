@@ -21,10 +21,15 @@ UserModel _$UserModelFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$UserModel {
+  @JsonKey(fromJson: _idFromJson)
   String get id => throw _privateConstructorUsedError;
   String get username => throw _privateConstructorUsedError;
   String get email => throw _privateConstructorUsedError;
-  String? get avatarUrl => throw _privateConstructorUsedError;
+  @JsonKey(unknownEnumValue: UserRole.unknown)
+  UserRole get role => throw _privateConstructorUsedError;
+  @JsonKey(unknownEnumValue: UserStatus.unknown)
+  UserStatus get status => throw _privateConstructorUsedError;
+  DateTime get createdAt => throw _privateConstructorUsedError;
 
   /// Serializes this UserModel to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -41,7 +46,14 @@ abstract class $UserModelCopyWith<$Res> {
   factory $UserModelCopyWith(UserModel value, $Res Function(UserModel) then) =
       _$UserModelCopyWithImpl<$Res, UserModel>;
   @useResult
-  $Res call({String id, String username, String email, String? avatarUrl});
+  $Res call({
+    @JsonKey(fromJson: _idFromJson) String id,
+    String username,
+    String email,
+    @JsonKey(unknownEnumValue: UserRole.unknown) UserRole role,
+    @JsonKey(unknownEnumValue: UserStatus.unknown) UserStatus status,
+    DateTime createdAt,
+  });
 }
 
 /// @nodoc
@@ -62,7 +74,9 @@ class _$UserModelCopyWithImpl<$Res, $Val extends UserModel>
     Object? id = null,
     Object? username = null,
     Object? email = null,
-    Object? avatarUrl = freezed,
+    Object? role = null,
+    Object? status = null,
+    Object? createdAt = null,
   }) {
     return _then(
       _value.copyWith(
@@ -78,10 +92,18 @@ class _$UserModelCopyWithImpl<$Res, $Val extends UserModel>
                 ? _value.email
                 : email // ignore: cast_nullable_to_non_nullable
                       as String,
-            avatarUrl: freezed == avatarUrl
-                ? _value.avatarUrl
-                : avatarUrl // ignore: cast_nullable_to_non_nullable
-                      as String?,
+            role: null == role
+                ? _value.role
+                : role // ignore: cast_nullable_to_non_nullable
+                      as UserRole,
+            status: null == status
+                ? _value.status
+                : status // ignore: cast_nullable_to_non_nullable
+                      as UserStatus,
+            createdAt: null == createdAt
+                ? _value.createdAt
+                : createdAt // ignore: cast_nullable_to_non_nullable
+                      as DateTime,
           )
           as $Val,
     );
@@ -97,7 +119,14 @@ abstract class _$$UserModelImplCopyWith<$Res>
   ) = __$$UserModelImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({String id, String username, String email, String? avatarUrl});
+  $Res call({
+    @JsonKey(fromJson: _idFromJson) String id,
+    String username,
+    String email,
+    @JsonKey(unknownEnumValue: UserRole.unknown) UserRole role,
+    @JsonKey(unknownEnumValue: UserStatus.unknown) UserStatus status,
+    DateTime createdAt,
+  });
 }
 
 /// @nodoc
@@ -117,7 +146,9 @@ class __$$UserModelImplCopyWithImpl<$Res>
     Object? id = null,
     Object? username = null,
     Object? email = null,
-    Object? avatarUrl = freezed,
+    Object? role = null,
+    Object? status = null,
+    Object? createdAt = null,
   }) {
     return _then(
       _$UserModelImpl(
@@ -133,10 +164,18 @@ class __$$UserModelImplCopyWithImpl<$Res>
             ? _value.email
             : email // ignore: cast_nullable_to_non_nullable
                   as String,
-        avatarUrl: freezed == avatarUrl
-            ? _value.avatarUrl
-            : avatarUrl // ignore: cast_nullable_to_non_nullable
-                  as String?,
+        role: null == role
+            ? _value.role
+            : role // ignore: cast_nullable_to_non_nullable
+                  as UserRole,
+        status: null == status
+            ? _value.status
+            : status // ignore: cast_nullable_to_non_nullable
+                  as UserStatus,
+        createdAt: null == createdAt
+            ? _value.createdAt
+            : createdAt // ignore: cast_nullable_to_non_nullable
+                  as DateTime,
       ),
     );
   }
@@ -146,27 +185,36 @@ class __$$UserModelImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$UserModelImpl implements _UserModel {
   const _$UserModelImpl({
-    required this.id,
+    @JsonKey(fromJson: _idFromJson) required this.id,
     required this.username,
     required this.email,
-    this.avatarUrl,
+    @JsonKey(unknownEnumValue: UserRole.unknown) required this.role,
+    @JsonKey(unknownEnumValue: UserStatus.unknown) required this.status,
+    required this.createdAt,
   });
 
   factory _$UserModelImpl.fromJson(Map<String, dynamic> json) =>
       _$$UserModelImplFromJson(json);
 
   @override
+  @JsonKey(fromJson: _idFromJson)
   final String id;
   @override
   final String username;
   @override
   final String email;
   @override
-  final String? avatarUrl;
+  @JsonKey(unknownEnumValue: UserRole.unknown)
+  final UserRole role;
+  @override
+  @JsonKey(unknownEnumValue: UserStatus.unknown)
+  final UserStatus status;
+  @override
+  final DateTime createdAt;
 
   @override
   String toString() {
-    return 'UserModel(id: $id, username: $username, email: $email, avatarUrl: $avatarUrl)';
+    return 'UserModel(id: $id, username: $username, email: $email, role: $role, status: $status, createdAt: $createdAt)';
   }
 
   @override
@@ -178,13 +226,16 @@ class _$UserModelImpl implements _UserModel {
             (identical(other.username, username) ||
                 other.username == username) &&
             (identical(other.email, email) || other.email == email) &&
-            (identical(other.avatarUrl, avatarUrl) ||
-                other.avatarUrl == avatarUrl));
+            (identical(other.role, role) || other.role == role) &&
+            (identical(other.status, status) || other.status == status) &&
+            (identical(other.createdAt, createdAt) ||
+                other.createdAt == createdAt));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, id, username, email, avatarUrl);
+  int get hashCode =>
+      Object.hash(runtimeType, id, username, email, role, status, createdAt);
 
   /// Create a copy of UserModel
   /// with the given fields replaced by the non-null parameter values.
@@ -202,23 +253,33 @@ class _$UserModelImpl implements _UserModel {
 
 abstract class _UserModel implements UserModel {
   const factory _UserModel({
-    required final String id,
+    @JsonKey(fromJson: _idFromJson) required final String id,
     required final String username,
     required final String email,
-    final String? avatarUrl,
+    @JsonKey(unknownEnumValue: UserRole.unknown) required final UserRole role,
+    @JsonKey(unknownEnumValue: UserStatus.unknown)
+    required final UserStatus status,
+    required final DateTime createdAt,
   }) = _$UserModelImpl;
 
   factory _UserModel.fromJson(Map<String, dynamic> json) =
       _$UserModelImpl.fromJson;
 
   @override
+  @JsonKey(fromJson: _idFromJson)
   String get id;
   @override
   String get username;
   @override
   String get email;
   @override
-  String? get avatarUrl;
+  @JsonKey(unknownEnumValue: UserRole.unknown)
+  UserRole get role;
+  @override
+  @JsonKey(unknownEnumValue: UserStatus.unknown)
+  UserStatus get status;
+  @override
+  DateTime get createdAt;
 
   /// Create a copy of UserModel
   /// with the given fields replaced by the non-null parameter values.

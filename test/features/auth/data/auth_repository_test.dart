@@ -5,6 +5,7 @@ import 'package:tiktok_mobile/core/network/api_client.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/features/auth/data/auth_remote_datasource.dart';
 import 'package:tiktok_mobile/features/auth/data/auth_repository.dart';
+import 'package:tiktok_mobile/features/auth/data/token_response.dart';
 import 'package:tiktok_mobile/features/auth/data/user_model.dart';
 
 class MockAuthRemoteDatasource extends Mock implements AuthRemoteDatasource {}
@@ -25,20 +26,29 @@ void main() {
     );
   });
 
-  const user = UserModel(id: '1', username: 'jane', email: 'jane@test.com');
-  const tokens = AuthTokens(
-    user: user,
+  final user = UserModel(
+    id: '1',
+    username: 'jane',
+    email: 'jane@test.com',
+    role: UserRole.user,
+    status: UserStatus.active,
+    createdAt: DateTime(2026, 1, 1),
+  );
+  const tokens = TokenResponse(
     accessToken: 'access',
     refreshToken: 'refresh',
+    expiresInMillis: 900000,
   );
 
-  test('login persists tokens and returns the user on success', () async {
-    when(() => remoteDatasource.login(email: 'jane@test.com', password: 'pw'))
+  test('login persists tokens and returns the user fetched via /me', () async {
+    when(() => remoteDatasource.login(usernameOrEmail: 'jane@test.com', password: 'pw'))
         .thenAnswer((_) async => tokens);
     when(() => tokenStorage.saveTokens(
           accessToken: 'access',
           refreshToken: 'refresh',
+          expiresInMillis: 900000,
         )).thenAnswer((_) async {});
+    when(() => remoteDatasource.me()).thenAnswer((_) async => user);
 
     final result = await repository.login(email: 'jane@test.com', password: 'pw');
 
@@ -46,11 +56,13 @@ void main() {
     verify(() => tokenStorage.saveTokens(
           accessToken: 'access',
           refreshToken: 'refresh',
+          expiresInMillis: 900000,
         )).called(1);
+    verify(() => remoteDatasource.me()).called(1);
   });
 
   test('login converts a DioException into an AppException', () async {
-    when(() => remoteDatasource.login(email: 'jane@test.com', password: 'wrong'))
+    when(() => remoteDatasource.login(usernameOrEmail: 'jane@test.com', password: 'wrong'))
         .thenThrow(DioException(
       requestOptions: RequestOptions(path: '/auth/login'),
       response: Response(
@@ -66,7 +78,78 @@ void main() {
     );
   });
 
-  test('logout clears stored tokens', () async {
+  test('register creates the account then logs in to obtain the user', () async {
+    when(() => remoteDatasource.register(
+          email: 'jane@test.com',
+          password: 'pw',
+          username: 'jane',
+        )).thenAnswer((_) async => user);
+    when(() => remoteDatasource.login(usernameOrEmail: 'jane@test.com', password: 'pw'))
+        .thenAnswer((_) async => tokens);
+    when(() => tokenStorage.saveTokens(
+          accessToken: 'access',
+          refreshToken: 'refresh',
+          expiresInMillis: 900000,
+        )).thenAnswer((_) async {});
+    when(() => remoteDatasource.me()).thenAnswer((_) async => user);
+
+    final result = await repository.register(
+      email: 'jane@test.com',
+      password: 'pw',
+      username: 'jane',
+    );
+
+    expect(result, user);
+    verify(() => remoteDatasource.register(
+          email: 'jane@test.com',
+          password: 'pw',
+          username: 'jane',
+        )).called(1);
+    verify(() => remoteDatasource.login(usernameOrEmail: 'jane@test.com', password: 'pw'))
+        .called(1);
+  });
+
+  test('getCurrentUser returns the /me profile', () async {
+    when(() => remoteDatasource.me()).thenAnswer((_) async => user);
+
+    final result = await repository.getCurrentUser();
+
+    expect(result, user);
+  });
+
+  test('getCurrentUser converts a DioException into an AppException', () async {
+    when(() => remoteDatasource.me()).thenThrow(DioException(
+      requestOptions: RequestOptions(path: '/auth/me'),
+      response: Response(
+        requestOptions: RequestOptions(path: '/auth/me'),
+        statusCode: 401,
+      ),
+      type: DioExceptionType.badResponse,
+    ));
+
+    expect(
+      () => repository.getCurrentUser(),
+      throwsA(isA<UnauthorizedException>()),
+    );
+  });
+
+  test('logout calls the server to blacklist the token then clears storage', () async {
+    when(() => tokenStorage.readRefreshToken()).thenAnswer((_) async => 'refresh');
+    when(() => remoteDatasource.logout('refresh')).thenAnswer((_) async {});
+    when(() => tokenStorage.clear()).thenAnswer((_) async {});
+
+    await repository.logout();
+
+    verify(() => remoteDatasource.logout('refresh')).called(1);
+    verify(() => tokenStorage.clear()).called(1);
+  });
+
+  test('logout still clears local storage even if the server call fails', () async {
+    when(() => tokenStorage.readRefreshToken()).thenAnswer((_) async => 'refresh');
+    when(() => remoteDatasource.logout('refresh')).thenThrow(DioException(
+      requestOptions: RequestOptions(path: '/auth/logout'),
+      type: DioExceptionType.connectionError,
+    ));
     when(() => tokenStorage.clear()).thenAnswer((_) async {});
 
     await repository.logout();

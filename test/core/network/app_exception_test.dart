@@ -36,7 +36,7 @@ void main() {
         response: Response(
           requestOptions: RequestOptions(path: '/feed'),
           statusCode: 500,
-          data: {'error': {'message': 'boom'}},
+          data: {'code': 'INTERNAL_ERROR', 'message': 'boom'},
         ),
         type: DioExceptionType.badResponse,
       );
@@ -45,6 +45,11 @@ void main() {
 
       expect(result.statusCode, 500);
       expect(result.message, 'boom');
+      expect(result.code, 'INTERNAL_ERROR');
     });
+  });
+
+  test('toString() returns the human-readable message, not the type name', () {
+    expect(const UnauthorizedException().toString(), 'Session expired, please log in again');
   });
 }

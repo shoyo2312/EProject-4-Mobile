@@ -1,5 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:tiktok_mobile/core/constants/env.dart';
+import 'package:tiktok_mobile/core/network/api_response.dart';
+
+const _refreshPath = '/auth/refresh';
+const _retriedAfterRefreshKey = 'retriedAfterRefresh';
 
 abstract class TokenStorage {
   Future<String?> readAccessToken();
@@ -7,6 +11,7 @@ abstract class TokenStorage {
   Future<void> saveTokens({
     required String accessToken,
     required String refreshToken,
+    required int expiresInMillis,
   });
   Future<void> clear();
 }
@@ -27,6 +32,9 @@ class ApiClient {
   final Dio dio;
   final TokenStorage tokenStorage;
 
+  // Shared across concurrent 401s so only one /auth/refresh call is made.
+  Future<String?>? _refreshing;
+
   Future<void> _onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,
@@ -42,9 +50,57 @@ class ApiClient {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
-    // Token refresh-on-401 is added in a later task once AuthRepository
-    // exists; for now errors pass through unchanged.
-    handler.next(err);
+    final isRefreshCall = err.requestOptions.path == _refreshPath;
+    final alreadyRetried = err.requestOptions.extra[_retriedAfterRefreshKey] == true;
+    if (err.response?.statusCode != 401 || isRefreshCall || alreadyRetried) {
+      handler.next(err);
+      return;
+    }
+
+    final newAccessToken = await (_refreshing ??= _refreshAccessToken());
+    _refreshing = null;
+    if (newAccessToken == null) {
+      await tokenStorage.clear();
+      handler.next(err);
+      return;
+    }
+
+    try {
+      final retryOptions = err.requestOptions
+        ..headers['Authorization'] = 'Bearer $newAccessToken'
+        ..extra[_retriedAfterRefreshKey] = true;
+      final response = await dio.fetch(retryOptions);
+      handler.resolve(response);
+    } on DioException catch (e) {
+      handler.next(e);
+    }
+  }
+
+  // Calls /auth/refresh directly (not via AuthRemoteDatasource) to avoid a
+  // core -> features import; only the access/refresh token strings matter
+  // here, not the full UserModel/TokenResponse shape.
+  Future<String?> _refreshAccessToken() async {
+    final refreshToken = await tokenStorage.readRefreshToken();
+    if (refreshToken == null) return null;
+    try {
+      final response = await dio.post<Map<String, dynamic>>(
+        _refreshPath,
+        data: {'refreshToken': refreshToken},
+      );
+      final envelope = ApiResponse<Map<String, dynamic>>.fromJson(
+        response.data!,
+        (json) => json as Map<String, dynamic>,
+      );
+      final body = envelope.data!;
+      await tokenStorage.saveTokens(
+        accessToken: body['accessToken'] as String,
+        refreshToken: body['refreshToken'] as String,
+        expiresInMillis: body['expiresInMillis'] as int,
+      );
+      return body['accessToken'] as String;
+    } on DioException {
+      return null;
+    }
   }
 
   Future<Response<T>> get<T>(

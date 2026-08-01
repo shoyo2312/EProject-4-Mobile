@@ -8,10 +8,20 @@ part of 'user_model.dart';
 
 _$UserModelImpl _$$UserModelImplFromJson(Map<String, dynamic> json) =>
     _$UserModelImpl(
-      id: json['id'] as String,
+      id: _idFromJson(json['id']),
       username: json['username'] as String,
       email: json['email'] as String,
-      avatarUrl: json['avatarUrl'] as String?,
+      role: $enumDecode(
+        _$UserRoleEnumMap,
+        json['role'],
+        unknownValue: UserRole.unknown,
+      ),
+      status: $enumDecode(
+        _$UserStatusEnumMap,
+        json['status'],
+        unknownValue: UserStatus.unknown,
+      ),
+      createdAt: DateTime.parse(json['createdAt'] as String),
     );
 
 Map<String, dynamic> _$$UserModelImplToJson(_$UserModelImpl instance) =>
@@ -19,5 +29,19 @@ Map<String, dynamic> _$$UserModelImplToJson(_$UserModelImpl instance) =>
       'id': instance.id,
       'username': instance.username,
       'email': instance.email,
-      'avatarUrl': instance.avatarUrl,
+      'role': _$UserRoleEnumMap[instance.role]!,
+      'status': _$UserStatusEnumMap[instance.status]!,
+      'createdAt': instance.createdAt.toIso8601String(),
     };
+
+const _$UserRoleEnumMap = {
+  UserRole.user: 'USER',
+  UserRole.admin: 'ADMIN',
+  UserRole.unknown: 'unknown',
+};
+
+const _$UserStatusEnumMap = {
+  UserStatus.active: 'ACTIVE',
+  UserStatus.locked: 'LOCKED',
+  UserStatus.unknown: 'unknown',
+};

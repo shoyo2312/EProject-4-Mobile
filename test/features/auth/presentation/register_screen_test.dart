@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:tiktok_mobile/core/network/api_client.dart';
 import 'package:tiktok_mobile/features/auth/data/auth_repository.dart';
 import 'package:tiktok_mobile/features/auth/data/user_model.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
@@ -9,22 +10,32 @@ import 'package:tiktok_mobile/features/auth/presentation/register_screen.dart';
 
 class MockAuthRepository extends Mock implements AuthRepository {}
 
+class MockTokenStorage extends Mock implements TokenStorage {}
+
 void main() {
   testWidgets('submitting valid data calls repository.register', (tester) async {
     final authRepository = MockAuthRepository();
+    final tokenStorage = MockTokenStorage();
+    when(() => tokenStorage.readAccessToken()).thenAnswer((_) async => null);
     when(() => authRepository.register(
           email: 'jane@test.com',
           password: 'secret12',
           username: 'jane',
-        )).thenAnswer((_) async => const UserModel(
+        )).thenAnswer((_) async => UserModel(
           id: '1',
           username: 'jane',
           email: 'jane@test.com',
+          role: UserRole.user,
+          status: UserStatus.active,
+          createdAt: DateTime(2026, 1, 1),
         ));
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [authRepositoryProvider.overrideWithValue(authRepository)],
+        overrides: [
+          authRepositoryProvider.overrideWithValue(authRepository),
+          tokenStorageProvider.overrideWithValue(tokenStorage),
+        ],
         child: const MaterialApp(home: RegisterScreen()),
       ),
     );

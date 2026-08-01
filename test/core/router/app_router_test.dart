@@ -71,9 +71,12 @@ class _SignedOutAuthState extends AuthState {
 
 class _SignedInAuthState extends AuthState {
   @override
-  FutureOr<UserModel?> build() => const UserModel(
+  FutureOr<UserModel?> build() => UserModel(
         id: '1',
         username: 'jane',
         email: 'jane@test.com',
+        role: UserRole.user,
+        status: UserStatus.active,
+        createdAt: DateTime(2026, 1, 1),
       );
 }
