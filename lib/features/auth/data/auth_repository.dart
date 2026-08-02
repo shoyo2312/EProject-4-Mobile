@@ -63,6 +63,46 @@ class AuthRepository {
     }
   }
 
+  Future<void> verifyEmail({required String email, required String otp}) async {
+    try {
+      await _remoteDatasource.verifyEmail(email: email, otp: otp);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<void> resendVerification(String email) async {
+    try {
+      await _remoteDatasource.resendVerification(email);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<void> forgotPassword(String email) async {
+    try {
+      await _remoteDatasource.forgotPassword(email);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<void> resetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    try {
+      await _remoteDatasource.resetPassword(
+        email: email,
+        otp: otp,
+        newPassword: newPassword,
+      );
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
   Future<void> logout() async {
     final refreshToken = await _tokenStorage.readRefreshToken();
     if (refreshToken != null) {

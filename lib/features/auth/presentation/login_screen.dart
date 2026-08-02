@@ -100,7 +100,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
+              Center(
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  children: [
+                    TextButton(
+                      key: const Key('login_forgot_password_button'),
+                      onPressed: () => context.go('/forgot-password'),
+                      child: const Text('Forgot password?'),
+                    ),
+                    TextButton(
+                      key: const Key('login_verify_email_button'),
+                      onPressed: () => context.go('/verify-email'),
+                      child: const Text('Verify email'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
               Center(
                 child: Text.rich(
                   TextSpan(

@@ -51,6 +51,38 @@ class AuthRemoteDatasource {
     return _unwrap(response.data!, UserModel.fromJson);
   }
 
+  Future<void> verifyEmail({required String email, required String otp}) {
+    return _apiClient.post<void>(
+      '/auth/verify-email',
+      data: {'email': email, 'otp': otp},
+    );
+  }
+
+  Future<void> resendVerification(String email) {
+    return _apiClient.post<void>(
+      '/auth/resend-verification',
+      data: {'email': email},
+    );
+  }
+
+  Future<void> forgotPassword(String email) {
+    return _apiClient.post<void>(
+      '/auth/forgot-password',
+      data: {'email': email},
+    );
+  }
+
+  Future<void> resetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) {
+    return _apiClient.post<void>(
+      '/auth/reset-password',
+      data: {'email': email, 'otp': otp, 'newPassword': newPassword},
+    );
+  }
+
   T _unwrap<T>(
     Map<String, dynamic> body,
     T Function(Map<String, dynamic> json) fromJson,
