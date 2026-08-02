@@ -113,4 +113,12 @@ class ApiClient {
   Future<Response<T>> post<T>(String path, {Object? data}) {
     return dio.post<T>(path, data: data);
   }
+
+  Future<Response<T>> patch<T>(String path, {Object? data}) {
+    return dio.patch<T>(path, data: data);
+  }
+
+  Future<Response<T>> delete<T>(String path) {
+    return dio.delete<T>(path);
+  }
 }

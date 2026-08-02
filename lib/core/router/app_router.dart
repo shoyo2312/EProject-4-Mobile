@@ -8,6 +8,10 @@ import 'package:tiktok_mobile/features/auth/presentation/register_screen.dart';
 import 'package:tiktok_mobile/features/auth/presentation/reset_password_screen.dart';
 import 'package:tiktok_mobile/features/auth/presentation/verify_email_screen.dart';
 import 'package:tiktok_mobile/features/feed/presentation/feed_screen.dart';
+import 'package:tiktok_mobile/features/user/presentation/edit_profile_screen.dart';
+import 'package:tiktok_mobile/features/user/presentation/profile_screen.dart';
+import 'package:tiktok_mobile/features/user/presentation/user_list_screen.dart';
+import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
 // Reachable without being logged in (or, for verify-email, while logged in
 // with an unverified account) — excluded from the logged-in/out redirect.
@@ -50,6 +54,41 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => ResetPasswordScreen(email: state.extra as String?),
       ),
       GoRoute(path: '/feed', builder: (_, _) => const FeedScreen()),
+      GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
+      GoRoute(path: '/profile/edit', builder: (_, _) => const EditProfileScreen()),
+      GoRoute(
+        path: '/profile/:userId',
+        builder: (_, state) =>
+            ProfileScreen(userId: state.pathParameters['userId']),
+      ),
+      GoRoute(
+        path: '/profile/:userId/followers',
+        builder: (_, state) => UserListScreen(
+          title: 'Followers',
+          args: UserListArgs(UserListType.followers, state.pathParameters['userId']),
+        ),
+      ),
+      GoRoute(
+        path: '/profile/:userId/following',
+        builder: (_, state) => UserListScreen(
+          title: 'Following',
+          args: UserListArgs(UserListType.following, state.pathParameters['userId']),
+        ),
+      ),
+      GoRoute(
+        path: '/me/blocked',
+        builder: (_, _) => const UserListScreen(
+          title: 'Blocked users',
+          args: UserListArgs(UserListType.blocked),
+        ),
+      ),
+      GoRoute(
+        path: '/me/muted',
+        builder: (_, _) => const UserListScreen(
+          title: 'Muted users',
+          args: UserListArgs(UserListType.muted),
+        ),
+      ),
     ],
   );
 });

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:tiktok_mobile/core/widgets/error_view.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
 import 'package:tiktok_mobile/features/comment/presentation/comment_sheet.dart';
@@ -37,49 +38,64 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: feedState.when(
-        loading: () => const LoadingView(),
-        error: (error, _) => ErrorView(
-          message: error.toString(),
-          onRetry: () => ref.invalidate(feedNotifierProvider),
-        ),
-        data: (videos) {
-          if (videos.isEmpty) {
-            return const ErrorView(message: 'No videos yet');
-          }
-          return PageView.builder(
-            controller: _pageController,
-            scrollDirection: Axis.vertical,
-            itemCount: videos.length,
-            onPageChanged: (index) => _onPageChanged(index, videos),
-            itemBuilder: (context, index) {
-              final video = videos[index];
-              return Stack(
-                fit: StackFit.expand,
-                children: [
-                  VideoPlayerWidget(
-                    url: video.url,
-                    isActive: index == _activeIndex,
-                  ),
-                  Positioned(
-                    left: 12,
-                    right: 80,
-                    bottom: 24,
-                    child: Text(
-                      video.caption,
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
-                    ),
-                  ),
-                  Positioned(
-                    right: 12,
-                    bottom: 24,
-                    child: _ActionRail(video: video),
-                  ),
-                ],
+      body: Stack(
+        children: [
+          feedState.when(
+            loading: () => const LoadingView(),
+            error: (error, _) => ErrorView(
+              message: error.toString(),
+              onRetry: () => ref.invalidate(feedNotifierProvider),
+            ),
+            data: (videos) {
+              if (videos.isEmpty) {
+                return const ErrorView(message: 'No videos yet');
+              }
+              return PageView.builder(
+                controller: _pageController,
+                scrollDirection: Axis.vertical,
+                itemCount: videos.length,
+                onPageChanged: (index) => _onPageChanged(index, videos),
+                itemBuilder: (context, index) {
+                  final video = videos[index];
+                  return Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      VideoPlayerWidget(
+                        url: video.url,
+                        isActive: index == _activeIndex,
+                      ),
+                      Positioned(
+                        left: 12,
+                        right: 80,
+                        bottom: 24,
+                        child: Text(
+                          video.caption,
+                          style: const TextStyle(color: Colors.white, fontSize: 16),
+                        ),
+                      ),
+                      Positioned(
+                        right: 12,
+                        bottom: 24,
+                        child: _ActionRail(video: video),
+                      ),
+                    ],
+                  );
+                },
               );
             },
-          );
-        },
+          ),
+          Positioned(
+            top: 12,
+            right: 12,
+            child: SafeArea(
+              child: IconButton(
+                key: const Key('feed_profile_button'),
+                icon: const Icon(Icons.person, color: Colors.white),
+                onPressed: () => context.push('/profile'),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
