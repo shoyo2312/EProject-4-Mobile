@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:tiktok_mobile/core/network/api_client.dart';
 import 'package:tiktok_mobile/features/auth/data/auth_repository.dart';
@@ -13,7 +14,8 @@ class MockAuthRepository extends Mock implements AuthRepository {}
 class MockTokenStorage extends Mock implements TokenStorage {}
 
 void main() {
-  testWidgets('submitting valid data calls repository.register', (tester) async {
+  testWidgets('registering sends the user to the OTP screen, not the feed',
+      (tester) async {
     final authRepository = MockAuthRepository();
     final tokenStorage = MockTokenStorage();
     when(() => tokenStorage.readAccessToken()).thenAnswer((_) async => null);
@@ -27,8 +29,22 @@ void main() {
           email: 'jane@test.com',
           role: UserRole.user,
           status: UserStatus.active,
+          // A fresh account is never verified — that is the whole reason
+          // registration cannot log anyone in.
+          emailVerified: false,
           createdAt: DateTime(2026, 1, 1),
         ));
+
+    final router = GoRouter(
+      initialLocation: '/register',
+      routes: [
+        GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
+        GoRoute(
+          path: '/verify-email',
+          builder: (_, _) => const Scaffold(body: Text('otp screen')),
+        ),
+      ],
+    );
 
     await tester.pumpWidget(
       ProviderScope(
@@ -36,13 +52,15 @@ void main() {
           authRepositoryProvider.overrideWithValue(authRepository),
           tokenStorageProvider.overrideWithValue(tokenStorage),
         ],
-        child: const MaterialApp(home: RegisterScreen()),
+        child: MaterialApp.router(routerConfig: router),
       ),
     );
 
     await tester.enterText(find.byKey(const Key('register_username_field')), 'jane');
     await tester.enterText(find.byKey(const Key('register_email_field')), 'jane@test.com');
     await tester.enterText(find.byKey(const Key('register_password_field')), 'secret12');
+    // The button only turns actionable on the frame after the last keystroke.
+    await tester.pump();
     await tester.tap(find.byKey(const Key('register_submit_button')));
     await tester.pumpAndSettle();
 
@@ -51,5 +69,6 @@ void main() {
           password: 'secret12',
           username: 'jane',
         )).called(1);
+    expect(find.text('otp screen'), findsOneWidget);
   });
 }

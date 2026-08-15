@@ -22,16 +22,29 @@ VideoModel _$VideoModelFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$VideoModel {
   String get id => throw _privateConstructorUsedError;
-  String get url => throw _privateConstructorUsedError;
-  String get thumbnailUrl => throw _privateConstructorUsedError;
-  String get caption => throw _privateConstructorUsedError;
-  String get username => throw _privateConstructorUsedError;
-  String? get avatarUrl => throw _privateConstructorUsedError;
+  @JsonKey(fromJson: _idFromJson)
+  String get userId => throw _privateConstructorUsedError;
+  String get title => throw _privateConstructorUsedError;
+  String? get description =>
+      throw _privateConstructorUsedError; // These three stay null until transcoding finishes.
+  String? get thumbnailUrl => throw _privateConstructorUsedError;
+  String? get hlsUrl => throw _privateConstructorUsedError;
+  int? get durationSeconds => throw _privateConstructorUsedError;
+  @JsonKey(unknownEnumValue: VideoStatus.unknown)
+  VideoStatus get status => throw _privateConstructorUsedError;
+  @JsonKey(unknownEnumValue: VideoVisibility.unknown)
+  VideoVisibility get visibility => throw _privateConstructorUsedError; // Updated asynchronously via Kafka, so they lag behind a like/comment that
+  // just happened — a value to sync against on reload, not an immediate
+  // result (video doc 5).
+  int get viewCount => throw _privateConstructorUsedError;
   int get likeCount => throw _privateConstructorUsedError;
-  int get commentCount => throw _privateConstructorUsedError;
+  int get commentCount =>
+      throw _privateConstructorUsedError; // Save/share have no counter in the API yet, so they default to 0 and the
+  // rail falls back to a plain label — same arrangement as
+  // CommentModel.replyCount.
+  int get saveCount => throw _privateConstructorUsedError;
   int get shareCount => throw _privateConstructorUsedError;
-  bool get isLiked => throw _privateConstructorUsedError;
-  bool get isSaved => throw _privateConstructorUsedError;
+  DateTime get createdAt => throw _privateConstructorUsedError;
 
   /// Serializes this VideoModel to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -52,16 +65,21 @@ abstract class $VideoModelCopyWith<$Res> {
   @useResult
   $Res call({
     String id,
-    String url,
-    String thumbnailUrl,
-    String caption,
-    String username,
-    String? avatarUrl,
+    @JsonKey(fromJson: _idFromJson) String userId,
+    String title,
+    String? description,
+    String? thumbnailUrl,
+    String? hlsUrl,
+    int? durationSeconds,
+    @JsonKey(unknownEnumValue: VideoStatus.unknown) VideoStatus status,
+    @JsonKey(unknownEnumValue: VideoVisibility.unknown)
+    VideoVisibility visibility,
+    int viewCount,
     int likeCount,
     int commentCount,
+    int saveCount,
     int shareCount,
-    bool isLiked,
-    bool isSaved,
+    DateTime createdAt,
   });
 }
 
@@ -81,16 +99,20 @@ class _$VideoModelCopyWithImpl<$Res, $Val extends VideoModel>
   @override
   $Res call({
     Object? id = null,
-    Object? url = null,
-    Object? thumbnailUrl = null,
-    Object? caption = null,
-    Object? username = null,
-    Object? avatarUrl = freezed,
+    Object? userId = null,
+    Object? title = null,
+    Object? description = freezed,
+    Object? thumbnailUrl = freezed,
+    Object? hlsUrl = freezed,
+    Object? durationSeconds = freezed,
+    Object? status = null,
+    Object? visibility = null,
+    Object? viewCount = null,
     Object? likeCount = null,
     Object? commentCount = null,
+    Object? saveCount = null,
     Object? shareCount = null,
-    Object? isLiked = null,
-    Object? isSaved = null,
+    Object? createdAt = null,
   }) {
     return _then(
       _value.copyWith(
@@ -98,26 +120,42 @@ class _$VideoModelCopyWithImpl<$Res, $Val extends VideoModel>
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
                       as String,
-            url: null == url
-                ? _value.url
-                : url // ignore: cast_nullable_to_non_nullable
+            userId: null == userId
+                ? _value.userId
+                : userId // ignore: cast_nullable_to_non_nullable
                       as String,
-            thumbnailUrl: null == thumbnailUrl
+            title: null == title
+                ? _value.title
+                : title // ignore: cast_nullable_to_non_nullable
+                      as String,
+            description: freezed == description
+                ? _value.description
+                : description // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            thumbnailUrl: freezed == thumbnailUrl
                 ? _value.thumbnailUrl
                 : thumbnailUrl // ignore: cast_nullable_to_non_nullable
-                      as String,
-            caption: null == caption
-                ? _value.caption
-                : caption // ignore: cast_nullable_to_non_nullable
-                      as String,
-            username: null == username
-                ? _value.username
-                : username // ignore: cast_nullable_to_non_nullable
-                      as String,
-            avatarUrl: freezed == avatarUrl
-                ? _value.avatarUrl
-                : avatarUrl // ignore: cast_nullable_to_non_nullable
                       as String?,
+            hlsUrl: freezed == hlsUrl
+                ? _value.hlsUrl
+                : hlsUrl // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            durationSeconds: freezed == durationSeconds
+                ? _value.durationSeconds
+                : durationSeconds // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            status: null == status
+                ? _value.status
+                : status // ignore: cast_nullable_to_non_nullable
+                      as VideoStatus,
+            visibility: null == visibility
+                ? _value.visibility
+                : visibility // ignore: cast_nullable_to_non_nullable
+                      as VideoVisibility,
+            viewCount: null == viewCount
+                ? _value.viewCount
+                : viewCount // ignore: cast_nullable_to_non_nullable
+                      as int,
             likeCount: null == likeCount
                 ? _value.likeCount
                 : likeCount // ignore: cast_nullable_to_non_nullable
@@ -126,18 +164,18 @@ class _$VideoModelCopyWithImpl<$Res, $Val extends VideoModel>
                 ? _value.commentCount
                 : commentCount // ignore: cast_nullable_to_non_nullable
                       as int,
+            saveCount: null == saveCount
+                ? _value.saveCount
+                : saveCount // ignore: cast_nullable_to_non_nullable
+                      as int,
             shareCount: null == shareCount
                 ? _value.shareCount
                 : shareCount // ignore: cast_nullable_to_non_nullable
                       as int,
-            isLiked: null == isLiked
-                ? _value.isLiked
-                : isLiked // ignore: cast_nullable_to_non_nullable
-                      as bool,
-            isSaved: null == isSaved
-                ? _value.isSaved
-                : isSaved // ignore: cast_nullable_to_non_nullable
-                      as bool,
+            createdAt: null == createdAt
+                ? _value.createdAt
+                : createdAt // ignore: cast_nullable_to_non_nullable
+                      as DateTime,
           )
           as $Val,
     );
@@ -155,16 +193,21 @@ abstract class _$$VideoModelImplCopyWith<$Res>
   @useResult
   $Res call({
     String id,
-    String url,
-    String thumbnailUrl,
-    String caption,
-    String username,
-    String? avatarUrl,
+    @JsonKey(fromJson: _idFromJson) String userId,
+    String title,
+    String? description,
+    String? thumbnailUrl,
+    String? hlsUrl,
+    int? durationSeconds,
+    @JsonKey(unknownEnumValue: VideoStatus.unknown) VideoStatus status,
+    @JsonKey(unknownEnumValue: VideoVisibility.unknown)
+    VideoVisibility visibility,
+    int viewCount,
     int likeCount,
     int commentCount,
+    int saveCount,
     int shareCount,
-    bool isLiked,
-    bool isSaved,
+    DateTime createdAt,
   });
 }
 
@@ -183,16 +226,20 @@ class __$$VideoModelImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? id = null,
-    Object? url = null,
-    Object? thumbnailUrl = null,
-    Object? caption = null,
-    Object? username = null,
-    Object? avatarUrl = freezed,
+    Object? userId = null,
+    Object? title = null,
+    Object? description = freezed,
+    Object? thumbnailUrl = freezed,
+    Object? hlsUrl = freezed,
+    Object? durationSeconds = freezed,
+    Object? status = null,
+    Object? visibility = null,
+    Object? viewCount = null,
     Object? likeCount = null,
     Object? commentCount = null,
+    Object? saveCount = null,
     Object? shareCount = null,
-    Object? isLiked = null,
-    Object? isSaved = null,
+    Object? createdAt = null,
   }) {
     return _then(
       _$VideoModelImpl(
@@ -200,26 +247,42 @@ class __$$VideoModelImplCopyWithImpl<$Res>
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
                   as String,
-        url: null == url
-            ? _value.url
-            : url // ignore: cast_nullable_to_non_nullable
+        userId: null == userId
+            ? _value.userId
+            : userId // ignore: cast_nullable_to_non_nullable
                   as String,
-        thumbnailUrl: null == thumbnailUrl
+        title: null == title
+            ? _value.title
+            : title // ignore: cast_nullable_to_non_nullable
+                  as String,
+        description: freezed == description
+            ? _value.description
+            : description // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        thumbnailUrl: freezed == thumbnailUrl
             ? _value.thumbnailUrl
             : thumbnailUrl // ignore: cast_nullable_to_non_nullable
-                  as String,
-        caption: null == caption
-            ? _value.caption
-            : caption // ignore: cast_nullable_to_non_nullable
-                  as String,
-        username: null == username
-            ? _value.username
-            : username // ignore: cast_nullable_to_non_nullable
-                  as String,
-        avatarUrl: freezed == avatarUrl
-            ? _value.avatarUrl
-            : avatarUrl // ignore: cast_nullable_to_non_nullable
                   as String?,
+        hlsUrl: freezed == hlsUrl
+            ? _value.hlsUrl
+            : hlsUrl // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        durationSeconds: freezed == durationSeconds
+            ? _value.durationSeconds
+            : durationSeconds // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        status: null == status
+            ? _value.status
+            : status // ignore: cast_nullable_to_non_nullable
+                  as VideoStatus,
+        visibility: null == visibility
+            ? _value.visibility
+            : visibility // ignore: cast_nullable_to_non_nullable
+                  as VideoVisibility,
+        viewCount: null == viewCount
+            ? _value.viewCount
+            : viewCount // ignore: cast_nullable_to_non_nullable
+                  as int,
         likeCount: null == likeCount
             ? _value.likeCount
             : likeCount // ignore: cast_nullable_to_non_nullable
@@ -228,18 +291,18 @@ class __$$VideoModelImplCopyWithImpl<$Res>
             ? _value.commentCount
             : commentCount // ignore: cast_nullable_to_non_nullable
                   as int,
+        saveCount: null == saveCount
+            ? _value.saveCount
+            : saveCount // ignore: cast_nullable_to_non_nullable
+                  as int,
         shareCount: null == shareCount
             ? _value.shareCount
             : shareCount // ignore: cast_nullable_to_non_nullable
                   as int,
-        isLiked: null == isLiked
-            ? _value.isLiked
-            : isLiked // ignore: cast_nullable_to_non_nullable
-                  as bool,
-        isSaved: null == isSaved
-            ? _value.isSaved
-            : isSaved // ignore: cast_nullable_to_non_nullable
-                  as bool,
+        createdAt: null == createdAt
+            ? _value.createdAt
+            : createdAt // ignore: cast_nullable_to_non_nullable
+                  as DateTime,
       ),
     );
   }
@@ -250,16 +313,21 @@ class __$$VideoModelImplCopyWithImpl<$Res>
 class _$VideoModelImpl implements _VideoModel {
   const _$VideoModelImpl({
     required this.id,
-    required this.url,
-    required this.thumbnailUrl,
-    required this.caption,
-    required this.username,
-    this.avatarUrl,
+    @JsonKey(fromJson: _idFromJson) required this.userId,
+    required this.title,
+    this.description,
+    this.thumbnailUrl,
+    this.hlsUrl,
+    this.durationSeconds,
+    @JsonKey(unknownEnumValue: VideoStatus.unknown) required this.status,
+    @JsonKey(unknownEnumValue: VideoVisibility.unknown)
+    required this.visibility,
+    required this.viewCount,
     required this.likeCount,
     required this.commentCount,
-    required this.shareCount,
-    required this.isLiked,
-    required this.isSaved,
+    this.saveCount = 0,
+    this.shareCount = 0,
+    required this.createdAt,
   });
 
   factory _$VideoModelImpl.fromJson(Map<String, dynamic> json) =>
@@ -268,29 +336,49 @@ class _$VideoModelImpl implements _VideoModel {
   @override
   final String id;
   @override
-  final String url;
+  @JsonKey(fromJson: _idFromJson)
+  final String userId;
   @override
-  final String thumbnailUrl;
+  final String title;
   @override
-  final String caption;
+  final String? description;
+  // These three stay null until transcoding finishes.
   @override
-  final String username;
+  final String? thumbnailUrl;
   @override
-  final String? avatarUrl;
+  final String? hlsUrl;
+  @override
+  final int? durationSeconds;
+  @override
+  @JsonKey(unknownEnumValue: VideoStatus.unknown)
+  final VideoStatus status;
+  @override
+  @JsonKey(unknownEnumValue: VideoVisibility.unknown)
+  final VideoVisibility visibility;
+  // Updated asynchronously via Kafka, so they lag behind a like/comment that
+  // just happened — a value to sync against on reload, not an immediate
+  // result (video doc 5).
+  @override
+  final int viewCount;
   @override
   final int likeCount;
   @override
   final int commentCount;
+  // Save/share have no counter in the API yet, so they default to 0 and the
+  // rail falls back to a plain label — same arrangement as
+  // CommentModel.replyCount.
   @override
+  @JsonKey()
+  final int saveCount;
+  @override
+  @JsonKey()
   final int shareCount;
   @override
-  final bool isLiked;
-  @override
-  final bool isSaved;
+  final DateTime createdAt;
 
   @override
   String toString() {
-    return 'VideoModel(id: $id, url: $url, thumbnailUrl: $thumbnailUrl, caption: $caption, username: $username, avatarUrl: $avatarUrl, likeCount: $likeCount, commentCount: $commentCount, shareCount: $shareCount, isLiked: $isLiked, isSaved: $isSaved)';
+    return 'VideoModel(id: $id, userId: $userId, title: $title, description: $description, thumbnailUrl: $thumbnailUrl, hlsUrl: $hlsUrl, durationSeconds: $durationSeconds, status: $status, visibility: $visibility, viewCount: $viewCount, likeCount: $likeCount, commentCount: $commentCount, saveCount: $saveCount, shareCount: $shareCount, createdAt: $createdAt)';
   }
 
   @override
@@ -299,22 +387,30 @@ class _$VideoModelImpl implements _VideoModel {
         (other.runtimeType == runtimeType &&
             other is _$VideoModelImpl &&
             (identical(other.id, id) || other.id == id) &&
-            (identical(other.url, url) || other.url == url) &&
+            (identical(other.userId, userId) || other.userId == userId) &&
+            (identical(other.title, title) || other.title == title) &&
+            (identical(other.description, description) ||
+                other.description == description) &&
             (identical(other.thumbnailUrl, thumbnailUrl) ||
                 other.thumbnailUrl == thumbnailUrl) &&
-            (identical(other.caption, caption) || other.caption == caption) &&
-            (identical(other.username, username) ||
-                other.username == username) &&
-            (identical(other.avatarUrl, avatarUrl) ||
-                other.avatarUrl == avatarUrl) &&
+            (identical(other.hlsUrl, hlsUrl) || other.hlsUrl == hlsUrl) &&
+            (identical(other.durationSeconds, durationSeconds) ||
+                other.durationSeconds == durationSeconds) &&
+            (identical(other.status, status) || other.status == status) &&
+            (identical(other.visibility, visibility) ||
+                other.visibility == visibility) &&
+            (identical(other.viewCount, viewCount) ||
+                other.viewCount == viewCount) &&
             (identical(other.likeCount, likeCount) ||
                 other.likeCount == likeCount) &&
             (identical(other.commentCount, commentCount) ||
                 other.commentCount == commentCount) &&
+            (identical(other.saveCount, saveCount) ||
+                other.saveCount == saveCount) &&
             (identical(other.shareCount, shareCount) ||
                 other.shareCount == shareCount) &&
-            (identical(other.isLiked, isLiked) || other.isLiked == isLiked) &&
-            (identical(other.isSaved, isSaved) || other.isSaved == isSaved));
+            (identical(other.createdAt, createdAt) ||
+                other.createdAt == createdAt));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -322,16 +418,20 @@ class _$VideoModelImpl implements _VideoModel {
   int get hashCode => Object.hash(
     runtimeType,
     id,
-    url,
+    userId,
+    title,
+    description,
     thumbnailUrl,
-    caption,
-    username,
-    avatarUrl,
+    hlsUrl,
+    durationSeconds,
+    status,
+    visibility,
+    viewCount,
     likeCount,
     commentCount,
+    saveCount,
     shareCount,
-    isLiked,
-    isSaved,
+    createdAt,
   );
 
   /// Create a copy of VideoModel
@@ -351,16 +451,22 @@ class _$VideoModelImpl implements _VideoModel {
 abstract class _VideoModel implements VideoModel {
   const factory _VideoModel({
     required final String id,
-    required final String url,
-    required final String thumbnailUrl,
-    required final String caption,
-    required final String username,
-    final String? avatarUrl,
+    @JsonKey(fromJson: _idFromJson) required final String userId,
+    required final String title,
+    final String? description,
+    final String? thumbnailUrl,
+    final String? hlsUrl,
+    final int? durationSeconds,
+    @JsonKey(unknownEnumValue: VideoStatus.unknown)
+    required final VideoStatus status,
+    @JsonKey(unknownEnumValue: VideoVisibility.unknown)
+    required final VideoVisibility visibility,
+    required final int viewCount,
     required final int likeCount,
     required final int commentCount,
-    required final int shareCount,
-    required final bool isLiked,
-    required final bool isSaved,
+    final int saveCount,
+    final int shareCount,
+    required final DateTime createdAt,
   }) = _$VideoModelImpl;
 
   factory _VideoModel.fromJson(Map<String, dynamic> json) =
@@ -369,25 +475,40 @@ abstract class _VideoModel implements VideoModel {
   @override
   String get id;
   @override
-  String get url;
+  @JsonKey(fromJson: _idFromJson)
+  String get userId;
   @override
-  String get thumbnailUrl;
+  String get title;
   @override
-  String get caption;
+  String? get description; // These three stay null until transcoding finishes.
   @override
-  String get username;
+  String? get thumbnailUrl;
   @override
-  String? get avatarUrl;
+  String? get hlsUrl;
+  @override
+  int? get durationSeconds;
+  @override
+  @JsonKey(unknownEnumValue: VideoStatus.unknown)
+  VideoStatus get status;
+  @override
+  @JsonKey(unknownEnumValue: VideoVisibility.unknown)
+  VideoVisibility get visibility; // Updated asynchronously via Kafka, so they lag behind a like/comment that
+  // just happened — a value to sync against on reload, not an immediate
+  // result (video doc 5).
+  @override
+  int get viewCount;
   @override
   int get likeCount;
   @override
-  int get commentCount;
+  int get commentCount; // Save/share have no counter in the API yet, so they default to 0 and the
+  // rail falls back to a plain label — same arrangement as
+  // CommentModel.replyCount.
+  @override
+  int get saveCount;
   @override
   int get shareCount;
   @override
-  bool get isLiked;
-  @override
-  bool get isSaved;
+  DateTime get createdAt;
 
   /// Create a copy of VideoModel
   /// with the given fields replaced by the non-null parameter values.

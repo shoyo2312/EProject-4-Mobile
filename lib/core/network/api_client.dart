@@ -59,16 +59,22 @@ class ApiClient {
 
     final newAccessToken = await (_refreshing ??= _refreshAccessToken());
     _refreshing = null;
+
+    final retryOptions = err.requestOptions
+      ..extra[_retriedAfterRefreshKey] = true;
     if (newAccessToken == null) {
       await tokenStorage.clear();
-      handler.next(err);
-      return;
+      // The session is gone for good, but plenty of endpoints (the feed,
+      // public profiles) serve guests fine — retry once with no credentials
+      // rather than letting a stale token turn into "Session expired" on a
+      // screen that never required a login. Genuinely protected paths 401
+      // again and the error surfaces as before.
+      retryOptions.headers.remove('Authorization');
+    } else {
+      retryOptions.headers['Authorization'] = 'Bearer $newAccessToken';
     }
 
     try {
-      final retryOptions = err.requestOptions
-        ..headers['Authorization'] = 'Bearer $newAccessToken'
-        ..extra[_retriedAfterRefreshKey] = true;
       final response = await dio.fetch(retryOptions);
       handler.resolve(response);
     } on DioException catch (e) {

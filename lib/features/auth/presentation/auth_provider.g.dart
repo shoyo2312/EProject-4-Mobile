@@ -40,7 +40,24 @@ final apiClientProvider = Provider<ApiClient>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef ApiClientRef = ProviderRef<ApiClient>;
-String _$authRepositoryHash() => r'ff330da449b33e515068b70d8e9e0cc29d1442bd';
+String _$socialSignInHash() => r'582005bdb919445eefbdd974968f0446f21882cf';
+
+/// See also [socialSignIn].
+@ProviderFor(socialSignIn)
+final socialSignInProvider = Provider<SocialSignIn>.internal(
+  socialSignIn,
+  name: r'socialSignInProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$socialSignInHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef SocialSignInRef = ProviderRef<SocialSignIn>;
+String _$authRepositoryHash() => r'f38b24718b8c8d702e2fe95767dbef16592bacc7';
 
 /// See also [authRepository].
 @ProviderFor(authRepository)
@@ -57,7 +74,7 @@ final authRepositoryProvider = Provider<AuthRepository>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef AuthRepositoryRef = ProviderRef<AuthRepository>;
-String _$authStateHash() => r'784e13292548fe8ba92d0e0973ab62338d1171fe';
+String _$authStateHash() => r'9ac1d6397146ad38d4212124b40ed180ca120890';
 
 /// See also [AuthState].
 @ProviderFor(AuthState)

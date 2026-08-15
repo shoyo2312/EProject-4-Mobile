@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
+import 'package:tiktok_mobile/core/network/page_response.dart';
 import 'package:tiktok_mobile/features/feed/data/feed_remote_datasource.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 
@@ -8,25 +9,37 @@ class FeedRepository {
 
   final FeedRemoteDatasource _remoteDatasource;
 
-  Future<FeedPage> fetchFeed({String? cursor}) async {
+  Future<PageResponse<VideoModel>> fetchFeed({int page = 0, int size = 20}) async {
     try {
-      return await _remoteDatasource.fetchFeed(cursor: cursor);
+      return await _remoteDatasource.fetchFeed(page: page, size: size);
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }
   }
 
-  Future<VideoModel> toggleLike(String videoId) async {
+  Future<PageResponse<VideoModel>> getUserVideos(
+    String userId, {
+    int page = 0,
+    int size = 20,
+  }) async {
     try {
-      return await _remoteDatasource.toggleLike(videoId);
+      return await _remoteDatasource.getUserVideos(userId, page: page, size: size);
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }
   }
 
-  Future<VideoModel> toggleSave(String videoId) async {
+  Future<VideoModel> getVideo(String videoId) async {
     try {
-      return await _remoteDatasource.toggleSave(videoId);
+      return await _remoteDatasource.getVideo(videoId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<void> deleteVideo(String videoId) async {
+    try {
+      await _remoteDatasource.deleteVideo(videoId);
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }

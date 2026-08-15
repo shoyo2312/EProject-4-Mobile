@@ -10,7 +10,7 @@ _$UserModelImpl _$$UserModelImplFromJson(Map<String, dynamic> json) =>
     _$UserModelImpl(
       id: _idFromJson(json['id']),
       username: json['username'] as String,
-      email: json['email'] as String,
+      email: json['email'] as String?,
       role: $enumDecode(
         _$UserRoleEnumMap,
         json['role'],
@@ -21,6 +21,7 @@ _$UserModelImpl _$$UserModelImplFromJson(Map<String, dynamic> json) =>
         json['status'],
         unknownValue: UserStatus.unknown,
       ),
+      emailVerified: json['emailVerified'] as bool,
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
 
@@ -31,6 +32,7 @@ Map<String, dynamic> _$$UserModelImplToJson(_$UserModelImpl instance) =>
       'email': instance.email,
       'role': _$UserRoleEnumMap[instance.role]!,
       'status': _$UserStatusEnumMap[instance.status]!,
+      'emailVerified': instance.emailVerified,
       'createdAt': instance.createdAt.toIso8601String(),
     };
 

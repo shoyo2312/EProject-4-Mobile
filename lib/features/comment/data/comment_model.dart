@@ -13,6 +13,11 @@ class CommentModel with _$CommentModel {
     String? avatarUrl,
     required String text,
     required DateTime createdAt,
+    // Replies are one level deep — a reply never has replies of its own.
+    // The live API sends neither field yet, hence the defaults.
+    @Default(<CommentModel>[]) List<CommentModel> replies,
+    @Default(0) int replyCount,
+    @Default(0) int likeCount,
   }) = _CommentModel;
 
   factory CommentModel.fromJson(Map<String, dynamic> json) =>

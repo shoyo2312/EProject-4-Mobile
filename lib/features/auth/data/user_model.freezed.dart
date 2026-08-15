@@ -23,12 +23,17 @@ UserModel _$UserModelFromJson(Map<String, dynamic> json) {
 mixin _$UserModel {
   @JsonKey(fromJson: _idFromJson)
   String get id => throw _privateConstructorUsedError;
-  String get username => throw _privateConstructorUsedError;
-  String get email => throw _privateConstructorUsedError;
+  String get username =>
+      throw _privateConstructorUsedError; // Null for accounts created through a social provider that never asserted
+  // one — Facebook without the `email` grant. The session works; the client
+  // collects an address via /auth/email (see SocialLoginResponse.requiresEmail).
+  String? get email => throw _privateConstructorUsedError;
   @JsonKey(unknownEnumValue: UserRole.unknown)
   UserRole get role => throw _privateConstructorUsedError;
   @JsonKey(unknownEnumValue: UserStatus.unknown)
-  UserStatus get status => throw _privateConstructorUsedError;
+  UserStatus get status => throw _privateConstructorUsedError; // Always false right after /register; /login keeps returning
+  // 403 EMAIL_NOT_VERIFIED until the OTP is confirmed (auth doc 3.1/3.2).
+  bool get emailVerified => throw _privateConstructorUsedError;
   DateTime get createdAt => throw _privateConstructorUsedError;
 
   /// Serializes this UserModel to a JSON map.
@@ -49,9 +54,10 @@ abstract class $UserModelCopyWith<$Res> {
   $Res call({
     @JsonKey(fromJson: _idFromJson) String id,
     String username,
-    String email,
+    String? email,
     @JsonKey(unknownEnumValue: UserRole.unknown) UserRole role,
     @JsonKey(unknownEnumValue: UserStatus.unknown) UserStatus status,
+    bool emailVerified,
     DateTime createdAt,
   });
 }
@@ -73,9 +79,10 @@ class _$UserModelCopyWithImpl<$Res, $Val extends UserModel>
   $Res call({
     Object? id = null,
     Object? username = null,
-    Object? email = null,
+    Object? email = freezed,
     Object? role = null,
     Object? status = null,
+    Object? emailVerified = null,
     Object? createdAt = null,
   }) {
     return _then(
@@ -88,10 +95,10 @@ class _$UserModelCopyWithImpl<$Res, $Val extends UserModel>
                 ? _value.username
                 : username // ignore: cast_nullable_to_non_nullable
                       as String,
-            email: null == email
+            email: freezed == email
                 ? _value.email
                 : email // ignore: cast_nullable_to_non_nullable
-                      as String,
+                      as String?,
             role: null == role
                 ? _value.role
                 : role // ignore: cast_nullable_to_non_nullable
@@ -100,6 +107,10 @@ class _$UserModelCopyWithImpl<$Res, $Val extends UserModel>
                 ? _value.status
                 : status // ignore: cast_nullable_to_non_nullable
                       as UserStatus,
+            emailVerified: null == emailVerified
+                ? _value.emailVerified
+                : emailVerified // ignore: cast_nullable_to_non_nullable
+                      as bool,
             createdAt: null == createdAt
                 ? _value.createdAt
                 : createdAt // ignore: cast_nullable_to_non_nullable
@@ -122,9 +133,10 @@ abstract class _$$UserModelImplCopyWith<$Res>
   $Res call({
     @JsonKey(fromJson: _idFromJson) String id,
     String username,
-    String email,
+    String? email,
     @JsonKey(unknownEnumValue: UserRole.unknown) UserRole role,
     @JsonKey(unknownEnumValue: UserStatus.unknown) UserStatus status,
+    bool emailVerified,
     DateTime createdAt,
   });
 }
@@ -145,9 +157,10 @@ class __$$UserModelImplCopyWithImpl<$Res>
   $Res call({
     Object? id = null,
     Object? username = null,
-    Object? email = null,
+    Object? email = freezed,
     Object? role = null,
     Object? status = null,
+    Object? emailVerified = null,
     Object? createdAt = null,
   }) {
     return _then(
@@ -160,10 +173,10 @@ class __$$UserModelImplCopyWithImpl<$Res>
             ? _value.username
             : username // ignore: cast_nullable_to_non_nullable
                   as String,
-        email: null == email
+        email: freezed == email
             ? _value.email
             : email // ignore: cast_nullable_to_non_nullable
-                  as String,
+                  as String?,
         role: null == role
             ? _value.role
             : role // ignore: cast_nullable_to_non_nullable
@@ -172,6 +185,10 @@ class __$$UserModelImplCopyWithImpl<$Res>
             ? _value.status
             : status // ignore: cast_nullable_to_non_nullable
                   as UserStatus,
+        emailVerified: null == emailVerified
+            ? _value.emailVerified
+            : emailVerified // ignore: cast_nullable_to_non_nullable
+                  as bool,
         createdAt: null == createdAt
             ? _value.createdAt
             : createdAt // ignore: cast_nullable_to_non_nullable
@@ -187,9 +204,10 @@ class _$UserModelImpl implements _UserModel {
   const _$UserModelImpl({
     @JsonKey(fromJson: _idFromJson) required this.id,
     required this.username,
-    required this.email,
+    this.email,
     @JsonKey(unknownEnumValue: UserRole.unknown) required this.role,
     @JsonKey(unknownEnumValue: UserStatus.unknown) required this.status,
+    required this.emailVerified,
     required this.createdAt,
   });
 
@@ -201,20 +219,27 @@ class _$UserModelImpl implements _UserModel {
   final String id;
   @override
   final String username;
+  // Null for accounts created through a social provider that never asserted
+  // one — Facebook without the `email` grant. The session works; the client
+  // collects an address via /auth/email (see SocialLoginResponse.requiresEmail).
   @override
-  final String email;
+  final String? email;
   @override
   @JsonKey(unknownEnumValue: UserRole.unknown)
   final UserRole role;
   @override
   @JsonKey(unknownEnumValue: UserStatus.unknown)
   final UserStatus status;
+  // Always false right after /register; /login keeps returning
+  // 403 EMAIL_NOT_VERIFIED until the OTP is confirmed (auth doc 3.1/3.2).
+  @override
+  final bool emailVerified;
   @override
   final DateTime createdAt;
 
   @override
   String toString() {
-    return 'UserModel(id: $id, username: $username, email: $email, role: $role, status: $status, createdAt: $createdAt)';
+    return 'UserModel(id: $id, username: $username, email: $email, role: $role, status: $status, emailVerified: $emailVerified, createdAt: $createdAt)';
   }
 
   @override
@@ -228,14 +253,24 @@ class _$UserModelImpl implements _UserModel {
             (identical(other.email, email) || other.email == email) &&
             (identical(other.role, role) || other.role == role) &&
             (identical(other.status, status) || other.status == status) &&
+            (identical(other.emailVerified, emailVerified) ||
+                other.emailVerified == emailVerified) &&
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, id, username, email, role, status, createdAt);
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    username,
+    email,
+    role,
+    status,
+    emailVerified,
+    createdAt,
+  );
 
   /// Create a copy of UserModel
   /// with the given fields replaced by the non-null parameter values.
@@ -255,10 +290,11 @@ abstract class _UserModel implements UserModel {
   const factory _UserModel({
     @JsonKey(fromJson: _idFromJson) required final String id,
     required final String username,
-    required final String email,
+    final String? email,
     @JsonKey(unknownEnumValue: UserRole.unknown) required final UserRole role,
     @JsonKey(unknownEnumValue: UserStatus.unknown)
     required final UserStatus status,
+    required final bool emailVerified,
     required final DateTime createdAt,
   }) = _$UserModelImpl;
 
@@ -269,15 +305,20 @@ abstract class _UserModel implements UserModel {
   @JsonKey(fromJson: _idFromJson)
   String get id;
   @override
-  String get username;
+  String get username; // Null for accounts created through a social provider that never asserted
+  // one — Facebook without the `email` grant. The session works; the client
+  // collects an address via /auth/email (see SocialLoginResponse.requiresEmail).
   @override
-  String get email;
+  String? get email;
   @override
   @JsonKey(unknownEnumValue: UserRole.unknown)
   UserRole get role;
   @override
   @JsonKey(unknownEnumValue: UserStatus.unknown)
-  UserStatus get status;
+  UserStatus get status; // Always false right after /register; /login keeps returning
+  // 403 EMAIL_NOT_VERIFIED until the OTP is confirmed (auth doc 3.1/3.2).
+  @override
+  bool get emailVerified;
   @override
   DateTime get createdAt;
 

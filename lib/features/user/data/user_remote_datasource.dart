@@ -1,6 +1,6 @@
 import 'package:tiktok_mobile/core/network/api_client.dart';
 import 'package:tiktok_mobile/core/network/api_response.dart';
-import 'package:tiktok_mobile/features/user/data/page_response.dart';
+import 'package:tiktok_mobile/core/network/page_response.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 
 class UserRemoteDatasource {

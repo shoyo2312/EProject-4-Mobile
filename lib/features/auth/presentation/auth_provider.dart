@@ -5,6 +5,7 @@ import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/network/secure_token_storage.dart';
 import 'package:tiktok_mobile/features/auth/data/auth_remote_datasource.dart';
 import 'package:tiktok_mobile/features/auth/data/auth_repository.dart';
+import 'package:tiktok_mobile/features/auth/data/social_sign_in.dart';
 import 'package:tiktok_mobile/features/auth/data/user_model.dart';
 
 part 'auth_provider.g.dart';
@@ -17,9 +18,13 @@ ApiClient apiClient(Ref ref) =>
     ApiClient(tokenStorage: ref.watch(tokenStorageProvider));
 
 @Riverpod(keepAlive: true)
+SocialSignIn socialSignIn(Ref ref) => SocialSignIn();
+
+@Riverpod(keepAlive: true)
 AuthRepository authRepository(Ref ref) => AuthRepository(
       remoteDatasource: AuthRemoteDatasource(ref.watch(apiClientProvider)),
       tokenStorage: ref.watch(tokenStorageProvider),
+      socialSignIn: ref.watch(socialSignInProvider),
     );
 
 @riverpod
@@ -49,20 +54,34 @@ class AuthState extends _$AuthState {
     );
   }
 
-  Future<void> register({
-    required String email,
-    required String password,
-    required String username,
-  }) async {
+  /// Returns whether the account still needs an email address, so the caller
+  /// can route to the add-email screen. Throws on failure (including
+  /// [SocialSignInCancelled]) rather than parking the error in [state]: the
+  /// screen shows it, and an AsyncError here would make the router treat a
+  /// cancelled tap as a broken session.
+  Future<bool> loginWithGoogle() =>
+      _social((repo) => repo.loginWithGoogle());
+
+  Future<bool> loginWithFacebook() =>
+      _social((repo) => repo.loginWithFacebook());
+
+  Future<bool> _social(
+    Future<SocialLoginOutcome> Function(AuthRepository repo) call,
+  ) async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(
-      () => ref.read(authRepositoryProvider).register(
-            email: email,
-            password: password,
-            username: username,
-          ),
-    );
+    try {
+      final outcome = await call(ref.read(authRepositoryProvider));
+      state = AsyncData(outcome.user);
+      return outcome.requiresEmail;
+    } catch (_) {
+      state = const AsyncData(null);
+      rethrow;
+    }
   }
+
+  // No register() on purpose: /register does not authenticate anyone (the
+  // account still needs email verification), so it never yields a signed-in
+  // state. RegisterScreen calls AuthRepository.register directly.
 
   Future<void> logout() async {
     await ref.read(authRepositoryProvider).logout();

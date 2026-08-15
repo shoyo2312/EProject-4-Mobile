@@ -1,8 +1,9 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
+import 'package:tiktok_mobile/features/auth/presentation/widgets/auth_ui.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -16,132 +17,89 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _passwordController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    // The CTA stays pink/inert until both fields have something in them.
+    _emailController.addListener(_onChanged);
+    _passwordController.addListener(_onChanged);
+  }
+
+  void _onChanged() => setState(() {});
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  InputDecoration _fieldDecoration(ColorScheme colorScheme, String label) {
-    return InputDecoration(
-      labelText: label,
-      filled: true,
-      fillColor: colorScheme.surfaceContainerHighest,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide.none,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authStateProvider);
-    final colorScheme = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'Log in to TikTok',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 32),
-              TextField(
-                key: const Key('login_email_field'),
-                controller: _emailController,
-                decoration: _fieldDecoration(colorScheme, 'Email'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                key: const Key('login_password_field'),
-                controller: _passwordController,
-                obscureText: true,
-                decoration: _fieldDecoration(colorScheme, 'Password'),
-              ),
-              const SizedBox(height: 20),
-              if (authState.hasError)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    authState.error.toString(),
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                ),
-              ElevatedButton(
-                key: const Key('login_submit_button'),
-                style: ElevatedButton.styleFrom(
-                  shape: const StadiumBorder(),
-                  backgroundColor: colorScheme.primary,
-                  foregroundColor: colorScheme.onPrimary,
-                  minimumSize: const Size(double.infinity, 52),
-                ),
-                onPressed: authState.isLoading
-                    ? null
-                    : () => ref.read(authStateProvider.notifier).login(
-                          email: _emailController.text,
-                          password: _passwordController.text,
-                        ),
-                child: authState.isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text(
-                        'Log in',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-              ),
-              const SizedBox(height: 12),
-              Center(
-                child: Wrap(
-                  alignment: WrapAlignment.center,
-                  children: [
-                    TextButton(
-                      key: const Key('login_forgot_password_button'),
-                      onPressed: () => context.go('/forgot-password'),
-                      child: const Text('Forgot password?'),
-                    ),
-                    TextButton(
-                      key: const Key('login_verify_email_button'),
-                      onPressed: () => context.go('/verify-email'),
-                      child: const Text('Verify email'),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 4),
-              Center(
-                child: Text.rich(
-                  TextSpan(
-                    text: "Don't have an account? ",
-                    style: Theme.of(context).textTheme.bodyMedium,
-                    children: [
-                      TextSpan(
-                        text: 'Register',
-                        style: TextStyle(
-                          color: colorScheme.primary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        recognizer: TapGestureRecognizer()
-                          ..onTap = () => context.go('/register'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+    // 403 EMAIL_NOT_VERIFIED means the password was correct and only the OTP
+    // step is missing, so it gets its own destination instead of being shown
+    // as "wrong credentials" (auth doc 3.2).
+    ref.listen(authStateProvider, (_, next) {
+      final error = next.error;
+      if (error is ServerException && error.code == 'EMAIL_NOT_VERIFIED') {
+        context.go('/verify-email', extra: _emailController.text.trim());
+      }
+    });
+
+    final canSubmit = _emailController.text.trim().isNotEmpty &&
+        _passwordController.text.isNotEmpty;
+
+    return AuthScaffold(
+      onBack: () => context.go('/login'),
+      footer: AuthFooterBar(
+        question: "Don't have an account?",
+        actionLabel: 'Sign up',
+        onTap: () => context.go('/register'),
       ),
+      children: [
+        const SizedBox(height: 8),
+        const AuthTitle('Log in', centered: true),
+        const SizedBox(height: 32),
+        AuthField(
+          key: const Key('login_email_field'),
+          controller: _emailController,
+          hint: 'Email or username',
+        ),
+        const SizedBox(height: 12),
+        AuthField(
+          key: const Key('login_password_field'),
+          controller: _passwordController,
+          hint: 'Password',
+          obscureText: true,
+        ),
+        const SizedBox(height: 12),
+        AuthLink(
+          key: const Key('login_forgot_password_button'),
+          label: 'Forgot password?',
+          align: Alignment.centerLeft,
+          onTap: () => context.go('/forgot-password'),
+        ),
+        const SizedBox(height: 24),
+        if (authState.hasError) AuthErrorText(authState.error.toString()),
+        AuthPrimaryButton(
+          key: const Key('login_submit_button'),
+          label: 'Log in',
+          loading: authState.isLoading,
+          onPressed: canSubmit
+              ? () => ref.read(authStateProvider.notifier).login(
+                    email: _emailController.text,
+                    password: _passwordController.text,
+                  )
+              : null,
+        ),
+        const SizedBox(height: 16),
+        AuthLink(
+          key: const Key('login_verify_email_button'),
+          label: 'Verify email',
+          onTap: () => context.go('/verify-email'),
+        ),
+      ],
     );
   }
 }
