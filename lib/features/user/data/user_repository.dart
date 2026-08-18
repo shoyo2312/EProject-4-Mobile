@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
-import 'package:tiktok_mobile/features/user/data/page_response.dart';
+import 'package:tiktok_mobile/core/network/page_response.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/data/user_remote_datasource.dart';
 
@@ -11,10 +11,11 @@ class UserRepository {
 
   // Profile creation happens asynchronously via Kafka right after
   // register/login, so GET /me can 404 with USER_PROFILE_NOT_FOUND for a
-  // short window. Retry lightly instead of surfacing a hard error
-  // (doc section 3.1).
+  // short window (doc section 3.1). On a first Google sign-in the consumer
+  // took 3.7s, well past the old 3 x 400ms budget, so the screen showed a
+  // hard error that a manual Retry then fixed. Keep retrying for ~7s.
   Future<UserProfileModel> getMyProfile() async {
-    const maxAttempts = 3;
+    const maxAttempts = 8;
     for (var attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         return await _remoteDatasource.getMyProfile();
@@ -26,7 +27,8 @@ class UserRepository {
         if (!isMissingProfile || attempt == maxAttempts) {
           throw exception;
         }
-        await Future<void>.delayed(const Duration(milliseconds: 400));
+        // 300, 500, 700 ... ms — quick on the happy path, ~7s total.
+        await Future<void>.delayed(Duration(milliseconds: 100 + attempt * 200));
       }
     }
     throw StateError('unreachable');

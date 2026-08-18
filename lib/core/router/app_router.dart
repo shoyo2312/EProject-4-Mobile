@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:tiktok_mobile/features/auth/presentation/add_email_screen.dart';
+import 'package:tiktok_mobile/features/auth/presentation/auth_options_screen.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/auth/presentation/forgot_password_screen.dart';
 import 'package:tiktok_mobile/features/auth/presentation/login_screen.dart';
 import 'package:tiktok_mobile/features/auth/presentation/register_screen.dart';
+import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/features/auth/presentation/reset_password_screen.dart';
+import 'package:tiktok_mobile/features/auth/presentation/social_link_screen.dart';
 import 'package:tiktok_mobile/features/auth/presentation/verify_email_screen.dart';
-import 'package:tiktok_mobile/features/feed/presentation/feed_screen.dart';
+import 'package:tiktok_mobile/features/shell/presentation/home_shell.dart';
 import 'package:tiktok_mobile/features/user/presentation/edit_profile_screen.dart';
 import 'package:tiktok_mobile/features/user/presentation/profile_screen.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_list_screen.dart';
@@ -17,11 +21,20 @@ import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 // with an unverified account) — excluded from the logged-in/out redirect.
 const _authRoutes = {
   '/login',
+  '/login/email',
   '/register',
+  '/register/email',
   '/verify-email',
   '/forgot-password',
   '/reset-password',
+  // Reached from a *failed* social login, so nobody is signed in yet.
+  '/social-link',
 };
+
+// The feed is the landing page for everyone, signed in or not, so it is the
+// one non-auth route a guest may open. Actions reached from it (commenting,
+// profile) still bounce to /login.
+const _guestRoutes = {..._authRoutes, '/feed'};
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -31,7 +44,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isLoggedIn = authState.valueOrNull != null;
       final isAuthRoute = _authRoutes.contains(state.matchedLocation);
 
-      if (!isLoggedIn && !isAuthRoute) return '/login';
+      if (!isLoggedIn && !_guestRoutes.contains(state.matchedLocation)) {
+        return '/login';
+      }
       if (isLoggedIn && isAuthRoute && state.matchedLocation != '/verify-email') {
         return '/feed';
       }
@@ -39,11 +54,28 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     },
     refreshListenable: _AuthStateListenable(ref),
     routes: [
-      GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
-      GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
+      // /login and /register are the provider pickers (email, Facebook,
+      // Google); the email forms live one level down.
+      GoRoute(path: '/login', builder: (_, _) => const LoginOptionsScreen()),
+      GoRoute(path: '/login/email', builder: (_, _) => const LoginScreen()),
+      GoRoute(path: '/register', builder: (_, _) => const RegisterOptionsScreen()),
+      GoRoute(path: '/register/email', builder: (_, _) => const RegisterScreen()),
       GoRoute(
         path: '/verify-email',
         builder: (_, state) => VerifyEmailScreen(email: state.extra as String?),
+      ),
+      // Deliberately not in _authRoutes: it is only reachable *after* a social
+      // login, so the logged-in redirect must leave it alone.
+      GoRoute(path: '/add-email', builder: (_, _) => const AddEmailScreen()),
+      // The challenge is passed as an object, never as a query parameter: it
+      // carries the provider token, which must not end up in a URL. Without
+      // one there is nothing to confirm — an app restart lands back at /login.
+      GoRoute(
+        path: '/social-link',
+        redirect: (_, state) =>
+            state.extra is SocialLinkRequired ? null : '/login',
+        builder: (_, state) =>
+            SocialLinkScreen(challenge: state.extra! as SocialLinkRequired),
       ),
       GoRoute(
         path: '/forgot-password',
@@ -53,7 +85,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/reset-password',
         builder: (_, state) => ResetPasswordScreen(email: state.extra as String?),
       ),
-      GoRoute(path: '/feed', builder: (_, _) => const FeedScreen()),
+      // The five tabs (feed, discover, create, inbox, you) live behind one
+      // route — the nav bar switches an IndexedStack, it does not navigate.
+      GoRoute(path: '/feed', builder: (_, _) => const HomeShell()),
       GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
       GoRoute(path: '/profile/edit', builder: (_, _) => const EditProfileScreen()),
       GoRoute(

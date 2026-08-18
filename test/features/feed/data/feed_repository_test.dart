@@ -8,43 +8,43 @@ import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 
 class MockFeedRemoteDatasource extends Mock implements FeedRemoteDatasource {}
 
+VideoModel makeVideo(String id) => VideoModel(
+      id: id,
+      userId: '123',
+      title: 'title $id',
+      hlsUrl: 'https://cdn.test/$id.m3u8',
+      status: VideoStatus.published,
+      visibility: VideoVisibility.public,
+      viewCount: 0,
+      likeCount: 0,
+      commentCount: 0,
+      createdAt: DateTime(2026, 8, 12),
+    );
+
 void main() {
   late MockFeedRemoteDatasource remoteDatasource;
   late FeedRepository repository;
-
-  const video = VideoModel(
-    id: 'v1',
-    url: 'https://example.com/v1.mp4',
-    thumbnailUrl: 'https://example.com/v1.jpg',
-    caption: 'hello',
-    username: 'jane',
-    likeCount: 10,
-    commentCount: 2,
-    shareCount: 1,
-    isLiked: false,
-    isSaved: false,
-  );
 
   setUp(() {
     remoteDatasource = MockFeedRemoteDatasource();
     repository = FeedRepository(remoteDatasource);
   });
 
-  test('fetchFeed returns items and cursor from the datasource', () async {
-    when(() => remoteDatasource.fetchFeed(cursor: null)).thenAnswer(
-      (_) async => const FeedPage(items: [video], nextCursor: 'cursor2'),
-    );
+  test('fetchFeed passes the page through from the datasource', () async {
+    final page = VideoPage(items: [makeVideo('v1')]);
+    when(() => remoteDatasource.fetchFeed(cursor: null, size: 20))
+        .thenAnswer((_) async => page);
 
     final result = await repository.fetchFeed();
 
-    expect(result.items, [video]);
-    expect(result.nextCursor, 'cursor2');
+    expect(result.items.map((v) => v.id), ['v1']);
+    expect(result.nextCursor, isNull);
   });
 
   test('fetchFeed converts a DioException into an AppException', () async {
-    when(() => remoteDatasource.fetchFeed(cursor: null)).thenThrow(
+    when(() => remoteDatasource.fetchFeed(cursor: null, size: 20)).thenThrow(
       DioException(
-        requestOptions: RequestOptions(path: '/feed'),
+        requestOptions: RequestOptions(path: '/videos/feed'),
         type: DioExceptionType.connectionError,
       ),
     );
@@ -52,12 +52,24 @@ void main() {
     expect(() => repository.fetchFeed(), throwsA(isA<NetworkException>()));
   });
 
-  test('toggleLike returns the updated video', () async {
-    final liked = video.copyWith(isLiked: true, likeCount: 11);
-    when(() => remoteDatasource.toggleLike('v1')).thenAnswer((_) async => liked);
+  test('deleteVideo surfaces NOT_VIDEO_OWNER as a ServerException', () async {
+    when(() => remoteDatasource.deleteVideo('v1')).thenThrow(
+      DioException(
+        requestOptions: RequestOptions(path: '/videos/v1'),
+        response: Response(
+          requestOptions: RequestOptions(path: '/videos/v1'),
+          statusCode: 403,
+          data: {'success': false, 'code': 'NOT_VIDEO_OWNER', 'message': 'nope'},
+        ),
+        type: DioExceptionType.badResponse,
+      ),
+    );
 
-    final result = await repository.toggleLike('v1');
-
-    expect(result, liked);
+    expect(
+      () => repository.deleteVideo('v1'),
+      throwsA(
+        isA<ServerException>().having((e) => e.code, 'code', 'NOT_VIDEO_OWNER'),
+      ),
+    );
   });
 }

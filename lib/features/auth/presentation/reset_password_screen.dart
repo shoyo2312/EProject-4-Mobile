@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
+import 'package:tiktok_mobile/features/auth/presentation/widgets/auth_ui.dart';
 
 class ResetPasswordScreen extends ConsumerStatefulWidget {
   const ResetPasswordScreen({super.key, this.email});
@@ -28,18 +29,6 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
     super.dispose();
   }
 
-  InputDecoration _fieldDecoration(ColorScheme colorScheme, String label) {
-    return InputDecoration(
-      labelText: label,
-      filled: true,
-      fillColor: colorScheme.surfaceContainerHighest,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide.none,
-      ),
-    );
-  }
-
   Future<void> _submit() async {
     setState(() {
       _loading = true;
@@ -51,6 +40,10 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
             otp: _otpController.text,
             newPassword: _newPasswordController.text,
           );
+      // Every session died server-side, this device included, and the
+      // repository already dropped the local tokens — drop the cached user
+      // too so the router stops treating us as signed in (auth doc 3.9).
+      ref.invalidate(authStateProvider);
       if (mounted) context.go('/login');
     } on AppException catch (e) {
       setState(() => _error = e.message);
@@ -61,69 +54,44 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'Reset password',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 32),
-              TextField(
-                key: const Key('reset_email_field'),
-                controller: _emailController,
-                decoration: _fieldDecoration(colorScheme, 'Email'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                key: const Key('reset_otp_field'),
-                controller: _otpController,
-                keyboardType: TextInputType.number,
-                decoration: _fieldDecoration(colorScheme, '6-digit code'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                key: const Key('reset_new_password_field'),
-                controller: _newPasswordController,
-                obscureText: true,
-                decoration: _fieldDecoration(colorScheme, 'New password'),
-              ),
-              const SizedBox(height: 20),
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(_error!, style: const TextStyle(color: Colors.red)),
-                ),
-              ElevatedButton(
-                key: const Key('reset_submit_button'),
-                style: ElevatedButton.styleFrom(
-                  shape: const StadiumBorder(),
-                  backgroundColor: colorScheme.primary,
-                  foregroundColor: colorScheme.onPrimary,
-                  minimumSize: const Size(double.infinity, 52),
-                ),
-                onPressed: _loading ? null : _submit,
-                child: _loading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Reset password', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
+    return AuthScaffold(
+      onBack: () => context.go('/login'),
+      children: [
+        const SizedBox(height: 16),
+        const AuthTitle('Reset password'),
+        const SizedBox(height: 28),
+        AuthField(
+          key: const Key('reset_email_field'),
+          controller: _emailController,
+          hint: 'Email address',
+          keyboardType: TextInputType.emailAddress,
         ),
-      ),
+        const SizedBox(height: 12),
+        AuthField.otp(
+          key: const Key('reset_otp_field'),
+          controller: _otpController,
+        ),
+        const SizedBox(height: 12),
+        AuthField(
+          key: const Key('reset_new_password_field'),
+          controller: _newPasswordController,
+          hint: 'New password',
+          obscureText: true,
+        ),
+        const SizedBox(height: 12),
+        const AuthHelperText(
+          'Resetting the password signs you out everywhere, including this '
+          'device.',
+        ),
+        const SizedBox(height: 28),
+        if (_error != null) AuthErrorText(_error!),
+        AuthPrimaryButton(
+          key: const Key('reset_submit_button'),
+          label: 'Reset password',
+          loading: _loading,
+          onPressed: _submit,
+        ),
+      ],
     );
   }
 }

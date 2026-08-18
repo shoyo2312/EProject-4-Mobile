@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
-import 'package:tiktok_mobile/features/user/data/page_response.dart';
+import 'package:tiktok_mobile/core/network/page_response.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/data/user_remote_datasource.dart';
 import 'package:tiktok_mobile/features/user/data/user_repository.dart';

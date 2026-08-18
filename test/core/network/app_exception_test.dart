@@ -30,6 +30,26 @@ void main() {
       expect(result, isA<UnauthorizedException>());
     });
 
+    test('keeps a 401 with a business error code as ServerException', () {
+      final dioException = DioException(
+        requestOptions: RequestOptions(path: '/auth/oauth/facebook'),
+        response: Response(
+          requestOptions: RequestOptions(path: '/auth/oauth/facebook'),
+          statusCode: 401,
+          data: {
+            'code': 'INVALID_SOCIAL_TOKEN',
+            'message': 'Social login token is invalid or expired',
+          },
+        ),
+        type: DioExceptionType.badResponse,
+      );
+
+      final result = AppException.fromDioException(dioException) as ServerException;
+
+      expect(result.code, 'INVALID_SOCIAL_TOKEN');
+      expect(result.message, 'Social login token is invalid or expired');
+    });
+
     test('maps other bad responses to ServerException with status code', () {
       final dioException = DioException(
         requestOptions: RequestOptions(path: '/feed'),

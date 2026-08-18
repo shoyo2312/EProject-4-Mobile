@@ -27,7 +27,12 @@ mixin _$CommentModel {
   String get username => throw _privateConstructorUsedError;
   String? get avatarUrl => throw _privateConstructorUsedError;
   String get text => throw _privateConstructorUsedError;
-  DateTime get createdAt => throw _privateConstructorUsedError;
+  DateTime get createdAt =>
+      throw _privateConstructorUsedError; // Replies are one level deep — a reply never has replies of its own.
+  // The live API sends neither field yet, hence the defaults.
+  List<CommentModel> get replies => throw _privateConstructorUsedError;
+  int get replyCount => throw _privateConstructorUsedError;
+  int get likeCount => throw _privateConstructorUsedError;
 
   /// Serializes this CommentModel to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -54,6 +59,9 @@ abstract class $CommentModelCopyWith<$Res> {
     String? avatarUrl,
     String text,
     DateTime createdAt,
+    List<CommentModel> replies,
+    int replyCount,
+    int likeCount,
   });
 }
 
@@ -79,6 +87,9 @@ class _$CommentModelCopyWithImpl<$Res, $Val extends CommentModel>
     Object? avatarUrl = freezed,
     Object? text = null,
     Object? createdAt = null,
+    Object? replies = null,
+    Object? replyCount = null,
+    Object? likeCount = null,
   }) {
     return _then(
       _value.copyWith(
@@ -110,6 +121,18 @@ class _$CommentModelCopyWithImpl<$Res, $Val extends CommentModel>
                 ? _value.createdAt
                 : createdAt // ignore: cast_nullable_to_non_nullable
                       as DateTime,
+            replies: null == replies
+                ? _value.replies
+                : replies // ignore: cast_nullable_to_non_nullable
+                      as List<CommentModel>,
+            replyCount: null == replyCount
+                ? _value.replyCount
+                : replyCount // ignore: cast_nullable_to_non_nullable
+                      as int,
+            likeCount: null == likeCount
+                ? _value.likeCount
+                : likeCount // ignore: cast_nullable_to_non_nullable
+                      as int,
           )
           as $Val,
     );
@@ -133,6 +156,9 @@ abstract class _$$CommentModelImplCopyWith<$Res>
     String? avatarUrl,
     String text,
     DateTime createdAt,
+    List<CommentModel> replies,
+    int replyCount,
+    int likeCount,
   });
 }
 
@@ -157,6 +183,9 @@ class __$$CommentModelImplCopyWithImpl<$Res>
     Object? avatarUrl = freezed,
     Object? text = null,
     Object? createdAt = null,
+    Object? replies = null,
+    Object? replyCount = null,
+    Object? likeCount = null,
   }) {
     return _then(
       _$CommentModelImpl(
@@ -188,6 +217,18 @@ class __$$CommentModelImplCopyWithImpl<$Res>
             ? _value.createdAt
             : createdAt // ignore: cast_nullable_to_non_nullable
                   as DateTime,
+        replies: null == replies
+            ? _value._replies
+            : replies // ignore: cast_nullable_to_non_nullable
+                  as List<CommentModel>,
+        replyCount: null == replyCount
+            ? _value.replyCount
+            : replyCount // ignore: cast_nullable_to_non_nullable
+                  as int,
+        likeCount: null == likeCount
+            ? _value.likeCount
+            : likeCount // ignore: cast_nullable_to_non_nullable
+                  as int,
       ),
     );
   }
@@ -204,7 +245,10 @@ class _$CommentModelImpl implements _CommentModel {
     this.avatarUrl,
     required this.text,
     required this.createdAt,
-  });
+    final List<CommentModel> replies = const <CommentModel>[],
+    this.replyCount = 0,
+    this.likeCount = 0,
+  }) : _replies = replies;
 
   factory _$CommentModelImpl.fromJson(Map<String, dynamic> json) =>
       _$$CommentModelImplFromJson(json);
@@ -223,10 +267,29 @@ class _$CommentModelImpl implements _CommentModel {
   final String text;
   @override
   final DateTime createdAt;
+  // Replies are one level deep — a reply never has replies of its own.
+  // The live API sends neither field yet, hence the defaults.
+  final List<CommentModel> _replies;
+  // Replies are one level deep — a reply never has replies of its own.
+  // The live API sends neither field yet, hence the defaults.
+  @override
+  @JsonKey()
+  List<CommentModel> get replies {
+    if (_replies is EqualUnmodifiableListView) return _replies;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_replies);
+  }
+
+  @override
+  @JsonKey()
+  final int replyCount;
+  @override
+  @JsonKey()
+  final int likeCount;
 
   @override
   String toString() {
-    return 'CommentModel(id: $id, videoId: $videoId, userId: $userId, username: $username, avatarUrl: $avatarUrl, text: $text, createdAt: $createdAt)';
+    return 'CommentModel(id: $id, videoId: $videoId, userId: $userId, username: $username, avatarUrl: $avatarUrl, text: $text, createdAt: $createdAt, replies: $replies, replyCount: $replyCount, likeCount: $likeCount)';
   }
 
   @override
@@ -243,7 +306,12 @@ class _$CommentModelImpl implements _CommentModel {
                 other.avatarUrl == avatarUrl) &&
             (identical(other.text, text) || other.text == text) &&
             (identical(other.createdAt, createdAt) ||
-                other.createdAt == createdAt));
+                other.createdAt == createdAt) &&
+            const DeepCollectionEquality().equals(other._replies, _replies) &&
+            (identical(other.replyCount, replyCount) ||
+                other.replyCount == replyCount) &&
+            (identical(other.likeCount, likeCount) ||
+                other.likeCount == likeCount));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -257,6 +325,9 @@ class _$CommentModelImpl implements _CommentModel {
     avatarUrl,
     text,
     createdAt,
+    const DeepCollectionEquality().hash(_replies),
+    replyCount,
+    likeCount,
   );
 
   /// Create a copy of CommentModel
@@ -282,6 +353,9 @@ abstract class _CommentModel implements CommentModel {
     final String? avatarUrl,
     required final String text,
     required final DateTime createdAt,
+    final List<CommentModel> replies,
+    final int replyCount,
+    final int likeCount,
   }) = _$CommentModelImpl;
 
   factory _CommentModel.fromJson(Map<String, dynamic> json) =
@@ -300,7 +374,14 @@ abstract class _CommentModel implements CommentModel {
   @override
   String get text;
   @override
-  DateTime get createdAt;
+  DateTime get createdAt; // Replies are one level deep — a reply never has replies of its own.
+  // The live API sends neither field yet, hence the defaults.
+  @override
+  List<CommentModel> get replies;
+  @override
+  int get replyCount;
+  @override
+  int get likeCount;
 
   /// Create a copy of CommentModel
   /// with the given fields replaced by the non-null parameter values.

@@ -1,5 +1,6 @@
 import 'package:tiktok_mobile/core/network/api_client.dart';
 import 'package:tiktok_mobile/core/network/api_response.dart';
+import 'package:tiktok_mobile/features/auth/data/social_login_response.dart';
 import 'package:tiktok_mobile/features/auth/data/token_response.dart';
 import 'package:tiktok_mobile/features/auth/data/user_model.dart';
 
@@ -29,6 +30,43 @@ class AuthRemoteDatasource {
       data: {'usernameOrEmail': usernameOrEmail, 'password': password},
     );
     return _unwrap(response.data!, TokenResponse.fromJson);
+  }
+
+  /// Token exchange: the provider's SDK already signed the user in, this trades
+  /// its token for a session of ours. One endpoint per provider — an unknown
+  /// provider is a 404 from the router, not a parse error.
+  Future<SocialLoginResponse> oauth(String provider, String token) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/auth/oauth/$provider',
+      data: {'token': token},
+    );
+    return _unwrap(response.data!, SocialLoginResponse.fromJson);
+  }
+
+  /// Answers a 409 SOCIAL_LINK_VERIFICATION_REQUIRED: the same provider token
+  /// plus the code the server mailed to the address. Both are required — the
+  /// token is verified again here, so the code on its own proves only that
+  /// someone can read the mailbox.
+  ///
+  /// Returns a session for the *existing* account, with the provider now
+  /// linked to it. No second account is created.
+  Future<SocialLoginResponse> linkOauth(
+    String provider,
+    String token,
+    String otp,
+  ) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/auth/oauth/$provider/link',
+      data: {'token': token, 'otp': otp},
+    );
+    return _unwrap(response.data!, SocialLoginResponse.fromJson);
+  }
+
+  /// Binds an address to an account created through a provider. Requires the
+  /// access token from the social login, and only starts the claim — the
+  /// address is not usable until the OTP that follows is verified.
+  Future<void> addEmail(String email) {
+    return _apiClient.post<void>('/auth/email', data: {'email': email});
   }
 
   Future<TokenResponse> refresh(String refreshToken) async {

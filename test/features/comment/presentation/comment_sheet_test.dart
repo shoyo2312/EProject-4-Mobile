@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:tiktok_mobile/features/auth/data/user_model.dart';
+import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_model.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_repository.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_remote_datasource.dart';
@@ -37,7 +41,11 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [commentRepositoryProvider.overrideWithValue(commentRepository)],
+        overrides: [
+          commentRepositoryProvider.overrideWithValue(commentRepository),
+          // Signed-out viewers get a "log in to comment" prompt, not the input.
+          authStateProvider.overrideWith(_SignedInAuthState.new),
+        ],
         child: const MaterialApp(home: Scaffold(body: CommentSheet(videoId: 'v1'))),
       ),
     );
@@ -52,4 +60,17 @@ void main() {
 
     verify(() => commentRepository.postComment('v1', 'new one')).called(1);
   });
+}
+
+class _SignedInAuthState extends AuthState {
+  @override
+  FutureOr<UserModel?> build() => UserModel(
+        id: '1',
+        username: 'jane',
+        email: 'jane@test.com',
+        role: UserRole.user,
+        status: UserStatus.active,
+        emailVerified: true,
+        createdAt: DateTime(2026, 1, 1),
+      );
 }

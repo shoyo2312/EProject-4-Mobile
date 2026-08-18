@@ -23,6 +23,7 @@ void main() {
     email: 'jane@test.com',
     role: UserRole.user,
     status: UserStatus.active,
+    emailVerified: true,
     createdAt: DateTime(2026, 1, 1),
   );
 

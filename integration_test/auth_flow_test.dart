@@ -25,13 +25,12 @@ void main() {
     // Starts signed out -> redirected to /login.
     expect(find.text('Log in to TikTok'), findsOneWidget);
 
-    // "Register" is a TextSpan tail inside a single Text.rich("Don't have
-    // an account? Register") widget; find.text only matches the whole
-    // flattened string, and its recognizer only hit-tests its own glyphs —
-    // so tap near the right edge of the widget, where "Register" renders.
-    final registerLinkRect =
-        tester.getRect(find.textContaining('Register', findRichText: true));
-    await tester.tapAt(Offset(registerLinkRect.right - 20, registerLinkRect.center.dy));
+    await tester.tap(find.text(' Sign up'));
+    await tester.pumpAndSettle();
+
+    // /register is the provider picker (email / Facebook / Google) — the
+    // email form is one tap further in.
+    await tester.tap(find.byKey(const Key('register_option_email')));
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byKey(const Key('register_username_field')), username);
@@ -78,6 +77,9 @@ void main() {
     app.main();
     await tester.pumpAndSettle();
     expect(find.text('Log in to TikTok'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('login_option_email')));
+    await tester.pumpAndSettle();
 
     await tester.enterText(find.byKey(const Key('login_email_field')), email);
     await tester.enterText(find.byKey(const Key('login_password_field')), password);

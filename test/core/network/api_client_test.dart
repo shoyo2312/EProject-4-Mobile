@@ -88,12 +88,17 @@ void main() {
   });
 
   test('clears tokens and rethrows when the refresh call also fails', () async {
-    when(() => tokenStorage.readAccessToken()).thenAnswer((_) async => 'expired-token');
+    String? currentAccessToken = 'expired-token';
+    when(() => tokenStorage.readAccessToken())
+        .thenAnswer((_) async => currentAccessToken);
     when(() => tokenStorage.readRefreshToken()).thenAnswer((_) async => 'refresh-token');
-    when(() => tokenStorage.clear()).thenAnswer((_) async {});
+    when(() => tokenStorage.clear()).thenAnswer((_) async {
+      currentAccessToken = null;
+    });
 
     apiClient.dio.httpClientAdapter = _ScriptedAdapter({
-      '/protected': [() => _jsonResponse(401, {})],
+      // 401 again for a guest — a genuinely protected endpoint.
+      '/protected': [() => _jsonResponse(401, {}), () => _jsonResponse(401, {})],
       '/auth/refresh': [() => _jsonResponse(401, {})],
     });
 
@@ -102,6 +107,34 @@ void main() {
       throwsA(isA<DioException>()),
     );
     verify(() => tokenStorage.clear()).called(1);
+  });
+
+  test('retries anonymously when refresh fails and the path serves guests',
+      () async {
+    String? currentAccessToken = 'expired-token';
+    when(() => tokenStorage.readAccessToken())
+        .thenAnswer((_) async => currentAccessToken);
+    when(() => tokenStorage.readRefreshToken()).thenAnswer((_) async => 'refresh-token');
+    when(() => tokenStorage.clear()).thenAnswer((_) async {
+      currentAccessToken = null;
+    });
+
+    final adapter = _ScriptedAdapter({
+      '/videos/feed': [
+        () => _jsonResponse(401, {}),
+        () => _jsonResponse(200, {'ok': true}),
+      ],
+      '/auth/refresh': [() => _jsonResponse(401, {})],
+    });
+    apiClient.dio.httpClientAdapter = adapter;
+
+    final response = await apiClient.get<Map<String, dynamic>>('/videos/feed');
+
+    expect(response.statusCode, 200);
+    expect(
+      adapter.headersByPath['/videos/feed']!.last.containsKey('Authorization'),
+      false,
+    );
   });
 }
 

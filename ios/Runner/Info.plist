@@ -2,6 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- DEV ONLY: the backend runs over plain HTTP on the LAN, which App
+	     Transport Security blocks by default. Remove before a production
+	     build - these keys weaken transport security. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Connects to the development API server running on your computer.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -24,6 +34,50 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+
+	<!-- ─── Google Sign-In ─────────────────────────────────────────────
+	     GIDClientID       : iOS client ID (console.cloud.google.com → Credentials → iOS)
+	     GIDServerClientID : WEB client ID - bắt buộc, thiếu thì idToken = null
+	-->
+	<key>GIDClientID</key>
+	<string>581480201411-2dc5mehvqmj7q4esn2k7oudsfh7b118l.apps.googleusercontent.com</string>
+	<key>GIDServerClientID</key>
+	<string>581480201411-pr5o1eeld820c30u2enb3nonbk68fihm.apps.googleusercontent.com</string>
+
+	<!-- ─── Facebook Login ─────────────────────────────────────────────
+	     FacebookAppID      : Cài đặt → Cơ bản → ID ứng dụng
+	     FacebookClientToken: Cài đặt ứng dụng → Nâng cao → Mã khách hàng
+	     KHÔNG đặt App Secret ở đây - secret chỉ nằm ở backend .env.
+	-->
+	<key>FacebookAppID</key>
+	<string>1020146147503519</string>
+	<key>FacebookClientToken</key>
+	<string>e7db5738df65b0d004967d14b7201384</string>
+	<key>FacebookDisplayName</key>
+	<string>Tiktok Mobile</string>
+
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<!-- iOS client ID viết ngược: 1234-abc.apps.googleusercontent.com
+			     → com.googleusercontent.apps.1234-abc -->
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.581480201411-2dc5mehvqmj7q4esn2k7oudsfh7b118l</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>fb1020146147503519</string>
+			</array>
+		</dict>
+	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>fbapi</string>
+		<string>fb-messenger-share-api</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

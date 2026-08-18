@@ -43,6 +43,7 @@ void main() {
               email: 'jane@test.com',
               role: UserRole.user,
               status: UserStatus.active,
+              emailVerified: true,
               createdAt: DateTime(2026, 1, 1),
             ));
 
@@ -50,6 +51,8 @@ void main() {
 
     await tester.enterText(find.byKey(const Key('login_email_field')), 'jane@test.com');
     await tester.enterText(find.byKey(const Key('login_password_field')), 'secret12');
+    // The button only turns actionable on the frame after the last keystroke.
+    await tester.pump();
     await tester.tap(find.byKey(const Key('login_submit_button')));
     await tester.pumpAndSettle();
 
@@ -64,6 +67,7 @@ void main() {
 
     await tester.enterText(find.byKey(const Key('login_email_field')), 'jane@test.com');
     await tester.enterText(find.byKey(const Key('login_password_field')), 'wrong');
+    await tester.pump();
     await tester.tap(find.byKey(const Key('login_submit_button')));
     await tester.pumpAndSettle();
 
