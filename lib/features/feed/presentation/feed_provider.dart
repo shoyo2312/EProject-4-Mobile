@@ -15,10 +15,9 @@ FeedRepository feedRepository(Ref ref) =>
 
 /// Appends [next] to [current], dropping ids already on screen.
 ///
-/// The feed is offset-paginated over a list that grows at the front, so a
-/// video uploaded between two page loads pushes older rows down and they come
-/// back a second time on the following page. There is no cursor API yet
-/// (video doc section 2), so de-duplication has to happen here.
+/// `/videos/users/{userId}` is offset-paginated over a list that grows at the
+/// front, so a video uploaded between two page loads pushes older rows down
+/// and they come back a second time on the following page (video doc 2).
 List<VideoModel> _appendDistinct(List<VideoModel> current, List<VideoModel> next) {
   final seen = current.map((v) => v.id).toSet();
   return [...current, ...next.where((v) => seen.add(v.id))];
@@ -26,24 +25,23 @@ List<VideoModel> _appendDistinct(List<VideoModel> current, List<VideoModel> next
 
 @riverpod
 class FeedNotifier extends _$FeedNotifier {
-  int _page = 0;
+  String? _cursor;
   bool _last = false;
 
   @override
   FutureOr<List<VideoModel>> build() async {
     final page = await ref.read(feedRepositoryProvider).fetchFeed();
-    _page = 0;
-    _last = page.last;
-    return page.content;
+    _cursor = page.nextCursor;
+    _last = page.nextCursor == null;
+    return page.items;
   }
 
   Future<void> loadMore() async {
     if (_last) return;
-    final nextPage = _page + 1;
-    final page = await ref.read(feedRepositoryProvider).fetchFeed(page: nextPage);
-    _page = nextPage;
-    _last = page.last;
-    state = AsyncData(_appendDistinct(state.value ?? [], page.content));
+    final page = await ref.read(feedRepositoryProvider).fetchFeed(cursor: _cursor);
+    _cursor = page.nextCursor;
+    _last = page.nextCursor == null;
+    state = AsyncData(_appendDistinct(state.value ?? [], page.items));
   }
 }
 

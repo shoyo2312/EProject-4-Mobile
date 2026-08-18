@@ -3,6 +3,16 @@ import 'package:tiktok_mobile/core/network/api_response.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 
+/// One `/feed` page. Cursor pagination: [nextCursor] is an opaque server
+/// string — pass it back verbatim, never parse or display it. `null` means the
+/// feed is exhausted; that is the only stop condition (video doc 3.2).
+class VideoPage {
+  const VideoPage({required this.items, this.nextCursor});
+
+  final List<VideoModel> items;
+  final String? nextCursor;
+}
+
 /// video-service (`/api/v1/videos`). GETs are public, but sending the token
 /// anyway matters: without it the server treats the caller as a guest and
 /// hides their own PRIVATE/PROCESSING videos with no error at all (video doc
@@ -13,13 +23,18 @@ class FeedRemoteDatasource {
   final ApiClient _apiClient;
 
   /// PUBLISHED + PUBLIC videos only, newest first. Ordering is fixed
-  /// server-side, so there is no `sort` parameter to pass.
-  Future<PageResponse<VideoModel>> fetchFeed({int page = 0, int size = 20}) async {
+  /// server-side, so there is no `sort` parameter to pass. Unlike
+  /// [getUserVideos] this is cursor-paginated: no `page`/`totalPages`.
+  Future<VideoPage> fetchFeed({String? cursor, int size = 20}) async {
     final response = await _apiClient.get<Map<String, dynamic>>(
       '/videos/feed',
-      queryParameters: {'page': page, 'size': size},
+      queryParameters: {'cursor': ?cursor, 'size': size},
     );
-    return _unwrapPage(response.data!);
+    final body = response.data!['data'] as Map<String, dynamic>;
+    final items = (body['items'] as List)
+        .map((e) => VideoModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+    return VideoPage(items: items, nextCursor: body['nextCursor'] as String?);
   }
 
   /// Every non-deleted video when [userId] is the caller's own — PROCESSING,

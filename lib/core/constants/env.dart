@@ -21,4 +21,21 @@ class Env {
     defaultValue:
         '581480201411-pr5o1eeld820c30u2enb3nonbk68fihm.apps.googleusercontent.com',
   );
+
+  /// The iOS/macOS OAuth client ID. Android and iOS read it from their own
+  /// platform config (google-services.json / Info.plist); on **macOS** there is
+  /// no such file, so it has to be handed to `initialize()` or sign-in fails
+  /// before any window opens. Empty means "let the platform config decide".
+  static const String googleClientId = String.fromEnvironment(
+    'GOOGLE_CLIENT_ID',
+  );
+
+  /// Same value as `facebook_app_id` in
+  /// android/app/src/main/res/values/strings.xml. Android and iOS read it from
+  /// their manifests; desktop has none, so `webAndDesktopInitialize` needs it
+  /// from here.
+  static const String facebookAppId = String.fromEnvironment(
+    'FACEBOOK_APP_ID',
+    defaultValue: '1020146147503519',
+  );
 }

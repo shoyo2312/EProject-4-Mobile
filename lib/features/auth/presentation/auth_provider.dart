@@ -65,6 +65,31 @@ class AuthState extends _$AuthState {
   Future<bool> loginWithFacebook() =>
       _social((repo) => repo.loginWithFacebook());
 
+  /// Finishes a login that came back as [SocialLinkRequired]: the same provider
+  /// token, plus the code the server mailed to the address. Signs in as the
+  /// account that already held it.
+  ///
+  /// Deliberately not routed through [_social]: a wrong code must not touch
+  /// [state]. Every write here wakes the router's refresh listenable, which
+  /// re-resolves /social-link — and on a re-resolve the challenge in
+  /// `state.extra` is gone, so the screen would be replaced by /login, taking
+  /// with it a provider token that cannot be re-obtained without sending the
+  /// user through the provider again. The screen drives its own spinner and
+  /// shows its own error, so there is nothing an AsyncLoading here would feed.
+  Future<bool> confirmSocialLink({
+    required String provider,
+    required String token,
+    required String otp,
+  }) async {
+    final outcome = await ref.read(authRepositoryProvider).confirmSocialLink(
+          provider: provider,
+          token: token,
+          otp: otp,
+        );
+    state = AsyncData(outcome.user);
+    return outcome.requiresEmail;
+  }
+
   Future<bool> _social(
     Future<SocialLoginOutcome> Function(AuthRepository repo) call,
   ) async {

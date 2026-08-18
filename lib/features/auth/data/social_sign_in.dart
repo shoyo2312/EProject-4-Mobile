@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:tiktok_mobile/core/constants/env.dart';
@@ -23,14 +25,22 @@ class SocialSignInException implements Exception {
 /// is trusted — the backend re-verifies the token with Google/Facebook.
 class SocialSignIn {
   bool _googleReady = false;
+  bool _facebookReady = false;
+
+  /// macOS/Windows/Linux ship no native manifest, so both SDKs need the app
+  /// identifiers handed to them at runtime instead.
+  static bool get _isDesktop =>
+      Platform.isMacOS || Platform.isWindows || Platform.isLinux;
 
   Future<String> googleIdToken() async {
     try {
       if (!_googleReady) {
         // iOS also reads GIDClientID/GIDServerClientID from Info.plist; passing
         // serverClientId here is what makes Android emit an idToken at all.
-        await GoogleSignIn.instance
-            .initialize(serverClientId: Env.googleServerClientId);
+        await GoogleSignIn.instance.initialize(
+          clientId: Env.googleClientId.isEmpty ? null : Env.googleClientId,
+          serverClientId: Env.googleServerClientId,
+        );
         _googleReady = true;
       }
       final account = await GoogleSignIn.instance.authenticate();
@@ -51,11 +61,26 @@ class SocialSignIn {
   }
 
   Future<String> facebookAccessToken() async {
+    if (_isDesktop && !_facebookReady) {
+      // Without this the desktop plugin asserts on an empty app id before it
+      // ever opens the login window.
+      await FacebookAuth.instance.webAndDesktopInitialize(
+        appId: Env.facebookAppId,
+        cookie: true,
+        xfbml: true,
+        version: 'v18.0',
+      );
+      _facebookReady = true;
+    }
     // Facebook grants `email` only if asked, and even then the user can decline
     // it — the account then arrives with requiresEmail: true, which is a
     // supported outcome rather than a failure.
+    // loginTracking defaults to `limited`, which on iOS hands back an OIDC
+    // token instead of a Graph access token — /debug_token rejects it and the
+    // backend answers "Social login token is invalid or expired".
     final result = await FacebookAuth.instance.login(
       permissions: const ['public_profile', 'email'],
+      loginTracking: LoginTracking.enabled,
     );
     switch (result.status) {
       case LoginStatus.success:

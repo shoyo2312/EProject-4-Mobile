@@ -9,9 +9,9 @@ class FeedRepository {
 
   final FeedRemoteDatasource _remoteDatasource;
 
-  Future<PageResponse<VideoModel>> fetchFeed({int page = 0, int size = 20}) async {
+  Future<VideoPage> fetchFeed({String? cursor, int size = 20}) async {
     try {
-      return await _remoteDatasource.fetchFeed(page: page, size: size);
+      return await _remoteDatasource.fetchFeed(cursor: cursor, size: size);
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }

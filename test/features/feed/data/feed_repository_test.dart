@@ -2,7 +2,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
-import 'package:tiktok_mobile/core/network/page_response.dart';
 import 'package:tiktok_mobile/features/feed/data/feed_remote_datasource.dart';
 import 'package:tiktok_mobile/features/feed/data/feed_repository.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
@@ -32,24 +31,18 @@ void main() {
   });
 
   test('fetchFeed passes the page through from the datasource', () async {
-    final page = PageResponse<VideoModel>(
-      content: [makeVideo('v1')],
-      size: 20,
-      number: 0,
-      totalElements: 1,
-      totalPages: 1,
-    );
-    when(() => remoteDatasource.fetchFeed(page: 0, size: 20))
+    final page = VideoPage(items: [makeVideo('v1')]);
+    when(() => remoteDatasource.fetchFeed(cursor: null, size: 20))
         .thenAnswer((_) async => page);
 
     final result = await repository.fetchFeed();
 
-    expect(result.content.map((v) => v.id), ['v1']);
-    expect(result.last, isTrue);
+    expect(result.items.map((v) => v.id), ['v1']);
+    expect(result.nextCursor, isNull);
   });
 
   test('fetchFeed converts a DioException into an AppException', () async {
-    when(() => remoteDatasource.fetchFeed(page: 0, size: 20)).thenThrow(
+    when(() => remoteDatasource.fetchFeed(cursor: null, size: 20)).thenThrow(
       DioException(
         requestOptions: RequestOptions(path: '/videos/feed'),
         type: DioExceptionType.connectionError,

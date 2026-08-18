@@ -7,9 +7,8 @@ import 'package:mocktail/mocktail.dart';
 import 'package:tiktok_mobile/core/router/app_router.dart';
 import 'package:tiktok_mobile/features/auth/data/user_model.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
-import 'package:tiktok_mobile/core/network/page_response.dart';
+import 'package:tiktok_mobile/features/feed/data/feed_remote_datasource.dart';
 import 'package:tiktok_mobile/features/feed/data/feed_repository.dart';
-import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 import 'package:tiktok_mobile/features/feed/presentation/feed_provider.dart';
 
 class MockFeedRepository extends Mock implements FeedRepository {}
@@ -19,13 +18,7 @@ void main() {
       (tester) async {
     final feedRepository = MockFeedRepository();
     when(() => feedRepository.fetchFeed()).thenAnswer(
-      (_) async => const PageResponse<VideoModel>(
-        content: [],
-        size: 20,
-        number: 0,
-        totalElements: 0,
-        totalPages: 0,
-      ),
+      (_) async => const VideoPage(items: []),
     );
     final container = ProviderContainer(
       overrides: [
@@ -74,13 +67,7 @@ void main() {
   testWidgets('redirects to /feed when signed in and /login is requested', (tester) async {
     final feedRepository = MockFeedRepository();
     when(() => feedRepository.fetchFeed()).thenAnswer(
-      (_) async => const PageResponse<VideoModel>(
-        content: [],
-        size: 20,
-        number: 0,
-        totalElements: 0,
-        totalPages: 0,
-      ),
+      (_) async => const VideoPage(items: []),
     );
     final container = ProviderContainer(
       overrides: [

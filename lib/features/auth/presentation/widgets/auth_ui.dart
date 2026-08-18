@@ -103,7 +103,21 @@ class AuthField extends StatefulWidget {
     required this.hint,
     this.obscureText = false,
     this.keyboardType,
-  });
+  }) : inputFormatters = null;
+
+  /// The one-time code field, identical everywhere it appears (verify email,
+  /// reset password, link a provider). The server takes `\d{6}` and nothing
+  /// else, so letters are a round trip that can only come back 400 — and the
+  /// number keyboard is a hint, not a rule: a paste or a hardware keyboard
+  /// walks straight past it.
+  AuthField.otp({super.key, required this.controller})
+      : hint = '6-digit code',
+        obscureText = false,
+        keyboardType = TextInputType.number,
+        inputFormatters = [
+          FilteringTextInputFormatter.digitsOnly,
+          LengthLimitingTextInputFormatter(6),
+        ];
 
   final TextEditingController controller;
   final String hint;
@@ -112,6 +126,7 @@ class AuthField extends StatefulWidget {
   /// appears to reveal it.
   final bool obscureText;
   final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   State<AuthField> createState() => _AuthFieldState();
@@ -130,6 +145,7 @@ class _AuthFieldState extends State<AuthField> {
       controller: widget.controller,
       obscureText: _obscured,
       keyboardType: widget.keyboardType,
+      inputFormatters: widget.inputFormatters,
       cursorColor: AuthColors.accent,
       style: work(size: 15, height: 1.2, color: AuthColors.ink),
       decoration: InputDecoration(

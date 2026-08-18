@@ -35,16 +35,29 @@ class AuthRemoteDatasource {
   /// Token exchange: the provider's SDK already signed the user in, this trades
   /// its token for a session of ours. One endpoint per provider — an unknown
   /// provider is a 404 from the router, not a parse error.
-  Future<SocialLoginResponse> oauthGoogle(String idToken) =>
-      _oauth('google', idToken);
-
-  Future<SocialLoginResponse> oauthFacebook(String accessToken) =>
-      _oauth('facebook', accessToken);
-
-  Future<SocialLoginResponse> _oauth(String provider, String token) async {
+  Future<SocialLoginResponse> oauth(String provider, String token) async {
     final response = await _apiClient.post<Map<String, dynamic>>(
       '/auth/oauth/$provider',
       data: {'token': token},
+    );
+    return _unwrap(response.data!, SocialLoginResponse.fromJson);
+  }
+
+  /// Answers a 409 SOCIAL_LINK_VERIFICATION_REQUIRED: the same provider token
+  /// plus the code the server mailed to the address. Both are required — the
+  /// token is verified again here, so the code on its own proves only that
+  /// someone can read the mailbox.
+  ///
+  /// Returns a session for the *existing* account, with the provider now
+  /// linked to it. No second account is created.
+  Future<SocialLoginResponse> linkOauth(
+    String provider,
+    String token,
+    String otp,
+  ) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/auth/oauth/$provider/link',
+      data: {'token': token, 'otp': otp},
     );
     return _unwrap(response.data!, SocialLoginResponse.fromJson);
   }

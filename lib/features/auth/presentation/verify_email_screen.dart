@@ -83,11 +83,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
           keyboardType: TextInputType.emailAddress,
         ),
         const SizedBox(height: 12),
-        AuthField(
+        AuthField.otp(
           key: const Key('verify_otp_field'),
           controller: _otpController,
-          hint: '6-digit code',
-          keyboardType: TextInputType.number,
         ),
         const SizedBox(height: 24),
         if (_error != null) AuthErrorText(_error!),

@@ -7,7 +7,9 @@ import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/auth/presentation/forgot_password_screen.dart';
 import 'package:tiktok_mobile/features/auth/presentation/login_screen.dart';
 import 'package:tiktok_mobile/features/auth/presentation/register_screen.dart';
+import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/features/auth/presentation/reset_password_screen.dart';
+import 'package:tiktok_mobile/features/auth/presentation/social_link_screen.dart';
 import 'package:tiktok_mobile/features/auth/presentation/verify_email_screen.dart';
 import 'package:tiktok_mobile/features/shell/presentation/home_shell.dart';
 import 'package:tiktok_mobile/features/user/presentation/edit_profile_screen.dart';
@@ -25,6 +27,8 @@ const _authRoutes = {
   '/verify-email',
   '/forgot-password',
   '/reset-password',
+  // Reached from a *failed* social login, so nobody is signed in yet.
+  '/social-link',
 };
 
 // The feed is the landing page for everyone, signed in or not, so it is the
@@ -63,6 +67,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Deliberately not in _authRoutes: it is only reachable *after* a social
       // login, so the logged-in redirect must leave it alone.
       GoRoute(path: '/add-email', builder: (_, _) => const AddEmailScreen()),
+      // The challenge is passed as an object, never as a query parameter: it
+      // carries the provider token, which must not end up in a URL. Without
+      // one there is nothing to confirm — an app restart lands back at /login.
+      GoRoute(
+        path: '/social-link',
+        redirect: (_, state) =>
+            state.extra is SocialLinkRequired ? null : '/login',
+        builder: (_, state) =>
+            SocialLinkScreen(challenge: state.extra! as SocialLinkRequired),
+      ),
       GoRoute(
         path: '/forgot-password',
         builder: (_, _) => const ForgotPasswordScreen(),

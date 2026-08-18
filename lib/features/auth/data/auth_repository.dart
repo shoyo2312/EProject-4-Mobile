@@ -69,34 +69,63 @@ class AuthRepository {
   /// /register there is no email-verification gate: Google already asserted the
   /// address, so the user is signed in when this returns.
   Future<SocialLoginOutcome> loginWithGoogle() async {
-    final idToken = await _socialSignIn.googleIdToken();
-    return _exchange(() => _remoteDatasource.oauthGoogle(idToken));
+    return _exchange('google', await _socialSignIn.googleIdToken());
   }
 
-  /// Facebook never asserts that an address is verified, so accounts created
-  /// this way come back with requiresEmail: true and no email at all.
+  /// Facebook never asserts that an address is verified. So an address nobody
+  /// else holds is kept unverified, an address another account already holds
+  /// throws [SocialLinkRequired] instead of starting a second account, and an
+  /// account that handed over no address comes back with requiresEmail: true.
   Future<SocialLoginOutcome> loginWithFacebook() async {
-    final token = await _socialSignIn.facebookAccessToken();
-    return _exchange(() => _remoteDatasource.oauthFacebook(token));
+    return _exchange('facebook', await _socialSignIn.facebookAccessToken());
   }
 
-  Future<SocialLoginOutcome> _exchange(
-    Future<SocialLoginResponse> Function() call,
-  ) async {
+  Future<SocialLoginOutcome> _exchange(String provider, String token) async {
     try {
-      final social = await call();
-      await _tokenStorage.saveTokens(
-        accessToken: social.tokens.accessToken,
-        refreshToken: social.tokens.refreshToken,
-        expiresInMillis: social.tokens.expiresInMillis,
+      return await _session(await _remoteDatasource.oauth(provider, token));
+    } on DioException catch (e) {
+      final failure = AppException.fromDioException(e);
+      // The address belongs to an existing account. Not a failure to report and
+      // forget: the provider token has to survive to the confirm step, which is
+      // the only thing that makes this one account rather than two.
+      if (failure is ServerException &&
+          failure.code == 'SOCIAL_LINK_VERIFICATION_REQUIRED') {
+        throw SocialLinkRequired(
+          provider: provider,
+          token: token,
+          message: failure.message,
+        );
+      }
+      throw failure;
+    }
+  }
+
+  /// Spends the mailed code from a [SocialLinkRequired] and signs in as the
+  /// account that already owned the address, with the provider linked to it.
+  Future<SocialLoginOutcome> confirmSocialLink({
+    required String provider,
+    required String token,
+    required String otp,
+  }) async {
+    try {
+      return await _session(
+        await _remoteDatasource.linkOauth(provider, token, otp),
       );
-      // Tokens must be stored before /me — the interceptor reads them from
-      // storage to attach the Authorization header.
-      final user = await _remoteDatasource.me();
-      return (user: user, requiresEmail: social.requiresEmail);
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }
+  }
+
+  Future<SocialLoginOutcome> _session(SocialLoginResponse social) async {
+    await _tokenStorage.saveTokens(
+      accessToken: social.tokens.accessToken,
+      refreshToken: social.tokens.refreshToken,
+      expiresInMillis: social.tokens.expiresInMillis,
+    );
+    // Tokens must be stored before /me — the interceptor reads them from
+    // storage to attach the Authorization header.
+    final user = await _remoteDatasource.me();
+    return (user: user, requiresEmail: social.requiresEmail);
   }
 
   /// Claims an address for an account that has none. Only starts the claim; the

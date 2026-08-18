@@ -15,13 +15,17 @@ import 'package:tiktok_mobile/features/auth/presentation/widgets/auth_ui.dart';
 /// whether the provider identity is already known.
 Future<void> _social(
   BuildContext context,
-  WidgetRef ref,
   Future<bool> Function() signIn,
 ) async {
   try {
     final requiresEmail = await signIn();
     if (!context.mounted) return;
     context.go(requiresEmail ? '/add-email' : '/feed');
+  } on SocialLinkRequired catch (e) {
+    // Not a dead end: the address already has an account here, and the code the
+    // server just mailed to it merges the two instead of starting a second one.
+    // Must come before the AppException arm, which would only toast it.
+    if (context.mounted) context.go('/social-link', extra: e);
   } on SocialSignInCancelled {
     // Backing out of the provider sheet is not an error — say nothing.
   } on SocialSignInException catch (e) {
@@ -67,7 +71,6 @@ class LoginOptionsScreen extends ConsumerWidget {
           label: 'Continue with Facebook',
           onTap: () => _social(
             context,
-            ref,
             ref.read(authStateProvider.notifier).loginWithFacebook,
           ),
         ),
@@ -78,7 +81,6 @@ class LoginOptionsScreen extends ConsumerWidget {
           label: 'Continue with Google',
           onTap: () => _social(
             context,
-            ref,
             ref.read(authStateProvider.notifier).loginWithGoogle,
           ),
         ),
@@ -118,7 +120,6 @@ class RegisterOptionsScreen extends ConsumerWidget {
           label: 'Continue with Facebook',
           onTap: () => _social(
             context,
-            ref,
             ref.read(authStateProvider.notifier).loginWithFacebook,
           ),
         ),
@@ -129,7 +130,6 @@ class RegisterOptionsScreen extends ConsumerWidget {
           label: 'Continue with Google',
           onTap: () => _social(
             context,
-            ref,
             ref.read(authStateProvider.notifier).loginWithGoogle,
           ),
         ),

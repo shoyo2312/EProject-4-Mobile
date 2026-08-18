@@ -92,7 +92,7 @@ void main() {
     // to the add-email screen, so losing it would strand them without one.
     when(() => socialSignIn.facebookAccessToken())
         .thenAnswer((_) async => 'fb-token');
-    when(() => remoteDatasource.oauthFacebook('fb-token')).thenAnswer(
+    when(() => remoteDatasource.oauth('facebook', 'fb-token')).thenAnswer(
       (_) async =>
           const SocialLoginResponse(tokens: tokens, requiresEmail: true),
     );
@@ -122,7 +122,67 @@ void main() {
       repository.loginWithGoogle(),
       throwsA(isA<SocialSignInCancelled>()),
     );
-    verifyNever(() => remoteDatasource.oauthGoogle(any()));
+    verifyNever(() => remoteDatasource.oauth(any(), any()));
+  });
+
+  test('an address owned by another account keeps the provider token', () async {
+    // The token is the half of the proof the mailed code cannot supply. Drop it
+    // here and the confirm step has nothing to send, which is how this used to
+    // end in a second account.
+    when(() => socialSignIn.facebookAccessToken())
+        .thenAnswer((_) async => 'fb-token');
+    when(() => remoteDatasource.oauth('facebook', 'fb-token')).thenThrow(
+      DioException(
+        requestOptions: RequestOptions(path: '/auth/oauth/facebook'),
+        response: Response(
+          requestOptions: RequestOptions(path: '/auth/oauth/facebook'),
+          statusCode: 409,
+          data: const {
+            'success': false,
+            'code': 'SOCIAL_LINK_VERIFICATION_REQUIRED',
+            'message': 'Enter the code we emailed to confirm this address',
+          },
+        ),
+        type: DioExceptionType.badResponse,
+      ),
+    );
+
+    await expectLater(
+      repository.loginWithFacebook(),
+      throwsA(
+        isA<SocialLinkRequired>()
+            .having((e) => e.provider, 'provider', 'facebook')
+            .having((e) => e.token, 'token', 'fb-token'),
+      ),
+    );
+    verifyNever(() => tokenStorage.saveTokens(
+          accessToken: any(named: 'accessToken'),
+          refreshToken: any(named: 'refreshToken'),
+          expiresInMillis: any(named: 'expiresInMillis'),
+        ));
+  });
+
+  test('confirming the mailed code signs in as the existing account', () async {
+    when(() => remoteDatasource.linkOauth('facebook', 'fb-token', '123456'))
+        .thenAnswer(
+      (_) async =>
+          const SocialLoginResponse(tokens: tokens, requiresEmail: false),
+    );
+    when(() => tokenStorage.saveTokens(
+          accessToken: 'access',
+          refreshToken: 'refresh',
+          expiresInMillis: 900000,
+        )).thenAnswer((_) async {});
+    when(() => remoteDatasource.me()).thenAnswer((_) async => user);
+
+    final result = await repository.confirmSocialLink(
+      provider: 'facebook',
+      token: 'fb-token',
+      otp: '123456',
+    );
+
+    expect(result.user, user);
+    expect(result.requiresEmail, isFalse);
   });
 
   test('register returns the new user without logging in', () async {

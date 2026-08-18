@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:tiktok_mobile/core/network/page_response.dart';
+import 'package:tiktok_mobile/features/feed/data/feed_remote_datasource.dart';
 import 'package:tiktok_mobile/features/feed/data/feed_repository.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 import 'package:tiktok_mobile/features/feed/presentation/feed_provider.dart';
@@ -33,12 +33,8 @@ void main() {
       createdAt: DateTime(2026, 8, 12),
     );
     when(() => feedRepository.fetchFeed()).thenAnswer(
-      (_) async => PageResponse(
-        content: [video],
-        size: 20,
-        number: 0,
-        totalElements: 1,
-        totalPages: 1,
+      (_) async => VideoPage(
+        items: [video],
       ),
     );
 
@@ -76,8 +72,8 @@ void main() {
       (tester) async {
     final feedRepository = MockFeedRepository();
     when(() => feedRepository.fetchFeed()).thenAnswer(
-      (_) async => PageResponse(
-        content: [
+      (_) async => VideoPage(
+        items: [
           VideoModel(
             id: 'v1',
             userId: '123',
@@ -91,10 +87,6 @@ void main() {
             createdAt: DateTime(2026, 8, 12),
           ),
         ],
-        size: 20,
-        number: 0,
-        totalElements: 1,
-        totalPages: 1,
       ),
     );
     final userRepository = MockUserRepository();

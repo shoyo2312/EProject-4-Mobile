@@ -14,22 +14,22 @@ void main() {
 
   test('the feed serves thirteen playable videos', () async {
     final page = await container.read(feedRepositoryProvider).fetchFeed();
-    expect(page.content, hasLength(13));
-    expect(page.content.every((v) => v.hlsUrl != null), isTrue);
+    expect(page.items, hasLength(13));
+    expect(page.items.every((v) => v.hlsUrl != null), isTrue);
     // Every video is worth opening the comment sheet on.
     expect(
-      page.content.every((v) => v.commentCount >= 200 && v.commentCount <= 10000),
+      page.items.every((v) => v.commentCount >= 200 && v.commentCount <= 10000),
       isTrue,
     );
     // The rail shows a number rather than a bare verb for save and share.
-    expect(page.content.every((v) => v.saveCount > 0 && v.shareCount > 0), isTrue);
+    expect(page.items.every((v) => v.saveCount > 0 && v.shareCount > 0), isTrue);
   });
 
   test('comments page by cursor up to the video total, with reply threads',
       () async {
     final repository = container.read(commentRepositoryProvider);
     final videos =
-        (await container.read(feedRepositoryProvider).fetchFeed()).content;
+        (await container.read(feedRepositoryProvider).fetchFeed()).items;
     final video = videos.first;
 
     final first = await repository.fetchComments(video.id);

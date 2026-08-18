@@ -67,11 +67,9 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
           keyboardType: TextInputType.emailAddress,
         ),
         const SizedBox(height: 12),
-        AuthField(
+        AuthField.otp(
           key: const Key('reset_otp_field'),
           controller: _otpController,
-          hint: '6-digit code',
-          keyboardType: TextInputType.number,
         ),
         const SizedBox(height: 12),
         AuthField(

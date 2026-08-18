@@ -66,5 +66,11 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+
+        <!-- Android 11+ giấu các app khác trừ khi khai báo ở đây. Thiếu dòng
+             này thì Facebook SDK không "thấy" app Facebook, luôn rơi về
+             CustomTab và log cảnh báo Package Visibility. Bản iOS đã có phần
+             tương đương (LSApplicationQueriesSchemes trong Info.plist). -->
+        <package android:name="com.facebook.katana" />
     </queries>
 </manifest>

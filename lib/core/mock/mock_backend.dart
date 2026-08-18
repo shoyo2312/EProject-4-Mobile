@@ -598,10 +598,11 @@ class _MockFeedRepository extends FeedRepository {
       ];
 
   @override
-  Future<PageResponse<VideoModel>> fetchFeed({int page = 0, int size = 20}) async {
+  Future<VideoPage> fetchFeed({String? cursor, int size = 20}) async {
     await _latency();
-    if (page > 0) return _emptyPage();
-    return _singlePage([
+    // One page then done — `nextCursor: null` is the only stop condition.
+    if (cursor != null) return const VideoPage(items: []);
+    return VideoPage(items: [
       for (final v in _live)
         if (v.status == VideoStatus.published &&
             v.visibility == VideoVisibility.public)

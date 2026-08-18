@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
+import 'package:tiktok_mobile/features/feed/data/feed_remote_datasource.dart';
 import 'package:tiktok_mobile/features/feed/data/feed_repository.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 import 'package:tiktok_mobile/features/feed/presentation/feed_provider.dart';
@@ -20,6 +21,9 @@ VideoModel makeVideo(String id) => VideoModel(
       commentCount: 0,
       createdAt: DateTime(2026, 8, 12),
     );
+
+VideoPage feedPage(List<String> ids, {String? nextCursor}) =>
+    VideoPage(items: ids.map(makeVideo).toList(), nextCursor: nextCursor);
 
 PageResponse<VideoModel> pageOf(
   List<String> ids, {
@@ -49,7 +53,7 @@ void main() {
 
   test('build() loads the first page', () async {
     when(() => feedRepository.fetchFeed()).thenAnswer(
-      (_) async => pageOf(['v1'], number: 0, totalPages: 1),
+      (_) async => feedPage(['v1']),
     );
 
     final result = await container.read(feedNotifierProvider.future);
@@ -58,13 +62,13 @@ void main() {
   });
 
   test('loadMore() drops videos already on screen', () async {
-    // Offset pagination over a feed that grows at the front hands back items
-    // from the previous page; appending blindly would show them twice.
+    // The cursor anchors on the last item, but a repeated id must still never
+    // reach the list twice.
     when(() => feedRepository.fetchFeed()).thenAnswer(
-      (_) async => pageOf(['v1', 'v2'], number: 0, totalPages: 2),
+      (_) async => feedPage(['v1', 'v2'], nextCursor: 'c1'),
     );
-    when(() => feedRepository.fetchFeed(page: 1)).thenAnswer(
-      (_) async => pageOf(['v2', 'v3'], number: 1, totalPages: 2),
+    when(() => feedRepository.fetchFeed(cursor: 'c1')).thenAnswer(
+      (_) async => feedPage(['v2', 'v3']),
     );
     await container.read(feedNotifierProvider.future);
 
@@ -74,15 +78,15 @@ void main() {
     expect(result.map((v) => v.id), ['v1', 'v2', 'v3']);
   });
 
-  test('loadMore() stops once the last page has been read', () async {
+  test('loadMore() stops once nextCursor comes back null', () async {
     when(() => feedRepository.fetchFeed()).thenAnswer(
-      (_) async => pageOf(['v1'], number: 0, totalPages: 1),
+      (_) async => feedPage(['v1']),
     );
     await container.read(feedNotifierProvider.future);
 
     await container.read(feedNotifierProvider.notifier).loadMore();
 
-    // Only the initial page-0 load happened; loadMore made no second request.
+    // Only the initial load happened; loadMore made no second request.
     verify(() => feedRepository.fetchFeed()).called(1);
     verifyNoMoreInteractions(feedRepository);
   });
