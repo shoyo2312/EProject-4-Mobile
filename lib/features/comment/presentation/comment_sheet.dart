@@ -9,6 +9,7 @@ import 'package:tiktok_mobile/core/widgets/loading_view.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_model.dart';
 import 'package:tiktok_mobile/features/comment/presentation/comment_provider.dart';
+import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
 /// Opens the sheet over whatever is on screen. Every video has comments, so
 /// this is the single entry point — callers pass a video id and, if they know
@@ -45,11 +46,9 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
   final _scrollController = ScrollController();
   final _focusNode = FocusNode();
 
-  /// Top-level comments whose replies are currently unfolded.
-  final _expanded = <String>{};
-
-  /// The comment the composer is currently answering, if any.
-  CommentModel? _replyingTo;
+  /// The display name the composer is currently answering, if any. A reply is
+  /// ordinary text addressed to that person — the API has no `parentId`.
+  String? _replyingTo;
 
   @override
   void initState() {
@@ -70,36 +69,46 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
   void _onScroll() {
     final position = _scrollController.position;
     if (position.pixels >= position.maxScrollExtent - 400) {
-      // Cheap to call repeatedly: loadMore() returns immediately once the
-      // last page has been read.
+      // Cheap to call repeatedly: LoadMoreGuard drops the call once the last
+      // page has been read or while a fetch is already in flight.
       ref.read(commentNotifierProvider(widget.videoId).notifier).loadMore();
     }
   }
 
-  void _send() {
+  /// Locked while the post is in flight: `POST /comments` does not
+  /// deduplicate, so a second tap posts a second comment (interaction doc 3.4).
+  bool _sending = false;
+
+  Future<void> _send() async {
     final text = _controller.text.trim();
-    if (text.isEmpty) return;
-    // The API takes a flat comment — a reply is posted as ordinary text
-    // addressed to the person being answered until /comments accepts a
-    // parentId.
-    final body = _replyingTo == null ? text : '${_replyingTo!.username} $text';
-    ref.read(commentNotifierProvider(widget.videoId).notifier).postComment(body);
+    if (text.isEmpty || _sending) return;
+    final body = _replyingTo == null ? text : '$_replyingTo $text';
+    setState(() => _sending = true);
     _controller.clear();
-    setState(() => _replyingTo = null);
+    try {
+      await ref
+          .read(commentNotifierProvider(widget.videoId).notifier)
+          .postComment(body);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _sending = false;
+          _replyingTo = null;
+        });
+      }
+    }
   }
 
-  void _startReply(CommentModel comment, {String? threadId}) {
-    setState(() {
-      _replyingTo = comment;
-      if (threadId != null) _expanded.add(threadId);
-    });
+  void _startReply(String authorName) {
+    setState(() => _replyingTo = authorName);
     _focusNode.requestFocus();
   }
 
   @override
   Widget build(BuildContext context) {
     final commentsState = ref.watch(commentNotifierProvider(widget.videoId));
-    final isLoggedIn = ref.watch(authStateProvider).valueOrNull != null;
+    final myId = ref.watch(authStateProvider).valueOrNull?.id;
+    final isLoggedIn = myId != null;
     final count = widget.totalCount ?? commentsState.valueOrNull?.length;
 
     return Container(
@@ -131,15 +140,18 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   itemCount: comments.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 18),
-                  itemBuilder: (_, index) => _Thread(
-                    comment: comments[index],
-                    expanded: _expanded.contains(comments[index].id),
-                    onToggle: () => setState(() {
-                      final id = comments[index].id;
-                      _expanded.contains(id) ? _expanded.remove(id) : _expanded.add(id);
-                    }),
-                    onReply: _startReply,
-                  ),
+                  itemBuilder: (_, index) {
+                    final comment = comments[index];
+                    return _Row(
+                      comment: comment,
+                      onReply: _startReply,
+                      onDelete: comment.userId == myId
+                          ? () => ref
+                              .read(commentNotifierProvider(widget.videoId).notifier)
+                              .deleteComment(comment.id)
+                          : null,
+                    );
+                  },
                 );
               },
             ),
@@ -148,7 +160,7 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
               ? _Composer(
                   controller: _controller,
                   focusNode: _focusNode,
-                  replyingTo: _replyingTo?.username,
+                  replyingTo: _replyingTo,
                   onCancelReply: () => setState(() => _replyingTo = null),
                   onSend: _send,
                 )
@@ -209,98 +221,34 @@ class _Header extends StatelessWidget {
   }
 }
 
-/// A top-level comment plus its flat replies — one level deep, no nesting.
-class _Thread extends StatelessWidget {
-  const _Thread({
-    required this.comment,
-    required this.expanded,
-    required this.onToggle,
-    required this.onReply,
-  });
+/// One comment. Flat — interaction-service has no replies and no comment
+/// likes, so there is no thread to unfold and no heart to fill.
+///
+/// The name and picture come from the shared profile cache, which the notifier
+/// fills in one request per page; an author the cache has no entry for (id
+/// gone, or a block relation hiding it) shows the placeholder rather than
+/// blocking the row.
+class _Row extends ConsumerWidget {
+  const _Row({required this.comment, required this.onReply, this.onDelete});
 
   final CommentModel comment;
-  final bool expanded;
-  final VoidCallback onToggle;
-  final void Function(CommentModel comment, {String? threadId}) onReply;
+  final void Function(String authorName) onReply;
+
+  /// Null for other people's comments — only the author may delete one
+  /// (interaction doc 3.6).
+  final VoidCallback? onDelete;
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _Row(comment: comment, onReply: () => onReply(comment)),
-        if (comment.replyCount > 0) ...[
-          const SizedBox(height: 10),
-          Padding(
-            padding: const EdgeInsets.only(left: 47),
-            child: GestureDetector(
-              onTap: onToggle,
-              behavior: HitTestBehavior.opaque,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(width: 24, height: 1, color: NowaColors.hairline),
-                  const SizedBox(width: 8),
-                  Text(
-                    expanded
-                        ? 'Hide replies'
-                        : 'View ${comment.replyCount} '
-                            '${comment.replyCount == 1 ? 'reply' : 'replies'}',
-                    style: work(
-                      size: 12.5,
-                      weight: FontWeight.w600,
-                      color: NowaColors.text.withValues(alpha: 0.55),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (expanded)
-            Padding(
-              padding: const EdgeInsets.only(left: 47, top: 14),
-              child: Column(
-                children: [
-                  for (final reply in comment.replies) ...[
-                    _Row(
-                      comment: reply,
-                      isReply: true,
-                      onReply: () => onReply(reply, threadId: comment.id),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                ],
-              ),
-            ),
-        ],
-      ],
-    );
-  }
-}
-
-class _Row extends StatelessWidget {
-  const _Row({required this.comment, required this.onReply, this.isReply = false});
-
-  final CommentModel comment;
-  final VoidCallback onReply;
-
-  /// Replies sit indented and one size smaller than their parent.
-  final bool isReply;
-
-  @override
-  Widget build(BuildContext context) {
-    final avatarSize = isReply ? 28.0 : 36.0;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final author = ref.watch(profileCacheProvider)[comment.userId];
+    final name = author?.displayName ?? 'user';
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          width: avatarSize,
-          height: avatarSize,
-          child: RemoteImage(
-            url: comment.avatarUrl,
-            radius: avatarSize / 2,
-            band: 5,
-          ),
+          width: 36,
+          height: 36,
+          child: RemoteImage(url: author?.avatarUrl, radius: 18, band: 5),
         ),
         const SizedBox(width: 11),
         Expanded(
@@ -308,7 +256,7 @@ class _Row extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                comment.username,
+                name,
                 style: sora(size: 12, color: NowaColors.text.withValues(alpha: 0.55)),
               ),
               const SizedBox(height: 4),
@@ -326,7 +274,7 @@ class _Row extends StatelessWidget {
                   ),
                   const SizedBox(width: 14),
                   GestureDetector(
-                    onTap: onReply,
+                    onTap: () => onReply(name),
                     child: Text(
                       'Reply',
                       style: work(
@@ -337,29 +285,26 @@ class _Row extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (onDelete != null) ...[
+                    const SizedBox(width: 14),
+                    GestureDetector(
+                      key: Key('comment_delete_${comment.id}'),
+                      onTap: onDelete,
+                      child: Text(
+                        'Delete',
+                        style: work(
+                          size: 11.5,
+                          weight: FontWeight.w500,
+                          height: 1,
+                          color: NowaColors.accent,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ],
           ),
-        ),
-        // Read-only: liking a comment needs interaction-service.
-        Column(
-          children: [
-            Icon(
-              Icons.favorite_border,
-              size: 16,
-              color: Colors.white.withValues(alpha: 0.5),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              compact(comment.likeCount),
-              style: sora(
-                size: 10.5,
-                weight: FontWeight.w500,
-                color: NowaColors.text.withValues(alpha: 0.45),
-              ),
-            ),
-          ],
         ),
       ],
     );
