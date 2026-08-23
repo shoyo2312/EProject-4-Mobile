@@ -57,7 +57,6 @@ class AuthRepository {
       await _tokenStorage.saveTokens(
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
-        expiresInMillis: tokens.expiresInMillis,
       );
       return await _remoteDatasource.me();
     } on DioException catch (e) {
@@ -120,7 +119,6 @@ class AuthRepository {
     await _tokenStorage.saveTokens(
       accessToken: social.tokens.accessToken,
       refreshToken: social.tokens.refreshToken,
-      expiresInMillis: social.tokens.expiresInMillis,
     );
     // Tokens must be stored before /me — the interceptor reads them from
     // storage to attach the Authorization header.
