@@ -4,4 +4,12 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Debug builds only. A local stack speaks plain HTTP everywhere —
+         the gateway on 10.0.2.2:8080 and MinIO on 10.0.2.2:9000, which serves
+         both the HLS streams and the avatars mirrored from Google/Facebook —
+         and Android has blocked cleartext by default since API 28, silently:
+         requests just fail and images fall back to their placeholder.
+         Release builds keep the block, so production must stay https. -->
+    <application android:usesCleartextTraffic="true" />
 </manifest>
