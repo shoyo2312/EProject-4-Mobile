@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/error_view.dart';
@@ -437,6 +438,52 @@ class _UserVideosGrid extends ConsumerWidget {
     VideoViewerScreen.open(context, videos: playable, initialIndex: index);
   }
 
+  /// Deleting is a soft delete with no restore endpoint, and the gesture that
+  /// starts it is a long-press on a scrolling grid — easy to trigger by
+  /// accident. Ask first.
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    VideoModel video,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: NowaColors.surfaceHigh,
+        title: Text('Delete this video?', style: sora(size: 16)),
+        content: Text(
+          'It disappears everywhere and cannot be restored.',
+          style: work(size: 13, color: NowaColors.dim),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text('Cancel', style: work(size: 14, color: NowaColors.dim)),
+          ),
+          TextButton(
+            key: const Key('confirm_delete_video'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              'Delete',
+              style: work(size: 14, color: NowaColors.danger),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await ref
+          .read(userVideosNotifierProvider(userId).notifier)
+          .delete(video.id);
+    } on AppException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final videosState = ref.watch(userVideosNotifierProvider(userId));
@@ -467,12 +514,9 @@ class _UserVideosGrid extends ConsumerWidget {
             return GestureDetector(
               key: Key('profile_video_${video.id}'),
               onTap: () => _openViewer(context, videos, video),
-              // Deleting is soft and one-way, and only the owner may do it.
-              onLongPress: isOwnProfile
-                  ? () => ref
-                        .read(userVideosNotifierProvider(userId).notifier)
-                        .delete(video.id)
-                  : null,
+              // Only the owner may delete, and only after confirming.
+              onLongPress:
+                  isOwnProfile ? () => _confirmDelete(context, ref, video) : null,
               child: _VideoThumbnail(video: video),
             );
           },
