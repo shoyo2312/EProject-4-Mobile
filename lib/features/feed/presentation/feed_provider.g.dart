@@ -23,7 +23,7 @@ final feedRepositoryProvider = Provider<FeedRepository>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef FeedRepositoryRef = ProviderRef<FeedRepository>;
-String _$feedNotifierHash() => r'5c27d108fb0452896adba354f2d8c04355eb7ec1';
+String _$feedNotifierHash() => r'c34cbe73edcc19e2e962d4cd52ec735d15672f59';
 
 /// See also [FeedNotifier].
 @ProviderFor(FeedNotifier)
@@ -40,7 +40,7 @@ final feedNotifierProvider =
 
 typedef _$FeedNotifier = AutoDisposeAsyncNotifier<List<VideoModel>>;
 String _$userVideosNotifierHash() =>
-    r'6f0d3437f3c0fd9572fadb6ee01ec0502da4fc6f';
+    r'6bc1b637c5ca6fab2eda155cea4086037627790d';
 
 /// Copied from Dart SDK
 class _SystemHash {

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +14,8 @@ import 'package:tiktok_mobile/features/comment/presentation/comment_sheet.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 import 'package:tiktok_mobile/features/feed/presentation/feed_provider.dart';
 import 'package:tiktok_mobile/features/feed/presentation/share_sheet.dart';
+import 'package:tiktok_mobile/features/interaction/data/interaction_model.dart';
+import 'package:tiktok_mobile/features/interaction/presentation/interaction_provider.dart';
 import 'package:tiktok_mobile/features/feed/presentation/video_player_widget.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 import 'package:video_player/video_player.dart' show VideoPlayerController;
@@ -37,10 +41,8 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   int _activeIndex = 0;
   String _tab = 'For You';
 
-  // Local-only: interaction-service exposes no like/save endpoint yet, so
-  // these live in the widget and reset with the screen. Swap the two setters
-  // for repository calls once the API lands.
-  final _liked = <String>{};
+  // Save has no endpoint behind it yet, so it lives here and resets with the
+  // screen. Like does not: it goes through interaction-service.
   final _saved = <String>{};
 
   @override
@@ -80,11 +82,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                 return FeedVideoPanel(
                   video: video,
                   isActive: index == _activeIndex && widget.visible,
-                  liked: _liked.contains(video.id),
                   saved: _saved.contains(video.id),
-                  onLike: () => setState(() => _liked.contains(video.id)
-                      ? _liked.remove(video.id)
-                      : _liked.add(video.id)),
                   onSave: () => setState(() => _saved.contains(video.id)
                       ? _saved.remove(video.id)
                       : _saved.add(video.id)),
@@ -179,17 +177,13 @@ class FeedVideoPanel extends ConsumerStatefulWidget {
     super.key,
     required this.video,
     required this.isActive,
-    required this.liked,
     required this.saved,
-    required this.onLike,
     required this.onSave,
   });
 
   final VideoModel video;
   final bool isActive;
-  final bool liked;
   final bool saved;
-  final VoidCallback onLike;
   final VoidCallback onSave;
 
   @override
@@ -204,6 +198,11 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTick
 
   bool _paused = false;
 
+  /// `viewCount` only moves when the client says so, and it is counted per
+  /// playback — so it is fired once, when the clip first becomes the one on
+  /// screen (interaction doc 3.8).
+  bool _viewSent = false;
+
   /// Filled in by the player once its controller is ready, so the seek bar can
   /// live in this column instead of on top of the video.
   final _controllerSink = ValueNotifier<VideoPlayerController?>(null);
@@ -215,11 +214,73 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTick
     super.dispose();
   }
 
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isActive) _sendView();
+  }
+
   // onTap and onDoubleTap share one detector: the single tap is held back
   // until the double-tap window closes, so liking never pauses on the way.
   void _doubleTap() {
-    if (!widget.liked) widget.onLike();
+    _like(toggle: false);
     _burst.forward(from: 0);
+  }
+
+  bool get _signedIn => ref.read(authStateProvider).valueOrNull != null;
+
+  /// Liking needs an account: signed out the write would 401, so the tap opens
+  /// the login screen instead of failing quietly.
+  void _like({bool toggle = true}) {
+    if (!_signedIn) {
+      context.push('/login');
+      return;
+    }
+    final notifier = ref.read(likeNotifierProvider(widget.video.id).notifier);
+    toggle ? notifier.toggle() : notifier.like();
+  }
+
+  /// Anonymous views are not counted at all — the server has nothing to
+  /// deduplicate them by — so a signed-out viewer simply does not report one.
+  void _sendView() {
+    if (_viewSent || !_signedIn) return;
+    _viewSent = true;
+    // Fire and forget: the server counts one view per playId, so nothing is
+    // double-counted, and there is nothing on screen a failure should change.
+    ref
+        .read(interactionRepositoryProvider)
+        .recordView(widget.video.id, playId: _newPlayId())
+        .ignore();
+  }
+
+  /// A fresh id for this playback. Random enough that two players cannot
+  /// collide, and thrown away when the clip scrolls off — a replay counts
+  /// again, which is how the server wants it (interaction doc 3.8).
+  String _newPlayId() =>
+      '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}'
+      '-${Random().nextInt(1 << 32).toRadixString(36)}';
+
+  /// One finished watch session. Deliberately **not** retried: a session
+  /// counted twice is dirty training data, and a session lost to a flaky
+  /// network costs nothing.
+  void _sendWatch(Duration watched, Duration duration) {
+    if (!_signedIn) return;
+    ref
+        .read(interactionRepositoryProvider)
+        .recordWatch(
+          widget.video.id,
+          watchedMs: watched.inMilliseconds,
+          durationMs: duration.inMilliseconds,
+        )
+        .ignore();
+  }
+
+  /// Reported after the share happened, and never retried — every call is
+  /// another share, so a retry inflates the count.
+  Future<void> _share() async {
+    final shared = await showShareSheet(context, video: widget.video);
+    if (!shared || !_signedIn) return;
+    ref.read(interactionRepositoryProvider).share(widget.video.id).ignore();
   }
 
   @override
@@ -227,11 +288,22 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTick
     super.didUpdateWidget(oldWidget);
     // Scrolling a paused clip out of view and back should not keep it frozen.
     if (!widget.isActive && _paused) _paused = false;
+    if (widget.isActive) _sendView();
   }
 
   @override
   Widget build(BuildContext context) {
     final video = widget.video;
+    // Only the clip on screen asks for its like state: there is no batch
+    // endpoint, and the gateway's per-IP budget is shared app-wide.
+    final like = widget.isActive
+        ? ref.watch(likeNotifierProvider(video.id)).valueOrNull
+        : null;
+    // Same rule for the other three counters: interaction-service is their
+    // source of truth, video-service's copies lag by a Kafka hop.
+    final counts = widget.isActive
+        ? ref.watch(videoCountsProvider(video.id)).valueOrNull
+        : null;
     return GestureDetector(
       onTap: () => setState(() => _paused = !_paused),
       onDoubleTap: _doubleTap,
@@ -246,6 +318,7 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTick
               isActive: widget.isActive,
               paused: _paused,
               controllerSink: _controllerSink,
+              onWatchEnd: _sendWatch,
             )
           else
             // Not playable: PROCESSING/FAILED clips never reach /feed, but a
@@ -274,11 +347,16 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTick
                 const SizedBox(height: 10),
                 _Rail(
                   video: video,
-                  liked: widget.liked,
+                  counts: counts,
+                  // Until like-status answers, the count from video-service is
+                  // the best number available — it lags a like by a Kafka hop
+                  // but it is never wildly wrong.
+                  liked: like?.liked ?? false,
+                  likeCount: like?.likeCount ?? video.likeCount,
                   saved: widget.saved,
-                  onLike: widget.onLike,
+                  onLike: _like,
                   onSave: widget.onSave,
-                  onShare: () => showShareSheet(context, video: video),
+                  onShare: _share,
                 ),
               ],
             ),
@@ -530,13 +608,14 @@ class _DurationPill extends StatelessWidget {
   }
 }
 
-/// Like and save are visual-only for now: interaction-service has no endpoint
-/// behind them, so the counters stay at the server value and only the icon
-/// reacts. Comment and the view counter are real.
+/// Save is still visual-only — there is no endpoint behind it. Like, comment,
+/// share and the view counter are real.
 class _Rail extends StatelessWidget {
   const _Rail({
     required this.video,
+    required this.counts,
     required this.liked,
+    required this.likeCount,
     required this.saved,
     required this.onLike,
     required this.onSave,
@@ -544,7 +623,12 @@ class _Rail extends StatelessWidget {
   });
 
   final VideoModel video;
+
+  /// Live counters for the clip on screen, null while they load or when the
+  /// clip is off screen — the numbers on [video] stand in until then.
+  final InteractionCounts? counts;
   final bool liked;
+  final int likeCount;
   final bool saved;
   final VoidCallback onLike;
   final VoidCallback onSave;
@@ -558,17 +642,17 @@ class _Rail extends StatelessWidget {
           itemKey: Key('feed_like_count_${video.id}'),
           icon: liked ? Icons.favorite : Icons.favorite_border,
           color: liked ? NowaColors.accent : Colors.white,
-          label: compact(video.likeCount + (liked ? 1 : 0)),
+          label: compact(likeCount),
           onTap: onLike,
         ),
         RailAction(
           itemKey: Key('feed_comment_count_${video.id}'),
           icon: Icons.mode_comment_outlined,
-          label: compact(video.commentCount),
+          label: compact(counts?.commentCount ?? video.commentCount),
           onTap: () => showCommentSheet(
             context,
             videoId: video.id,
-            totalCount: video.commentCount,
+            totalCount: counts?.commentCount ?? video.commentCount,
           ),
         ),
         RailAction(
@@ -585,7 +669,9 @@ class _Rail extends StatelessWidget {
         RailAction(
           itemKey: Key('feed_share_button_${video.id}'),
           icon: Icons.reply_rounded,
-          label: video.shareCount == 0 ? 'Share' : compact(video.shareCount),
+          label: (counts?.shareCount ?? video.shareCount) == 0
+              ? 'Share'
+              : compact(counts?.shareCount ?? video.shareCount),
           onTap: onShare,
         ),
       ],
