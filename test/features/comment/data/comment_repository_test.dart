@@ -16,7 +16,6 @@ void main() {
     id: 'c1',
     videoId: 'v1',
     userId: 'u1',
-    username: 'jane',
     text: 'nice video!',
     createdAt: DateTime(2026, 1, 1),
   );
@@ -28,7 +27,7 @@ void main() {
 
   test('fetchComments returns items and cursor', () async {
     when(() => remoteDatasource.fetchComments('v1', cursor: null)).thenAnswer(
-      (_) async => CommentPage(items: [comment], nextCursor: null),
+      (_) async => CommentPage(items: [comment], hasMore: false, nextCursor: null),
     );
 
     final result = await repository.fetchComments('v1');

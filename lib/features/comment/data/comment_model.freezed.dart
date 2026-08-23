@@ -21,18 +21,15 @@ CommentModel _$CommentModelFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$CommentModel {
+  @JsonKey(name: 'commentId', fromJson: _idFromJson)
   String get id => throw _privateConstructorUsedError;
+  @JsonKey(fromJson: _idFromJson)
   String get videoId => throw _privateConstructorUsedError;
+  @JsonKey(fromJson: _idFromJson)
   String get userId => throw _privateConstructorUsedError;
-  String get username => throw _privateConstructorUsedError;
-  String? get avatarUrl => throw _privateConstructorUsedError;
+  @JsonKey(name: 'content')
   String get text => throw _privateConstructorUsedError;
-  DateTime get createdAt =>
-      throw _privateConstructorUsedError; // Replies are one level deep — a reply never has replies of its own.
-  // The live API sends neither field yet, hence the defaults.
-  List<CommentModel> get replies => throw _privateConstructorUsedError;
-  int get replyCount => throw _privateConstructorUsedError;
-  int get likeCount => throw _privateConstructorUsedError;
+  DateTime get createdAt => throw _privateConstructorUsedError;
 
   /// Serializes this CommentModel to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -52,16 +49,11 @@ abstract class $CommentModelCopyWith<$Res> {
   ) = _$CommentModelCopyWithImpl<$Res, CommentModel>;
   @useResult
   $Res call({
-    String id,
-    String videoId,
-    String userId,
-    String username,
-    String? avatarUrl,
-    String text,
+    @JsonKey(name: 'commentId', fromJson: _idFromJson) String id,
+    @JsonKey(fromJson: _idFromJson) String videoId,
+    @JsonKey(fromJson: _idFromJson) String userId,
+    @JsonKey(name: 'content') String text,
     DateTime createdAt,
-    List<CommentModel> replies,
-    int replyCount,
-    int likeCount,
   });
 }
 
@@ -83,13 +75,8 @@ class _$CommentModelCopyWithImpl<$Res, $Val extends CommentModel>
     Object? id = null,
     Object? videoId = null,
     Object? userId = null,
-    Object? username = null,
-    Object? avatarUrl = freezed,
     Object? text = null,
     Object? createdAt = null,
-    Object? replies = null,
-    Object? replyCount = null,
-    Object? likeCount = null,
   }) {
     return _then(
       _value.copyWith(
@@ -105,14 +92,6 @@ class _$CommentModelCopyWithImpl<$Res, $Val extends CommentModel>
                 ? _value.userId
                 : userId // ignore: cast_nullable_to_non_nullable
                       as String,
-            username: null == username
-                ? _value.username
-                : username // ignore: cast_nullable_to_non_nullable
-                      as String,
-            avatarUrl: freezed == avatarUrl
-                ? _value.avatarUrl
-                : avatarUrl // ignore: cast_nullable_to_non_nullable
-                      as String?,
             text: null == text
                 ? _value.text
                 : text // ignore: cast_nullable_to_non_nullable
@@ -121,18 +100,6 @@ class _$CommentModelCopyWithImpl<$Res, $Val extends CommentModel>
                 ? _value.createdAt
                 : createdAt // ignore: cast_nullable_to_non_nullable
                       as DateTime,
-            replies: null == replies
-                ? _value.replies
-                : replies // ignore: cast_nullable_to_non_nullable
-                      as List<CommentModel>,
-            replyCount: null == replyCount
-                ? _value.replyCount
-                : replyCount // ignore: cast_nullable_to_non_nullable
-                      as int,
-            likeCount: null == likeCount
-                ? _value.likeCount
-                : likeCount // ignore: cast_nullable_to_non_nullable
-                      as int,
           )
           as $Val,
     );
@@ -149,16 +116,11 @@ abstract class _$$CommentModelImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
-    String id,
-    String videoId,
-    String userId,
-    String username,
-    String? avatarUrl,
-    String text,
+    @JsonKey(name: 'commentId', fromJson: _idFromJson) String id,
+    @JsonKey(fromJson: _idFromJson) String videoId,
+    @JsonKey(fromJson: _idFromJson) String userId,
+    @JsonKey(name: 'content') String text,
     DateTime createdAt,
-    List<CommentModel> replies,
-    int replyCount,
-    int likeCount,
   });
 }
 
@@ -179,13 +141,8 @@ class __$$CommentModelImplCopyWithImpl<$Res>
     Object? id = null,
     Object? videoId = null,
     Object? userId = null,
-    Object? username = null,
-    Object? avatarUrl = freezed,
     Object? text = null,
     Object? createdAt = null,
-    Object? replies = null,
-    Object? replyCount = null,
-    Object? likeCount = null,
   }) {
     return _then(
       _$CommentModelImpl(
@@ -201,14 +158,6 @@ class __$$CommentModelImplCopyWithImpl<$Res>
             ? _value.userId
             : userId // ignore: cast_nullable_to_non_nullable
                   as String,
-        username: null == username
-            ? _value.username
-            : username // ignore: cast_nullable_to_non_nullable
-                  as String,
-        avatarUrl: freezed == avatarUrl
-            ? _value.avatarUrl
-            : avatarUrl // ignore: cast_nullable_to_non_nullable
-                  as String?,
         text: null == text
             ? _value.text
             : text // ignore: cast_nullable_to_non_nullable
@@ -217,18 +166,6 @@ class __$$CommentModelImplCopyWithImpl<$Res>
             ? _value.createdAt
             : createdAt // ignore: cast_nullable_to_non_nullable
                   as DateTime,
-        replies: null == replies
-            ? _value._replies
-            : replies // ignore: cast_nullable_to_non_nullable
-                  as List<CommentModel>,
-        replyCount: null == replyCount
-            ? _value.replyCount
-            : replyCount // ignore: cast_nullable_to_non_nullable
-                  as int,
-        likeCount: null == likeCount
-            ? _value.likeCount
-            : likeCount // ignore: cast_nullable_to_non_nullable
-                  as int,
       ),
     );
   }
@@ -238,58 +175,34 @@ class __$$CommentModelImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$CommentModelImpl implements _CommentModel {
   const _$CommentModelImpl({
-    required this.id,
-    required this.videoId,
-    required this.userId,
-    required this.username,
-    this.avatarUrl,
-    required this.text,
+    @JsonKey(name: 'commentId', fromJson: _idFromJson) required this.id,
+    @JsonKey(fromJson: _idFromJson) required this.videoId,
+    @JsonKey(fromJson: _idFromJson) required this.userId,
+    @JsonKey(name: 'content') required this.text,
     required this.createdAt,
-    final List<CommentModel> replies = const <CommentModel>[],
-    this.replyCount = 0,
-    this.likeCount = 0,
-  }) : _replies = replies;
+  });
 
   factory _$CommentModelImpl.fromJson(Map<String, dynamic> json) =>
       _$$CommentModelImplFromJson(json);
 
   @override
+  @JsonKey(name: 'commentId', fromJson: _idFromJson)
   final String id;
   @override
+  @JsonKey(fromJson: _idFromJson)
   final String videoId;
   @override
+  @JsonKey(fromJson: _idFromJson)
   final String userId;
   @override
-  final String username;
-  @override
-  final String? avatarUrl;
-  @override
+  @JsonKey(name: 'content')
   final String text;
   @override
   final DateTime createdAt;
-  // Replies are one level deep — a reply never has replies of its own.
-  // The live API sends neither field yet, hence the defaults.
-  final List<CommentModel> _replies;
-  // Replies are one level deep — a reply never has replies of its own.
-  // The live API sends neither field yet, hence the defaults.
-  @override
-  @JsonKey()
-  List<CommentModel> get replies {
-    if (_replies is EqualUnmodifiableListView) return _replies;
-    // ignore: implicit_dynamic_type
-    return EqualUnmodifiableListView(_replies);
-  }
-
-  @override
-  @JsonKey()
-  final int replyCount;
-  @override
-  @JsonKey()
-  final int likeCount;
 
   @override
   String toString() {
-    return 'CommentModel(id: $id, videoId: $videoId, userId: $userId, username: $username, avatarUrl: $avatarUrl, text: $text, createdAt: $createdAt, replies: $replies, replyCount: $replyCount, likeCount: $likeCount)';
+    return 'CommentModel(id: $id, videoId: $videoId, userId: $userId, text: $text, createdAt: $createdAt)';
   }
 
   @override
@@ -300,35 +213,15 @@ class _$CommentModelImpl implements _CommentModel {
             (identical(other.id, id) || other.id == id) &&
             (identical(other.videoId, videoId) || other.videoId == videoId) &&
             (identical(other.userId, userId) || other.userId == userId) &&
-            (identical(other.username, username) ||
-                other.username == username) &&
-            (identical(other.avatarUrl, avatarUrl) ||
-                other.avatarUrl == avatarUrl) &&
             (identical(other.text, text) || other.text == text) &&
             (identical(other.createdAt, createdAt) ||
-                other.createdAt == createdAt) &&
-            const DeepCollectionEquality().equals(other._replies, _replies) &&
-            (identical(other.replyCount, replyCount) ||
-                other.replyCount == replyCount) &&
-            (identical(other.likeCount, likeCount) ||
-                other.likeCount == likeCount));
+                other.createdAt == createdAt));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
-    runtimeType,
-    id,
-    videoId,
-    userId,
-    username,
-    avatarUrl,
-    text,
-    createdAt,
-    const DeepCollectionEquality().hash(_replies),
-    replyCount,
-    likeCount,
-  );
+  int get hashCode =>
+      Object.hash(runtimeType, id, videoId, userId, text, createdAt);
 
   /// Create a copy of CommentModel
   /// with the given fields replaced by the non-null parameter values.
@@ -346,42 +239,30 @@ class _$CommentModelImpl implements _CommentModel {
 
 abstract class _CommentModel implements CommentModel {
   const factory _CommentModel({
-    required final String id,
-    required final String videoId,
-    required final String userId,
-    required final String username,
-    final String? avatarUrl,
-    required final String text,
+    @JsonKey(name: 'commentId', fromJson: _idFromJson) required final String id,
+    @JsonKey(fromJson: _idFromJson) required final String videoId,
+    @JsonKey(fromJson: _idFromJson) required final String userId,
+    @JsonKey(name: 'content') required final String text,
     required final DateTime createdAt,
-    final List<CommentModel> replies,
-    final int replyCount,
-    final int likeCount,
   }) = _$CommentModelImpl;
 
   factory _CommentModel.fromJson(Map<String, dynamic> json) =
       _$CommentModelImpl.fromJson;
 
   @override
+  @JsonKey(name: 'commentId', fromJson: _idFromJson)
   String get id;
   @override
+  @JsonKey(fromJson: _idFromJson)
   String get videoId;
   @override
+  @JsonKey(fromJson: _idFromJson)
   String get userId;
   @override
-  String get username;
-  @override
-  String? get avatarUrl;
-  @override
+  @JsonKey(name: 'content')
   String get text;
   @override
-  DateTime get createdAt; // Replies are one level deep — a reply never has replies of its own.
-  // The live API sends neither field yet, hence the defaults.
-  @override
-  List<CommentModel> get replies;
-  @override
-  int get replyCount;
-  @override
-  int get likeCount;
+  DateTime get createdAt;
 
   /// Create a copy of CommentModel
   /// with the given fields replaced by the non-null parameter values.

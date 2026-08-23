@@ -11,8 +11,13 @@ import 'package:tiktok_mobile/features/comment/data/comment_repository.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_remote_datasource.dart';
 import 'package:tiktok_mobile/features/comment/presentation/comment_provider.dart';
 import 'package:tiktok_mobile/features/comment/presentation/comment_sheet.dart';
+import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
+import 'package:tiktok_mobile/features/user/data/user_repository.dart';
+import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
 class MockCommentRepository extends Mock implements CommentRepository {}
+
+class MockUserRepository extends Mock implements UserRepository {}
 
 void main() {
   testWidgets('renders existing comments and posts a new one', (tester) async {
@@ -21,19 +26,28 @@ void main() {
       id: 'c1',
       videoId: 'v1',
       userId: 'u1',
-      username: 'jane',
       text: 'first comment',
       createdAt: DateTime(2026, 1, 1),
     );
     when(() => commentRepository.fetchComments('v1', cursor: null)).thenAnswer(
-      (_) async => CommentPage(items: [existing], nextCursor: null),
+      (_) async => CommentPage(items: [existing], hasMore: false, nextCursor: null),
+    );
+    final userRepository = MockUserRepository();
+    when(() => userRepository.getProfiles(any())).thenAnswer(
+      (_) async => {
+        'u1': const UserProfileModel(
+          userId: 'u1',
+          displayName: 'jane',
+          followerCount: 0,
+          followingCount: 0,
+        ),
+      },
     );
     when(() => commentRepository.postComment('v1', 'new one')).thenAnswer(
       (_) async => CommentModel(
         id: 'c2',
         videoId: 'v1',
         userId: 'u2',
-        username: 'bob',
         text: 'new one',
         createdAt: DateTime(2026, 1, 2),
       ),
@@ -43,6 +57,7 @@ void main() {
       ProviderScope(
         overrides: [
           commentRepositoryProvider.overrideWithValue(commentRepository),
+          userRepositoryProvider.overrideWithValue(userRepository),
           // Signed-out viewers get a "log in to comment" prompt, not the input.
           authStateProvider.overrideWith(_SignedInAuthState.new),
         ],
@@ -67,7 +82,7 @@ class _SignedInAuthState extends AuthState {
   FutureOr<UserModel?> build() => UserModel(
         id: '1',
         username: 'jane',
-        email: 'jane@test.com',
+          email: 'jane@test.com',
         role: UserRole.user,
         status: UserStatus.active,
         emailVerified: true,

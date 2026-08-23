@@ -23,4 +23,12 @@ class CommentRepository {
       throw AppException.fromDioException(e);
     }
   }
+
+  Future<void> deleteComment(String videoId, String commentId) async {
+    try {
+      await _remoteDatasource.deleteComment(videoId, commentId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
 }
