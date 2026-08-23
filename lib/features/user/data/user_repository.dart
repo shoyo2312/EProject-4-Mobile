@@ -50,6 +50,29 @@ class UserRepository {
     }
   }
 
+  /// Resolves [ids] to profiles, keyed by `userId`. Ids the server leaves out
+  /// (missing, or blocked either way) are simply absent from the map — the
+  /// caller shows a placeholder for those.
+  ///
+  /// Split into chunks of 100 because that is the server's cap
+  /// (`TOO_MANY_PROFILE_IDS`).
+  Future<Map<String, UserProfileModel>> getProfiles(List<String> ids) async {
+    final unique = ids.toSet().toList();
+    final result = <String, UserProfileModel>{};
+    try {
+      for (var start = 0; start < unique.length; start += 100) {
+        final chunk =
+            unique.sublist(start, start + 100 > unique.length ? unique.length : start + 100);
+        for (final profile in await _remoteDatasource.getProfiles(chunk)) {
+          result[profile.userId] = profile;
+        }
+      }
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+    return result;
+  }
+
   Future<void> follow(String userId) async {
     try {
       await _remoteDatasource.follow(userId);

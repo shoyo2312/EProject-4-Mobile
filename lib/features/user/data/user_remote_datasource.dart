@@ -29,6 +29,24 @@ class UserRemoteDatasource {
     return _unwrap(response.data!, UserProfileModel.fromJson);
   }
 
+  /// Many profiles in one request. The array can come back **shorter** than
+  /// [ids] — ids that do not exist, or that a block relation hides, are simply
+  /// dropped — so callers must key the result by `userId` and never zip it
+  /// against [ids] by position (user doc 3.3b). At most 100 ids per call.
+  Future<List<UserProfileModel>> getProfiles(List<String> ids) async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/users',
+      queryParameters: {'ids': ids.join(',')},
+    );
+    final body = ApiResponse<List<dynamic>>.fromJson(
+      response.data!,
+      (json) => json as List<dynamic>,
+    ).data!;
+    return body
+        .map((e) => UserProfileModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<void> follow(String userId) {
     return _apiClient.post<void>('/users/$userId/follow');
   }
