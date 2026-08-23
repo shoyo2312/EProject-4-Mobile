@@ -6,13 +6,21 @@ import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 /// Share targets are presentation-only — there is no share endpoint and no
 /// deep-link host yet, so "Copy link" is the single action that really does
 /// something. The rest exist to show the sheet's layout.
-Future<void> showShareSheet(BuildContext context, {required VideoModel video}) {
-  return showModalBottomSheet<void>(
+/// Resolves to true when the viewer actually shared something — that, and not
+/// opening the sheet, is what counts as a share (interaction doc 3.7). The
+/// app-target row is decorative: nothing leaves the app, so nothing is
+/// reported. Copying the link does leave the app, and does.
+Future<bool> showShareSheet(
+  BuildContext context, {
+  required VideoModel video,
+}) async {
+  final shared = await showModalBottomSheet<bool>(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
     builder: (_) => _ShareSheet(video: video),
   );
+  return shared ?? false;
 }
 
 class _Target {
@@ -115,7 +123,7 @@ class _ShareSheet extends StatelessWidget {
             label: 'Copy link',
             onTap: () async {
               await Clipboard.setData(ClipboardData(text: link));
-              if (context.mounted) Navigator.of(context).pop();
+              if (context.mounted) Navigator.of(context).pop(true);
             },
           ),
           const _Row(icon: Icons.bookmark_add_outlined, label: 'Add to favorites'),
