@@ -29,9 +29,9 @@ lib/
 │   │   └── websocket_service.dart
 │   ├── router/app_router.dart     # GoRouter + redirect + _AuthStateListenable
 │   ├── theme/app_theme.dart       # NowaColors — dark theme của app chính
-│   ├── mock/mock_backend.dart     # Override repository bằng dữ liệu in-memory
 │   ├── utils/
 │   └── widgets/                   # design_system, nav_bar, action_rail, error_view, loading_view
+├── mock/mock_backend.dart         # Override repository bằng dữ liệu in-memory
 └── features/
     ├── auth/      # options → email form → verify email → forgot/reset password
     ├── feed/      # For You feed, video player, video viewer, share sheet
@@ -92,7 +92,7 @@ features/{feature}/
 
 ### Mock backend
 - `--dart-define=USE_MOCK=true` → `mockOverrides()` thay các `*RepositoryProvider` bằng bản in-memory
-- Thêm repository mới mà muốn chạy offline thì phải bổ sung override tương ứng trong `core/mock/mock_backend.dart`, đừng nhét dữ liệu giả vào code thật
+- Thêm repository mới mà muốn chạy offline thì phải bổ sung override tương ứng trong `mock/mock_backend.dart`, đừng nhét dữ liệu giả vào code thật
 
 ## 5. Common Commands
 ```bash
