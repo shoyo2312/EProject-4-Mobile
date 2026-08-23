@@ -23,7 +23,7 @@ final commentRepositoryProvider = Provider<CommentRepository>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef CommentRepositoryRef = ProviderRef<CommentRepository>;
-String _$commentNotifierHash() => r'14c24dbb9201033261c567e87442cf3ac0007bba';
+String _$commentNotifierHash() => r'd1b4b0e9970b27acfa342f6a7fe94c98eaee5758';
 
 /// Copied from Dart SDK
 class _SystemHash {

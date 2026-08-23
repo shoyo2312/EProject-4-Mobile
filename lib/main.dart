@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tiktok_mobile/core/constants/env.dart';
-import 'package:tiktok_mobile/core/mock/mock_backend.dart';
+import 'package:tiktok_mobile/mock/mock_backend.dart';
 import 'package:tiktok_mobile/core/router/app_router.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 

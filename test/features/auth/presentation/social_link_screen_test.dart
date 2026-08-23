@@ -57,9 +57,14 @@ void main() {
     Object? extra,
   }) async {
     final feedRepository = MockFeedRepository();
-    when(() => feedRepository.fetchFeed()).thenAnswer(
-      (_) async => const VideoPage(items: []),
-    );
+    // Both halves of the feed: linking signs the viewer in, and a session is
+    // what makes it ask recommendation-service before the chronological list.
+    when(() => feedRepository.fetchRankedFeed(limit: any(named: 'limit')))
+        .thenAnswer((_) async => []);
+    when(() => feedRepository.fetchFeed(
+          cursor: any(named: 'cursor'),
+          size: any(named: 'size'),
+        )).thenAnswer((_) async => const VideoPage(items: []));
     final container = ProviderContainer(
       overrides: [
         authRepositoryProvider.overrideWithValue(authRepository),

@@ -17,6 +17,22 @@ class FeedRepository {
     }
   }
 
+  /// The personalised feed: rank, then hydrate, in two calls.
+  ///
+  /// Two failure shapes matter to the caller and neither is an error here —
+  /// an empty ranking (the 30-minute window is spent), and a shorter list than
+  /// the ranking asked for (an id was deleted in between). Both mean "fall
+  /// back to the chronological feed", which [FeedNotifier] does.
+  Future<List<VideoModel>> fetchRankedFeed({int limit = 10}) async {
+    try {
+      final ids = await _remoteDatasource.fetchRankedIds(limit: limit);
+      if (ids.isEmpty) return [];
+      return await _remoteDatasource.fetchByIds(ids);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
   Future<PageResponse<VideoModel>> getUserVideos(
     String userId, {
     int page = 0,

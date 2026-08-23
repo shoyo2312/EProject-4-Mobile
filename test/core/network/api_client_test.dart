@@ -52,7 +52,6 @@ void main() {
     when(() => tokenStorage.saveTokens(
           accessToken: any(named: 'accessToken'),
           refreshToken: any(named: 'refreshToken'),
-          expiresInMillis: any(named: 'expiresInMillis'),
         )).thenAnswer((invocation) async {
       currentAccessToken = invocation.namedArguments[#accessToken] as String;
     });
@@ -83,7 +82,6 @@ void main() {
     verify(() => tokenStorage.saveTokens(
           accessToken: 'new-token',
           refreshToken: 'new-refresh',
-          expiresInMillis: 900000,
         )).called(1);
   });
 
@@ -107,6 +105,61 @@ void main() {
       throwsA(isA<DioException>()),
     );
     verify(() => tokenStorage.clear()).called(1);
+  });
+
+  test('a malformed refresh envelope does not wedge later 401s', () async {
+    // The refresh response parses as JSON but has no accessToken, so the casts
+    // in _refreshAccessToken throw a TypeError rather than a DioException. If
+    // that failure were remembered, every later 401 would reuse the dead
+    // future and the client could never recover without a restart.
+    String? currentAccessToken = 'expired-token';
+    when(() => tokenStorage.readAccessToken())
+        .thenAnswer((_) async => currentAccessToken);
+    when(() => tokenStorage.readRefreshToken())
+        .thenAnswer((_) async => 'refresh-token');
+    when(() => tokenStorage.clear()).thenAnswer((_) async {
+      currentAccessToken = null;
+    });
+    when(() => tokenStorage.saveTokens(
+          accessToken: any(named: 'accessToken'),
+          refreshToken: any(named: 'refreshToken'),
+        )).thenAnswer((invocation) async {
+      currentAccessToken = invocation.namedArguments[#accessToken] as String;
+    });
+
+    final adapter = _ScriptedAdapter({
+      '/videos/feed': [
+        () => _jsonResponse(401, {}),
+        () => _jsonResponse(200, {'ok': true}),
+        () => _jsonResponse(401, {}),
+        () => _jsonResponse(200, {'ok': true}),
+      ],
+      '/auth/refresh': [
+        () => _jsonResponse(200, {
+              'success': true,
+              'data': <String, dynamic>{},
+              'timestamp': '2026-08-01T10:00:00Z',
+            }),
+        () => _jsonResponse(200, {
+              'success': true,
+              'data': {
+                'accessToken': 'new-token',
+                'refreshToken': 'new-refresh',
+                'expiresInMillis': 900000,
+              },
+              'timestamp': '2026-08-01T10:00:00Z',
+            }),
+      ],
+    });
+    apiClient.dio.httpClientAdapter = adapter;
+
+    expect((await apiClient.get<Map<String, dynamic>>('/videos/feed')).statusCode, 200);
+    expect((await apiClient.get<Map<String, dynamic>>('/videos/feed')).statusCode, 200);
+
+    // Refreshed twice: the second 401 got a fresh attempt, not the dead one.
+    expect(adapter.headersByPath['/auth/refresh']!.length, 2);
+    expect(adapter.headersByPath['/videos/feed']!.last['Authorization'],
+        'Bearer new-token');
   });
 
   test('retries anonymously when refresh fails and the path serves guests',

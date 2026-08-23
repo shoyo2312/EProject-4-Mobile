@@ -12,6 +12,7 @@ class VideoPlayerWidget extends StatefulWidget {
     this.paused = false,
     this.placeholderLabel,
     this.controllerSink,
+    this.onWatchEnd,
   });
 
   final String url;
@@ -31,6 +32,13 @@ class VideoPlayerWidget extends StatefulWidget {
   /// stays owned here.
   final ValueNotifier<VideoPlayerController?>? controllerSink;
 
+  /// Called once per watch session with the time actually played and the
+  /// length the player saw — the two numbers `POST /watch` wants. Fires when
+  /// the clip scrolls out of view and on dispose, never on a progress tick:
+  /// one session is one row, and ticking would describe the same session over
+  /// and over (interaction doc 3.9).
+  final void Function(Duration watched, Duration duration)? onWatchEnd;
+
   @override
   State<VideoPlayerWidget> createState() => _VideoPlayerWidgetState();
 }
@@ -39,11 +47,19 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   late final VideoPlayerController _controller;
   bool _initialized = false;
 
+  /// Watch time is measured on the wall clock while the player reports itself
+  /// playing, not from `position`: a looping clip rewinds its position, and
+  /// what the server is being told is how long this person actually watched —
+  /// three loops of a 15s clip is 45s, not 15s.
+  Duration _watched = Duration.zero;
+  DateTime? _playingSince;
+
   @override
   void initState() {
     super.initState();
     _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
       ..setLooping(true)
+      ..addListener(_onPlaybackChanged)
       ..initialize().then((_) {
         if (!mounted) return;
         setState(() => _initialized = true);
@@ -63,6 +79,39 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         oldWidget.paused != widget.paused) {
       _syncPlayback();
     }
+    // Scrolling away ends the session. Tapping pause does not: the viewer is
+    // still on this clip and will likely resume it.
+    if (oldWidget.isActive && !widget.isActive) _flushWatch();
+  }
+
+  void _onPlaybackChanged() {
+    final playing = _controller.value.isPlaying;
+    if (playing && _playingSince == null) {
+      _playingSince = DateTime.now();
+    } else if (!playing) {
+      _bankPlayingStretch();
+    }
+  }
+
+  /// Closes the stretch that is open right now, if any, and adds it to the
+  /// total. Buffering counts as not playing, so a stall does not inflate it.
+  void _bankPlayingStretch() {
+    final since = _playingSince;
+    if (since == null) return;
+    _watched += DateTime.now().difference(since);
+    _playingSince = null;
+  }
+
+  /// Ends the session and starts a fresh one. Coming back to the same clip is
+  /// a second session by design — a re-watch is the strongest signal the
+  /// recommendation feed gets.
+  void _flushWatch() {
+    _bankPlayingStretch();
+    final watched = _watched;
+    _watched = Duration.zero;
+    final duration = _controller.value.duration;
+    if (watched == Duration.zero || duration == Duration.zero) return;
+    widget.onWatchEnd?.call(watched, duration);
   }
 
   void _syncPlayback() {
@@ -76,6 +125,11 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
 
   @override
   void dispose() {
+    // ponytail: an app sent to background keeps its open stretch until the
+    // widget is disposed, so that session is reported long. Add an
+    // AppLifecycleListener here if the training data proves it matters.
+    _flushWatch();
+    _controller.removeListener(_onPlaybackChanged);
     _controller.dispose();
     super.dispose();
   }

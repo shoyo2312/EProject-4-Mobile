@@ -17,9 +17,7 @@ void main() {
   testWidgets('shows the feed to a signed-out guest — it is everyone\'s landing page',
       (tester) async {
     final feedRepository = MockFeedRepository();
-    when(() => feedRepository.fetchFeed()).thenAnswer(
-      (_) async => const VideoPage(items: []),
-    );
+    _stubEmptyFeed(feedRepository);
     final container = ProviderContainer(
       overrides: [
         authStateProvider.overrideWith(_SignedOutAuthState.new),
@@ -66,9 +64,7 @@ void main() {
 
   testWidgets('redirects to /feed when signed in and /login is requested', (tester) async {
     final feedRepository = MockFeedRepository();
-    when(() => feedRepository.fetchFeed()).thenAnswer(
-      (_) async => const VideoPage(items: []),
-    );
+    _stubEmptyFeed(feedRepository);
     final container = ProviderContainer(
       overrides: [
         authStateProvider.overrideWith(_SignedInAuthState.new),
@@ -91,6 +87,17 @@ void main() {
 
     expect(find.text('No videos yet'), findsOneWidget);
   });
+}
+
+/// Both sources answer empty: the feed lands on its "no videos" state whether
+/// or not the viewer has a session behind the ranked half.
+void _stubEmptyFeed(MockFeedRepository feedRepository) {
+  when(() => feedRepository.fetchRankedFeed(limit: any(named: 'limit')))
+      .thenAnswer((_) async => []);
+  when(() => feedRepository.fetchFeed(
+        cursor: any(named: 'cursor'),
+        size: any(named: 'size'),
+      )).thenAnswer((_) async => const VideoPage(items: []));
 }
 
 class _SignedOutAuthState extends AuthState {

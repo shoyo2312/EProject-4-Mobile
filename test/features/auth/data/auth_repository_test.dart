@@ -55,7 +55,6 @@ void main() {
     when(() => tokenStorage.saveTokens(
           accessToken: 'access',
           refreshToken: 'refresh',
-          expiresInMillis: 900000,
         )).thenAnswer((_) async {});
     when(() => remoteDatasource.me()).thenAnswer((_) async => user);
 
@@ -65,7 +64,6 @@ void main() {
     verify(() => tokenStorage.saveTokens(
           accessToken: 'access',
           refreshToken: 'refresh',
-          expiresInMillis: 900000,
         )).called(1);
     verify(() => remoteDatasource.me()).called(1);
   });
@@ -99,7 +97,6 @@ void main() {
     when(() => tokenStorage.saveTokens(
           accessToken: 'access',
           refreshToken: 'refresh',
-          expiresInMillis: 900000,
         )).thenAnswer((_) async {});
     when(() => remoteDatasource.me()).thenAnswer((_) async => user);
 
@@ -110,7 +107,6 @@ void main() {
     verify(() => tokenStorage.saveTokens(
           accessToken: 'access',
           refreshToken: 'refresh',
-          expiresInMillis: 900000,
         )).called(1);
   });
 
@@ -158,7 +154,6 @@ void main() {
     verifyNever(() => tokenStorage.saveTokens(
           accessToken: any(named: 'accessToken'),
           refreshToken: any(named: 'refreshToken'),
-          expiresInMillis: any(named: 'expiresInMillis'),
         ));
   });
 
@@ -171,7 +166,6 @@ void main() {
     when(() => tokenStorage.saveTokens(
           accessToken: 'access',
           refreshToken: 'refresh',
-          expiresInMillis: 900000,
         )).thenAnswer((_) async {});
     when(() => remoteDatasource.me()).thenAnswer((_) async => user);
 
@@ -210,7 +204,6 @@ void main() {
     verifyNever(() => tokenStorage.saveTokens(
           accessToken: any(named: 'accessToken'),
           refreshToken: any(named: 'refreshToken'),
-          expiresInMillis: any(named: 'expiresInMillis'),
         ));
   });
 

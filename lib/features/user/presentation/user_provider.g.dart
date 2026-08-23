@@ -23,7 +23,7 @@ final userRepositoryProvider = Provider<UserRepository>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef UserRepositoryRef = ProviderRef<UserRepository>;
-String _$myProfileHash() => r'5eb426aa5ce3bcbb9449f89d74597820a0a084c5';
+String _$myProfileHash() => r'6a40ea8b0cec8e928c113d967856cd90aae3f934';
 
 /// See also [MyProfile].
 @ProviderFor(MyProfile)
@@ -39,7 +39,30 @@ final myProfileProvider =
     );
 
 typedef _$MyProfile = AutoDisposeAsyncNotifier<UserProfileModel>;
-String _$profileNotifierHash() => r'999d6d972dbd55c5d2509a54c07f5413aef36a3e';
+String _$profileCacheHash() => r'29740a737f6d924b2aba473b87658b0aafa19d5a';
+
+/// Profiles already fetched, keyed by `userId`.
+///
+/// One place so a screen that already knows a list of ids — a feed page, a
+/// page of comments — resolves them in a single `GET /users?ids=` instead of
+/// one request per row: the gateway allows 20 req/s per IP, and a feed page
+/// alone would spend the lot (user doc 3.3b).
+///
+/// Copied from [ProfileCache].
+@ProviderFor(ProfileCache)
+final profileCacheProvider =
+    NotifierProvider<ProfileCache, Map<String, UserProfileModel>>.internal(
+      ProfileCache.new,
+      name: r'profileCacheProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$profileCacheHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$ProfileCache = Notifier<Map<String, UserProfileModel>>;
+String _$profileNotifierHash() => r'eeb1dc0d165896eb3adeb47b0d5e420547af7ec3';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -194,7 +217,7 @@ class _ProfileNotifierProviderElement
   String get userId => (origin as ProfileNotifierProvider).userId;
 }
 
-String _$userListNotifierHash() => r'e37680f970fa10a47880b39531cd8b745ad6f74e';
+String _$userListNotifierHash() => r'3f739705117ebbf2de2a2c73d0edaa2f8b2f66c7';
 
 abstract class _$UserListNotifier
     extends BuildlessAutoDisposeAsyncNotifier<List<UserProfileModel>> {

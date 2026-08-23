@@ -42,9 +42,7 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
       PageController(initialPage: widget.initialIndex);
   late int _activeIndex = widget.initialIndex;
 
-  // Local-only, same as the feed: interaction-service has no like/save
-  // endpoint yet, so these reset with the screen.
-  final _liked = <String>{};
+  // Save only: like goes through interaction-service inside the panel.
   final _saved = <String>{};
 
   @override
@@ -70,11 +68,7 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
                 key: Key('viewer_panel_${video.id}'),
                 video: video,
                 isActive: index == _activeIndex,
-                liked: _liked.contains(video.id),
                 saved: _saved.contains(video.id),
-                onLike: () => setState(() => _liked.contains(video.id)
-                    ? _liked.remove(video.id)
-                    : _liked.add(video.id)),
                 onSave: () => setState(() => _saved.contains(video.id)
                     ? _saved.remove(video.id)
                     : _saved.add(video.id)),
