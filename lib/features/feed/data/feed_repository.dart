@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
@@ -8,6 +10,40 @@ class FeedRepository {
   FeedRepository(this._remoteDatasource);
 
   final FeedRemoteDatasource _remoteDatasource;
+
+  /// The three publish steps in one call: ticket, PUT, create record. The
+  /// returned video is PROCESSING — see [getVideo] for the poll that turns it
+  /// into a playable one.
+  Future<VideoModel> uploadAndPublish({
+    required File file,
+    required String contentType,
+    required String title,
+    String? description,
+    required VideoVisibility visibility,
+    List<String> tags = const [],
+    void Function(int sent, int total)? onProgress,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      final ticket = await _remoteDatasource.createUploadUrl(contentType);
+      await _remoteDatasource.uploadFile(
+        ticket,
+        file,
+        contentType: contentType,
+        onProgress: onProgress,
+        cancelToken: cancelToken,
+      );
+      return await _remoteDatasource.publish(
+        title: title,
+        description: description,
+        rawFileUrl: ticket.fileUrl,
+        visibility: visibility,
+        tags: tags,
+      );
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
 
   Future<VideoPage> fetchFeed({String? cursor, int size = 20}) async {
     try {

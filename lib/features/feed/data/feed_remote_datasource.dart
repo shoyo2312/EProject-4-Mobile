@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:dio/dio.dart';
 import 'package:tiktok_mobile/core/network/api_client.dart';
 import 'package:tiktok_mobile/core/network/api_response.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
@@ -13,14 +16,117 @@ class VideoPage {
   final String? nextCursor;
 }
 
+/// What `POST /videos/upload-url` hands back. [fileUrl] is the one to keep:
+/// it is what `POST /videos` wants as `rawFileUrl`, and it stays valid for the
+/// 7 days the bucket keeps an unpublished object. [uploadUrl] is signed and
+/// dies after [expiresInSeconds] — expired means ask for a new ticket, not
+/// retry the same URL.
+class UploadTicket {
+  const UploadTicket({
+    required this.uploadUrl,
+    required this.fileUrl,
+    required this.expiresInSeconds,
+  });
+
+  final String uploadUrl;
+  final String fileUrl;
+  final int expiresInSeconds;
+}
+
 /// video-service (`/api/v1/videos`). GETs are public, but sending the token
 /// anyway matters: without it the server treats the caller as a guest and
 /// hides their own PRIVATE/PROCESSING videos with no error at all (video doc
 /// 3.3/3.4). The ApiClient interceptor attaches it whenever one is stored.
 class FeedRemoteDatasource {
-  FeedRemoteDatasource(this._apiClient);
+  FeedRemoteDatasource(this._apiClient, {Dio? uploadDio})
+      : _uploadDio = uploadDio ??
+            Dio(BaseOptions(
+              // The bytes of a whole video, over a phone connection: the 10s
+              // timeouts ApiClient uses would kill every upload but the
+              // shortest. 0 means "no timeout".
+              sendTimeout: Duration.zero,
+              receiveTimeout: const Duration(seconds: 60),
+            ));
 
   final ApiClient _apiClient;
+
+  /// Storage is talked to directly, not through [ApiClient]: the presigned URL
+  /// carries its own signature in the query string and S3 rejects the request
+  /// outright if an `Authorization` header rides along (video doc 3.1).
+  final Dio _uploadDio;
+
+  /// Step 1 of publishing: ask for somewhere to put the file.
+  ///
+  /// [contentType] must be one of `video/mp4`, `video/quicktime`,
+  /// `video/webm`; anything else comes back as `UNSUPPORTED_UPLOAD_TYPE`.
+  Future<UploadTicket> createUploadUrl(String contentType) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/videos/upload-url',
+      data: {'contentType': contentType},
+    );
+    final body = response.data!['data'] as Map<String, dynamic>;
+    return UploadTicket(
+      uploadUrl: body['uploadUrl'] as String,
+      fileUrl: body['fileUrl'] as String,
+      expiresInSeconds: body['expiresInSeconds'] as int,
+    );
+  }
+
+  /// Step 2: a plain PUT of the bytes to the presigned URL. Streamed from
+  /// disk rather than read into memory — a 3-minute clip does not fit in a
+  /// phone's heap twice.
+  Future<void> uploadFile(
+    UploadTicket ticket,
+    File file, {
+    required String contentType,
+    void Function(int sent, int total)? onProgress,
+    CancelToken? cancelToken,
+  }) async {
+    final length = await file.length();
+    await _uploadDio.put<void>(
+      ticket.uploadUrl,
+      data: file.openRead(),
+      cancelToken: cancelToken,
+      onSendProgress: onProgress,
+      options: Options(
+        headers: {
+          Headers.contentTypeHeader: contentType,
+          Headers.contentLengthHeader: length,
+        },
+      ),
+    );
+  }
+
+  /// Step 3: create the Video record. [rawFileUrl] is the ticket's `fileUrl`
+  /// — never its `uploadUrl`, which expires and fails the server's
+  /// allow-list. The video comes back PROCESSING with no `hlsUrl`; it is not
+  /// playable and not on the feed until transcoding finishes.
+  Future<VideoModel> publish({
+    required String title,
+    String? description,
+    required String rawFileUrl,
+    required VideoVisibility visibility,
+    List<String> tags = const [],
+  }) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/videos',
+      data: {
+        'title': title,
+        if (description != null && description.isNotEmpty)
+          'description': description,
+        'rawFileUrl': rawFileUrl,
+        'visibility': visibility == VideoVisibility.private
+            ? 'PRIVATE'
+            : 'PUBLIC',
+        if (tags.isNotEmpty) 'tags': tags,
+      },
+    );
+    final envelope = ApiResponse<VideoModel>.fromJson(
+      response.data!,
+      (json) => VideoModel.fromJson(json as Map<String, dynamic>),
+    );
+    return envelope.data!;
+  }
 
   /// PUBLISHED + PUBLIC videos only, newest first. Ordering is fixed
   /// server-side, so there is no `sort` parameter to pass. Unlike

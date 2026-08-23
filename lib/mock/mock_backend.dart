@@ -1,4 +1,7 @@
+import 'dart:io';
 import 'dart:math';
+
+import 'package:dio/dio.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
@@ -611,9 +614,52 @@ class _MockFeedRepository extends FeedRepository {
     ]);
   }
 
+  /// Nothing is uploaded offline: the file is ignored and a PROCESSING row is
+  /// added, which [getVideo] then reports as PUBLISHED — the same two states
+  /// the real publish flow walks through.
   @override
-  Future<VideoModel> getVideo(String videoId) async =>
-      _live.firstWhere((v) => v.id == videoId);
+  Future<VideoModel> uploadAndPublish({
+    required File file,
+    required String contentType,
+    required String title,
+    String? description,
+    required VideoVisibility visibility,
+    List<String> tags = const [],
+    void Function(int sent, int total)? onProgress,
+    CancelToken? cancelToken,
+  }) async {
+    for (var sent = 0; sent <= 10; sent++) {
+      await _latency();
+      onProgress?.call(sent, 10);
+    }
+    final video = VideoModel(
+      id: 'upload-${_videos.length + 1}',
+      userId: _meId,
+      title: title,
+      description: description,
+      status: VideoStatus.processing,
+      visibility: visibility,
+      viewCount: 0,
+      likeCount: 0,
+      commentCount: 0,
+      createdAt: DateTime.now(),
+    );
+    _videos.insert(0, video);
+    return video;
+  }
+
+  @override
+  Future<VideoModel> getVideo(String videoId) async {
+    final video = _live.firstWhere((v) => v.id == videoId);
+    if (video.status != VideoStatus.processing) return video;
+    // Transcoding "finishes" on the first poll.
+    final published = video.copyWith(
+      status: VideoStatus.published,
+      hlsUrl: _hlsA,
+    );
+    _videos[_videos.indexOf(video)] = published;
+    return published;
+  }
 
   @override
   Future<void> deleteVideo(String videoId) async => _deleted.add(videoId);

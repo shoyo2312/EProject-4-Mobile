@@ -1,29 +1,75 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
+import 'package:tiktok_mobile/features/create/presentation/post_sheet.dart';
+import 'package:tiktok_mobile/features/create/presentation/upload_provider.dart';
 
-/// The camera screen from the design.
+/// The camera screen from the design, wired to video-service's three-step
+/// publish: ticket, PUT to storage, create the record (video doc 3.1/3.2).
 ///
-/// Video-service has no upload endpoint wired into the app yet, so the
-/// controls are presentational: the shutter toggles its own recording state
-/// and nothing is sent anywhere. Everything else — layout, tokens, gestures —
-/// is the finished screen, ready to hand a real capture pipeline.
-class CreateScreen extends StatefulWidget {
-  const CreateScreen({super.key, required this.onClose});
+/// There is no in-app capture pipeline; the shutter and the gallery tile both
+/// hand off to the system picker, which is what actually records or browses.
+/// The overlay controls (flip, speed, filter, timer, clip length) stay
+/// presentational — they belong to a capture pipeline that does not exist.
+class CreateScreen extends ConsumerStatefulWidget {
+  const CreateScreen({super.key, required this.onClose, this.picker});
 
   final VoidCallback onClose;
 
+  /// Injected in tests; the real screen opens the system picker.
+  final ImagePicker? picker;
+
   @override
-  State<CreateScreen> createState() => _CreateScreenState();
+  ConsumerState<CreateScreen> createState() => _CreateScreenState();
 }
 
-class _CreateScreenState extends State<CreateScreen> {
+class _CreateScreenState extends ConsumerState<CreateScreen> {
   String _len = '60s';
-  bool _recording = false;
+
+  late final ImagePicker _picker = widget.picker ?? ImagePicker();
+
+  /// Pick or record a clip, collect its title, then upload. Every failure
+  /// after this point shows up in [uploadNotifierProvider], not here.
+  Future<void> _pick(ImageSource source) async {
+    if (ref.read(uploadNotifierProvider).busy) return;
+
+    final XFile? picked;
+    try {
+      picked = await _picker.pickVideo(source: source);
+    } on PlatformException catch (e) {
+      // A refused camera/library permission arrives as an exception, not a
+      // null file, and would otherwise take the whole screen down.
+      if (mounted) _toast(e.message ?? 'The video could not be opened');
+      return;
+    }
+    if (picked == null || !mounted) return;
+
+    final file = File(picked.path);
+    final details = await showPostSheet(context, file: file);
+    if (details == null || !mounted) return;
+
+    await ref.read(uploadNotifierProvider.notifier).start(
+          file: file,
+          title: details.title,
+          description: details.description,
+          visibility: details.visibility,
+          tags: details.tags,
+        );
+  }
+
+  void _toast(String message) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message, style: work(size: 12))),
+      );
 
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.of(context).padding.top;
+    final upload = ref.watch(uploadNotifierProvider);
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -52,7 +98,14 @@ class _CreateScreenState extends State<CreateScreen> {
             children: [
               GestureDetector(
                 key: const Key('create_close_button'),
-                onTap: widget.onClose,
+                onTap: () {
+                  // A finished upload's banner should not still be there next
+                  // time the tab is opened; one in flight keeps running.
+                  if (!ref.read(uploadNotifierProvider).busy) {
+                    ref.read(uploadNotifierProvider.notifier).reset();
+                  }
+                  widget.onClose();
+                },
                 child: Glass(
                   radius: 12,
                   child: const SizedBox(
@@ -193,26 +246,35 @@ class _CreateScreenState extends State<CreateScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                  GestureDetector(
+                    key: const Key('create_gallery_button'),
+                    onTap: () => _pick(ImageSource.gallery),
+                    child: Container(
+                      width: 46,
+                      height: 46,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                      ),
+                      child: const Icon(
+                        Icons.video_library_outlined,
+                        size: 19,
+                        color: Colors.white,
+                      ),
                     ),
-                    child: const StripedPlaceholder(radius: 13, band: 5),
                   ),
                   const SizedBox(width: 34),
                   GestureDetector(
                     key: const Key('create_record_button'),
-                    onTap: () => setState(() => _recording = !_recording),
+                    onTap: () => _pick(ImageSource.camera),
                     child: Container(
                       width: 82,
                       height: 82,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: _recording
+                        color: upload.busy
                             ? NowaColors.accent.withValues(alpha: 0.35)
                             : NowaColors.accent,
                         boxShadow: [
@@ -224,11 +286,11 @@ class _CreateScreenState extends State<CreateScreen> {
                       ),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 180),
-                        width: _recording ? 30 : 68,
-                        height: _recording ? 30 : 68,
+                        width: upload.busy ? 30 : 68,
+                        height: upload.busy ? 30 : 68,
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(_recording ? 9 : 34),
+                          borderRadius: BorderRadius.circular(upload.busy ? 9 : 34),
                         ),
                       ),
                     ),
@@ -245,28 +307,71 @@ class _CreateScreenState extends State<CreateScreen> {
                 ],
               ),
               const SizedBox(height: 20),
-              Text(
-                _recording
-                    ? 'Recording · $_len'
-                    : 'Hold to record, tap for hands-free',
-                style: sora(
-                  size: 12,
-                  weight: FontWeight.w500,
-                  color: _recording
-                      ? NowaColors.accent
-                      : Colors.white.withValues(alpha: 0.6),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Upload is not connected yet',
-                style: work(
-                  size: 11,
-                  height: 1,
-                  color: Colors.white.withValues(alpha: 0.35),
-                ),
-              ),
+              _UploadStatus(state: upload, clipLength: _len),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The one line under the shutter: what the upload is doing, or the hint when
+/// nothing is in flight.
+class _UploadStatus extends StatelessWidget {
+  const _UploadStatus({required this.state, required this.clipLength});
+
+  final UploadState state;
+  final String clipLength;
+
+  @override
+  Widget build(BuildContext context) {
+    final (text, color) = switch (state.phase) {
+      UploadPhase.uploading => (
+          state.progress < 0
+              ? 'Uploading…'
+              : 'Uploading · ${(state.progress * 100).round()}%',
+          NowaColors.accent,
+        ),
+      UploadPhase.publishing => ('Posting…', NowaColors.accent),
+      // PROCESSING is not a wait the user has to sit through: the video is
+      // saved, it just is not playable or on the feed until transcoding ends
+      // (video doc 3.2).
+      UploadPhase.processing => (
+          'Processing — it will appear on your profile when ready',
+          NowaColors.supportInk,
+        ),
+      UploadPhase.done => ('Posted', NowaColors.supportInk),
+      UploadPhase.failed => (state.error ?? 'Upload failed', NowaColors.danger),
+      UploadPhase.idle => (
+          'Tap to record · $clipLength, or pick a clip from the gallery',
+          Colors.white.withValues(alpha: 0.6),
+        ),
+    };
+
+    return Column(
+      children: [
+        if (state.phase == UploadPhase.uploading)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10, left: 40, right: 40),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                key: const Key('upload_progress'),
+                value: state.progress < 0 ? null : state.progress,
+                minHeight: 3,
+                backgroundColor: Colors.white.withValues(alpha: 0.15),
+                color: NowaColors.accent,
+              ),
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Text(
+            text,
+            key: const Key('upload_status_text'),
+            textAlign: TextAlign.center,
+            style: sora(size: 12, weight: FontWeight.w500, color: color),
           ),
         ),
       ],
