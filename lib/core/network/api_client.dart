@@ -11,7 +11,6 @@ abstract class TokenStorage {
   Future<void> saveTokens({
     required String accessToken,
     required String refreshToken,
-    required int expiresInMillis,
   });
   Future<void> clear();
 }
@@ -57,8 +56,15 @@ class ApiClient {
       return;
     }
 
-    final newAccessToken = await (_refreshing ??= _refreshAccessToken());
-    _refreshing = null;
+    final String? newAccessToken;
+    try {
+      newAccessToken = await (_refreshing ??= _refreshAccessToken());
+    } finally {
+      // Cleared in `finally`: a malformed refresh envelope throws something
+      // other than DioException, and leaving the failed future in place would
+      // wedge every later 401 onto the same dead result until a restart.
+      _refreshing = null;
+    }
 
     final retryOptions = err.requestOptions
       ..extra[_retriedAfterRefreshKey] = true;
@@ -98,13 +104,18 @@ class ApiClient {
         (json) => json as Map<String, dynamic>,
       );
       final body = envelope.data!;
+      // expiresInMillis is deliberately not kept: nothing refreshes ahead of
+      // time, the 401 path below is what renews a session.
       await tokenStorage.saveTokens(
         accessToken: body['accessToken'] as String,
         refreshToken: body['refreshToken'] as String,
-        expiresInMillis: body['expiresInMillis'] as int,
       );
       return body['accessToken'] as String;
-    } on DioException {
+    } catch (_) {
+      // Anything at all — a rejected refresh token, or an envelope whose
+      // shape the casts above do not survive — means "no session". Letting a
+      // TypeError out here would escape the repositories' DioException
+      // mapping and reach the UI unwrapped.
       return null;
     }
   }
