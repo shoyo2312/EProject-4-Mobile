@@ -10,6 +10,7 @@ import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 import 'package:tiktok_mobile/features/feed/presentation/video_viewer_screen.dart';
 import 'package:tiktok_mobile/features/feed/presentation/feed_provider.dart';
+import 'package:tiktok_mobile/features/interaction/presentation/interaction_provider.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
@@ -376,15 +377,22 @@ class _ProfileContentState extends State<_ProfileContent> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                // Only "Posts" has an endpoint: liked/saved lists live in
-                // interaction-service, which exposes no API yet.
                 if (_tab == 'Posts')
                   _UserVideosGrid(
                     userId: profile.userId,
                     isOwnProfile: widget.isOwnProfile,
                   )
+                // Likes and saves are private: interaction-service only ever
+                // answers for "me", so there is nothing to show on someone
+                // else's profile — not an empty list, no endpoint at all.
+                else if (!widget.isOwnProfile)
+                  _PrivateTab(tab: _tab)
                 else
-                  _NotAvailable(tab: _tab),
+                  _HistoryVideosGrid(
+                    history: _tab == 'Liked'
+                        ? VideoHistory.liked
+                        : VideoHistory.saved,
+                  ),
               ],
             ),
           ),
@@ -394,8 +402,8 @@ class _ProfileContentState extends State<_ProfileContent> {
   }
 }
 
-class _NotAvailable extends StatelessWidget {
-  const _NotAvailable({required this.tab});
+class _PrivateTab extends StatelessWidget {
+  const _PrivateTab({required this.tab});
 
   final String tab;
 
@@ -405,10 +413,88 @@ class _NotAvailable extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 48),
       child: Center(
         child: Text(
-          '$tab videos are not available yet',
+          '$tab videos are private',
           style: work(size: 13, color: NowaColors.text.withValues(alpha: 0.45)),
         ),
       ),
+    );
+  }
+}
+
+/// The caller's own Liked or Saved tab. Two hops behind it — ids from
+/// interaction-service, videos from video-service — which is why a row can be
+/// missing from a page: the video was deleted after it was liked.
+class _HistoryVideosGrid extends ConsumerWidget {
+  const _HistoryVideosGrid({required this.history});
+
+  final VideoHistory history;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final provider = historyVideosNotifierProvider(history);
+    return ref.watch(provider).when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 48),
+            child: LoadingView(),
+          ),
+          error: (error, _) => ErrorView(
+            message: error.toString(),
+            onRetry: () => ref.invalidate(provider),
+          ),
+          data: (videos) => videos.isEmpty
+              ? const _EmptyVideos()
+              : _VideoGrid(
+                  videos: videos,
+                  // Deleting is the owner's gesture on their own posts, not on
+                  // a list of other people's videos they happened to like.
+                  onLongPress: null,
+                ),
+        );
+  }
+}
+
+/// The three-across thumbnail grid shared by every profile tab. Never scrolls
+/// itself — it always sits inside the profile's own ListView.
+class _VideoGrid extends StatelessWidget {
+  const _VideoGrid({required this.videos, required this.onLongPress});
+
+  final List<VideoModel> videos;
+  final void Function(VideoModel video)? onLongPress;
+
+  /// Opens the tapped clip in the full-screen viewer. Only PUBLISHED videos
+  /// carry an hlsUrl — the owner's own grid also holds PROCESSING/FAILED ones,
+  /// which have nothing to play, so they are skipped here and in the swipe
+  /// list behind them.
+  void _openViewer(BuildContext context, VideoModel tapped) {
+    final playable = videos.where((v) => v.hlsUrl != null).toList();
+    final index = playable.indexWhere((v) => v.id == tapped.id);
+    if (index == -1) return;
+    VideoViewerScreen.open(context, videos: playable, initialIndex: index);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      padding: EdgeInsets.zero,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 5,
+        mainAxisSpacing: 5,
+        childAspectRatio: 9 / 13,
+      ),
+      itemCount: videos.length,
+      itemBuilder: (context, index) {
+        final video = videos[index];
+        return GestureDetector(
+          key: Key('profile_video_${video.id}'),
+          onTap: () => _openViewer(context, video),
+          onLongPress:
+              onLongPress == null ? null : () => onLongPress!(video),
+          child: _VideoThumbnail(video: video),
+        );
+      },
     );
   }
 }
@@ -422,21 +508,6 @@ class _UserVideosGrid extends ConsumerWidget {
 
   final String userId;
   final bool isOwnProfile;
-
-  /// Opens the tapped clip in the full-screen viewer. Only PUBLISHED videos
-  /// carry an hlsUrl — the owner's own grid also holds PROCESSING/FAILED ones,
-  /// which have nothing to play, so they are skipped here and in the swipe
-  /// list behind them.
-  void _openViewer(
-    BuildContext context,
-    List<VideoModel> videos,
-    VideoModel tapped,
-  ) {
-    final playable = videos.where((v) => v.hlsUrl != null).toList();
-    final index = playable.indexWhere((v) => v.id == tapped.id);
-    if (index == -1) return;
-    VideoViewerScreen.open(context, videos: playable, initialIndex: index);
-  }
 
   /// Deleting is a soft delete with no restore endpoint, and the gesture that
   /// starts it is a long-press on a scrolling grid — easy to trigger by
@@ -496,32 +567,15 @@ class _UserVideosGrid extends ConsumerWidget {
         message: error.toString(),
         onRetry: () => ref.invalidate(userVideosNotifierProvider(userId)),
       ),
-      data: (videos) {
-        if (videos.isEmpty) return const _EmptyVideos();
-        return GridView.builder(
-          shrinkWrap: true,
-          padding: EdgeInsets.zero,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 5,
-            mainAxisSpacing: 5,
-            childAspectRatio: 9 / 13,
-          ),
-          itemCount: videos.length,
-          itemBuilder: (context, index) {
-            final video = videos[index];
-            return GestureDetector(
-              key: Key('profile_video_${video.id}'),
-              onTap: () => _openViewer(context, videos, video),
+      data: (videos) => videos.isEmpty
+          ? const _EmptyVideos()
+          : _VideoGrid(
+              videos: videos,
               // Only the owner may delete, and only after confirming.
-              onLongPress:
-                  isOwnProfile ? () => _confirmDelete(context, ref, video) : null,
-              child: _VideoThumbnail(video: video),
-            );
-          },
-        );
-      },
+              onLongPress: isOwnProfile
+                  ? (video) => _confirmDelete(context, ref, video)
+                  : null,
+            ),
     );
   }
 }

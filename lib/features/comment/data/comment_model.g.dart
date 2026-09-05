@@ -13,6 +13,8 @@ _$CommentModelImpl _$$CommentModelImplFromJson(Map<String, dynamic> json) =>
       userId: _idFromJson(json['userId']),
       text: json['content'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      likeCount: (json['likeCount'] as num?)?.toInt() ?? 0,
+      likedByMe: json['likedByMe'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$$CommentModelImplToJson(_$CommentModelImpl instance) =>
@@ -22,4 +24,6 @@ Map<String, dynamic> _$$CommentModelImplToJson(_$CommentModelImpl instance) =>
       'userId': instance.userId,
       'content': instance.text,
       'createdAt': instance.createdAt.toIso8601String(),
+      'likeCount': instance.likeCount,
+      'likedByMe': instance.likedByMe,
     };

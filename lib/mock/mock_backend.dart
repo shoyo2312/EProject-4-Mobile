@@ -810,6 +810,23 @@ class _MockCommentRepository extends CommentRepository {
     );
   }
 
+  /// The offline catalogue's comments all start at zero likes, so the tally
+  /// after one tap is exactly one.
+  @override
+  Future<CommentLikeResult> likeComment(String videoId, String commentId) async {
+    await _latency();
+    return const CommentLikeResult(liked: true, likeCount: 1);
+  }
+
+  @override
+  Future<CommentLikeResult> unlikeComment(
+    String videoId,
+    String commentId,
+  ) async {
+    await _latency();
+    return const CommentLikeResult(liked: false, likeCount: 0);
+  }
+
   @override
   Future<void> deleteComment(String videoId, String commentId) => _latency();
 }

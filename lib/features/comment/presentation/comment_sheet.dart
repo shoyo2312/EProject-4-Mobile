@@ -104,6 +104,20 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
     _focusNode.requestFocus();
   }
 
+  /// Liking needs an account: signed out the write would 401, so the tap closes
+  /// the sheet and opens the login screen instead of failing quietly — the same
+  /// bargain the composer already makes.
+  void _likeComment(String commentId) {
+    if (ref.read(authStateProvider).valueOrNull == null) {
+      Navigator.of(context).pop();
+      context.push('/login');
+      return;
+    }
+    ref
+        .read(commentNotifierProvider(widget.videoId).notifier)
+        .toggleLike(commentId);
+  }
+
   @override
   Widget build(BuildContext context) {
     final commentsState = ref.watch(commentNotifierProvider(widget.videoId));
@@ -145,6 +159,7 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
                     return _Row(
                       comment: comment,
                       onReply: _startReply,
+                      onLike: _likeComment,
                       onDelete: comment.userId == myId
                           ? () => ref
                               .read(commentNotifierProvider(widget.videoId).notifier)
@@ -221,18 +236,24 @@ class _Header extends StatelessWidget {
   }
 }
 
-/// One comment. Flat — interaction-service has no replies and no comment
-/// likes, so there is no thread to unfold and no heart to fill.
+/// One comment. Flat: interaction-service carries a `parentId`, but nothing
+/// here renders a thread yet, so replies land at the top level.
 ///
 /// The name and picture come from the shared profile cache, which the notifier
 /// fills in one request per page; an author the cache has no entry for (id
 /// gone, or a block relation hiding it) shows the placeholder rather than
 /// blocking the row.
 class _Row extends ConsumerWidget {
-  const _Row({required this.comment, required this.onReply, this.onDelete});
+  const _Row({
+    required this.comment,
+    required this.onReply,
+    required this.onLike,
+    this.onDelete,
+  });
 
   final CommentModel comment;
   final void Function(String authorName) onReply;
+  final void Function(String commentId) onLike;
 
   /// Null for other people's comments — only the author may delete one
   /// (interaction doc 3.6).
@@ -304,6 +325,37 @@ class _Row extends ConsumerWidget {
                 ],
               ),
             ],
+          ),
+        ),
+        // Right-hand column, TikTok's own placement: the heart sits away from
+        // the text so a tap meant for it cannot land on Reply.
+        Padding(
+          padding: const EdgeInsets.only(left: 8, top: 2),
+          child: GestureDetector(
+            key: Key('comment_like_${comment.id}'),
+            onTap: () => onLike(comment.id),
+            behavior: HitTestBehavior.opaque,
+            child: Column(
+              children: [
+                Icon(
+                  comment.likedByMe ? Icons.favorite : Icons.favorite_border,
+                  size: 15,
+                  color: comment.likedByMe
+                      ? NowaColors.accent
+                      : NowaColors.text.withValues(alpha: 0.45),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  // Nothing rather than a "0" under an empty heart.
+                  comment.likeCount == 0 ? '' : compact(comment.likeCount),
+                  style: work(
+                    size: 11,
+                    height: 1,
+                    color: NowaColors.text.withValues(alpha: 0.45),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],

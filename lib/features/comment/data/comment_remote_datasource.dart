@@ -18,6 +18,15 @@ class CommentPage {
   final String? nextCursor;
 }
 
+/// The answer to `POST` and `DELETE` on a comment's `/like`: the new state plus
+/// the tally interaction-service now holds.
+class CommentLikeResult {
+  const CommentLikeResult({required this.liked, required this.likeCount});
+
+  final bool liked;
+  final int likeCount;
+}
+
 /// Comments live in interaction-service, not video-service: the gateway routes
 /// `/videos/**` to video-service, which has no comment endpoint at all.
 class CommentRemoteDatasource {
@@ -52,6 +61,29 @@ class CommentRemoteDatasource {
       data: {'content': text},
     );
     return CommentModel.fromJson(response.data!['data'] as Map<String, dynamic>);
+  }
+
+  /// Idempotent, like a video like: liking twice leaves the tally alone.
+  Future<CommentLikeResult> likeComment(String videoId, String commentId) =>
+      _toggleLike('POST', videoId, commentId);
+
+  Future<CommentLikeResult> unlikeComment(String videoId, String commentId) =>
+      _toggleLike('DELETE', videoId, commentId);
+
+  Future<CommentLikeResult> _toggleLike(
+    String method,
+    String videoId,
+    String commentId,
+  ) async {
+    final path = '/interactions/videos/$videoId/comments/$commentId/like';
+    final response = method == 'POST'
+        ? await _apiClient.post<Map<String, dynamic>>(path)
+        : await _apiClient.delete<Map<String, dynamic>>(path);
+    final body = response.data!['data'] as Map<String, dynamic>;
+    return CommentLikeResult(
+      liked: body['liked'] as bool,
+      likeCount: body['likeCount'] as int,
+    );
   }
 
   /// Own comments only; the video owner cannot remove other people's.

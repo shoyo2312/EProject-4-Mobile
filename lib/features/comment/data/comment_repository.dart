@@ -24,6 +24,25 @@ class CommentRepository {
     }
   }
 
+  Future<CommentLikeResult> likeComment(String videoId, String commentId) async {
+    try {
+      return await _remoteDatasource.likeComment(videoId, commentId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<CommentLikeResult> unlikeComment(
+    String videoId,
+    String commentId,
+  ) async {
+    try {
+      return await _remoteDatasource.unlikeComment(videoId, commentId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
   Future<void> deleteComment(String videoId, String commentId) async {
     try {
       await _remoteDatasource.deleteComment(videoId, commentId);

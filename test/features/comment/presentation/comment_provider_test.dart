@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_model.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_remote_datasource.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_repository.dart';
@@ -116,5 +117,38 @@ void main() {
       container.read(commentNotifierProvider('v1')).value!.map((c) => c.id),
       ['c2'],
     );
+  });
+
+  test('the server tally replaces the optimistic guess', () async {
+    when(() => commentRepository.fetchComments('v1', cursor: null)).thenAnswer(
+      (_) async => CommentPage(
+          items: [makeComment('c1')], hasMore: false, nextCursor: null),
+    );
+    // Two other people liked it between the render and the tap.
+    when(() => commentRepository.likeComment('v1', 'c1'))
+        .thenAnswer((_) async => const CommentLikeResult(liked: true, likeCount: 3));
+    await container.read(commentNotifierProvider('v1').future);
+
+    await container.read(commentNotifierProvider('v1').notifier).toggleLike('c1');
+
+    final result = container.read(commentNotifierProvider('v1')).value!.single;
+    expect(result.likedByMe, isTrue);
+    expect(result.likeCount, 3);
+  });
+
+  test('a failed comment like empties the heart again', () async {
+    when(() => commentRepository.fetchComments('v1', cursor: null)).thenAnswer(
+      (_) async => CommentPage(
+          items: [makeComment('c1')], hasMore: false, nextCursor: null),
+    );
+    when(() => commentRepository.likeComment('v1', 'c1'))
+        .thenThrow(const NetworkException());
+    await container.read(commentNotifierProvider('v1').future);
+
+    await container.read(commentNotifierProvider('v1').notifier).toggleLike('c1');
+
+    final result = container.read(commentNotifierProvider('v1')).value!.single;
+    expect(result.likedByMe, isFalse);
+    expect(result.likeCount, 0);
   });
 }
