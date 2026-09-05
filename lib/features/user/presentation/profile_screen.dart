@@ -7,6 +7,7 @@ import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/error_view.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
+import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 import 'package:tiktok_mobile/features/feed/presentation/video_viewer_screen.dart';
 import 'package:tiktok_mobile/features/feed/presentation/feed_provider.dart';
@@ -169,6 +170,21 @@ class _OtherProfileBody extends ConsumerWidget {
   final String userId;
   final bool embedded;
 
+  /// Opens the thread with this person, creating it on the server if this is
+  /// the first message. The id comes back from the server rather than being
+  /// guessed: two people have exactly one conversation, and which document it
+  /// is was decided the first time either of them tapped this.
+  Future<void> _openChat(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final conversationId =
+          await ref.read(conversationsProvider.notifier).openWith(userId);
+      if (context.mounted) context.push('/messages/$conversationId');
+    } on AppException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileState = ref.watch(profileNotifierProvider(userId));
@@ -194,6 +210,12 @@ class _OtherProfileBody extends ConsumerWidget {
             onTap: notifier.toggleFollow,
           ),
           iconActions: [
+            _IconAction(
+              buttonKey: const Key('profile_message_button'),
+              icon: Icons.send_outlined,
+              tooltip: 'Message',
+              onTap: () => _openChat(context, ref),
+            ),
             _IconAction(
               buttonKey: const Key('profile_block_button'),
               icon: Icons.block,

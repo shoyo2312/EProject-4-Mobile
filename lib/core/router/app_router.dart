@@ -11,6 +11,8 @@ import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/features/auth/presentation/reset_password_screen.dart';
 import 'package:tiktok_mobile/features/auth/presentation/social_link_screen.dart';
 import 'package:tiktok_mobile/features/auth/presentation/verify_email_screen.dart';
+import 'package:tiktok_mobile/features/chat/presentation/chat_thread_screen.dart';
+import 'package:tiktok_mobile/features/chat/presentation/messages_screen.dart';
 import 'package:tiktok_mobile/features/shell/presentation/home_shell.dart';
 import 'package:tiktok_mobile/features/user/presentation/edit_profile_screen.dart';
 import 'package:tiktok_mobile/features/user/presentation/profile_screen.dart';
@@ -88,6 +90,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // The five tabs (feed, discover, create, inbox, you) live behind one
       // route — the nav bar switches an IndexedStack, it does not navigate.
       GoRoute(path: '/feed', builder: (_, _) => const HomeShell()),
+      GoRoute(path: '/messages', builder: (_, _) => const MessagesScreen()),
+      GoRoute(
+        path: '/messages/:conversationId',
+        builder: (_, state) => ChatThreadScreen(
+          conversationId: state.pathParameters['conversationId']!,
+        ),
+      ),
       GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
       GoRoute(path: '/profile/edit', builder: (_, _) => const EditProfileScreen()),
       GoRoute(

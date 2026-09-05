@@ -7,6 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
 import 'package:tiktok_mobile/features/auth/data/user_model.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
+import 'package:tiktok_mobile/features/chat/data/chat_model.dart';
+import 'package:tiktok_mobile/features/chat/data/chat_remote_datasource.dart';
+import 'package:tiktok_mobile/features/chat/data/chat_repository.dart';
+import 'package:tiktok_mobile/features/chat/data/chat_socket.dart';
+import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_model.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_remote_datasource.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_repository.dart';
@@ -52,6 +57,12 @@ List<Override> mockOverrides() => [
       interactionRepositoryProvider.overrideWith(
         (ref) => _MockInteractionRepository(
           InteractionRemoteDatasource(ref.watch(apiClientProvider)),
+        ),
+      ),
+      chatRepositoryProvider.overrideWith(
+        (ref) => _MockChatRepository(
+          ChatRemoteDatasource(ref.watch(apiClientProvider)),
+          ChatSocket(ref.watch(tokenStorageProvider)),
         ),
       ),
       notificationRepositoryProvider.overrideWith(
@@ -1025,4 +1036,92 @@ class _MockNotificationRepository extends NotificationRepository {
       _rows[i] = _rows[i].copyWith(read: true);
     }
   }
+}
+
+
+/// Offline chat. One thread with one other person, kept in memory so a sent
+/// message survives leaving the screen. No socket: [liveMessages] is an empty
+/// stream, and the thread still shows what it sends because the send path adds
+/// the server's copy itself.
+class _MockChatRepository extends ChatRepository {
+  _MockChatRepository(super.remoteDatasource, super.socket);
+
+  static const _conversationId = 'conv1';
+  static const _otherId = '2002';
+
+  final _messages = <MessageModel>[
+    MessageModel(
+      id: 'm2',
+      conversationId: _conversationId,
+      senderId: _otherId,
+      content: 'quay ở đâu vậy bro',
+      sentAt: DateTime.now().subtract(const Duration(minutes: 12)),
+    ),
+    MessageModel(
+      id: 'm1',
+      conversationId: _conversationId,
+      senderId: _meId,
+      content: 'clip mới lên rồi nha',
+      sentAt: DateTime.now().subtract(const Duration(hours: 3)),
+    ),
+  ];
+
+  @override
+  Future<List<ConversationModel>> listConversations() async {
+    await _latency();
+    return [
+      ConversationModel(
+        id: _conversationId,
+        participantIds: const [_meId, _otherId],
+        lastMessageContent: _messages.first.content,
+        lastMessageSenderId: _messages.first.senderId,
+        lastMessageAt: _messages.first.sentAt,
+        createdAt: DateTime.now().subtract(const Duration(days: 2)),
+        hasUnread: _messages.first.senderId != _meId,
+      ),
+    ];
+  }
+
+  @override
+  Future<ConversationModel> openConversation(String participantId) async =>
+      (await listConversations()).first;
+
+  @override
+  Future<ConversationModel> getConversation(String conversationId) async =>
+      (await listConversations()).first;
+
+  @override
+  Future<MessagePage> listMessages(
+    String conversationId, {
+    String? cursor,
+    int size = 30,
+  }) async {
+    await _latency();
+    // One page then done — hasMore is the only stop condition.
+    if (cursor != null) {
+      return const MessagePage(items: [], hasMore: false);
+    }
+    return MessagePage(items: List.unmodifiable(_messages), hasMore: false);
+  }
+
+  @override
+  Future<MessageModel> sendMessage(String conversationId, String content) async {
+    await _latency();
+    final message = MessageModel(
+      id: 'm${_messages.length + 1}',
+      conversationId: conversationId,
+      senderId: _meId,
+      content: content,
+      sentAt: DateTime.now(),
+    );
+    _messages.insert(0, message);
+    return message;
+  }
+
+  @override
+  Future<void> markRead(String conversationId) async {}
+
+  @override
+  Stream<MessageModel> liveMessages(String conversationId) =>
+      const Stream.empty();
 }

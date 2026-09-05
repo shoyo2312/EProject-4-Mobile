@@ -81,6 +81,17 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text('Inbox', style: sora(size: 26, spacing: -0.6)),
+              const SizedBox(width: 10),
+              GestureDetector(
+                key: const Key('inbox_open_messages'),
+                behavior: HitTestBehavior.opaque,
+                onTap: () => context.push('/messages'),
+                child: Icon(
+                  Icons.send_outlined,
+                  size: 18,
+                  color: NowaColors.text.withValues(alpha: 0.7),
+                ),
+              ),
               const Spacer(),
               if (inbox.valueOrNull?.any((n) => !n.read) ?? false)
                 GestureDetector(
