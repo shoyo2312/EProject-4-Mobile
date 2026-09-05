@@ -690,12 +690,16 @@ class _Rail extends StatelessWidget {
         ),
         RailAction(
           itemKey: Key('feed_comment_count_${video.id}'),
-          icon: Icons.mode_comment_outlined,
+          // Still tappable when off: the thread already posted stays readable.
+          icon: video.commentsDisabled
+              ? Icons.comments_disabled_outlined
+              : Icons.mode_comment_outlined,
           label: compact(counts?.commentCount ?? video.commentCount),
           onTap: () => showCommentSheet(
             context,
             videoId: video.id,
             totalCount: counts?.commentCount ?? video.commentCount,
+            commentsDisabled: video.commentsDisabled,
           ),
         ),
         RailAction(

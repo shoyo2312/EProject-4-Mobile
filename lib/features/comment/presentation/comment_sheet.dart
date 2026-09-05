@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/utils/time_ago.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
@@ -18,24 +19,38 @@ Future<void> showCommentSheet(
   BuildContext context, {
   required String videoId,
   int? totalCount,
+  bool commentsDisabled = false,
 }) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     barrierColor: const Color(0x80040306),
-    builder: (_) => CommentSheet(videoId: videoId, totalCount: totalCount),
+    builder: (_) => CommentSheet(
+      videoId: videoId,
+      totalCount: totalCount,
+      commentsDisabled: commentsDisabled,
+    ),
   );
 }
 
 class CommentSheet extends ConsumerStatefulWidget {
-  const CommentSheet({super.key, required this.videoId, this.totalCount});
+  const CommentSheet({
+    super.key,
+    required this.videoId,
+    this.totalCount,
+    this.commentsDisabled = false,
+  });
 
   final String videoId;
 
   /// From `VideoModel.commentCount`; only the loaded page is counted when
   /// this is null.
   final int? totalCount;
+
+  /// From `VideoModel.commentsDisabled`. The owner switched new comments off;
+  /// the ones already posted stay readable, so the sheet still opens.
+  final bool commentsDisabled;
 
   @override
   ConsumerState<CommentSheet> createState() => _CommentSheetState();
@@ -79,9 +94,14 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
   /// deduplicate, so a second tap posts a second comment (interaction doc 3.4).
   bool _sending = false;
 
+  /// Starts from the video the caller handed over, but the owner can switch
+  /// comments off while this sheet is open — the server saying so is the only
+  /// way to find out, so the answer to a rejected post updates it.
+  late bool _disabled = widget.commentsDisabled;
+
   Future<void> _send() async {
     final text = _controller.text.trim();
-    if (text.isEmpty || _sending) return;
+    if (text.isEmpty || _sending || _disabled) return;
     final body = _replyingTo == null ? text : '$_replyingTo $text';
     setState(() => _sending = true);
     _controller.clear();
@@ -89,13 +109,21 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
       await ref
           .read(commentNotifierProvider(widget.videoId).notifier)
           .postComment(body);
+      if (mounted) setState(() => _replyingTo = null);
+    } on AppException catch (e) {
+      if (!mounted) return;
+      // The text goes back in the field rather than being lost: the send
+      // failed, and retyping it is not the user's mistake to pay for.
+      _controller.text = text;
+      setState(() {
+        if (e is ServerException && e.code == 'COMMENTS_DISABLED') {
+          _disabled = true;
+        }
+      });
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
-      if (mounted) {
-        setState(() {
-          _sending = false;
-          _replyingTo = null;
-        });
-      }
+      if (mounted) setState(() => _sending = false);
     }
   }
 
@@ -171,20 +199,23 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
               },
             ),
           ),
-          isLoggedIn
-              ? _Composer(
+          if (_disabled)
+            const _CommentsClosed()
+          else if (isLoggedIn)
+            _Composer(
                   controller: _controller,
                   focusNode: _focusNode,
                   replyingTo: _replyingTo,
-                  onCancelReply: () => setState(() => _replyingTo = null),
-                  onSend: _send,
-                )
-              : _SignInPrompt(
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    context.push('/login');
-                  },
-                ),
+              onCancelReply: () => setState(() => _replyingTo = null),
+              onSend: _send,
+            )
+          else
+            _SignInPrompt(
+              onTap: () {
+                Navigator.of(context).pop();
+                context.push('/login');
+              },
+            ),
         ],
       ),
     );
@@ -473,6 +504,35 @@ class _Composer extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Stands in for the composer when the owner has switched new comments off.
+/// The thread above it stays readable — turning comments off does not remove
+/// what was already posted.
+class _CommentsClosed extends StatelessWidget {
+  const _CommentsClosed();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: NowaColors.surface,
+        border: Border(top: BorderSide(color: NowaColors.hairline)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        18,
+        16,
+        30 + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Text(
+        'Comments are turned off for this video',
+        key: const Key('comments_disabled_notice'),
+        textAlign: TextAlign.center,
+        style: work(size: 13.5, color: NowaColors.text.withValues(alpha: 0.45)),
       ),
     );
   }
