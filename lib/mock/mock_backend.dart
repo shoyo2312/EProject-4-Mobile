@@ -19,6 +19,9 @@ import 'package:tiktok_mobile/features/interaction/data/interaction_model.dart';
 import 'package:tiktok_mobile/features/interaction/data/interaction_remote_datasource.dart';
 import 'package:tiktok_mobile/features/interaction/data/interaction_repository.dart';
 import 'package:tiktok_mobile/features/interaction/presentation/interaction_provider.dart';
+import 'package:tiktok_mobile/features/search/data/search_remote_datasource.dart';
+import 'package:tiktok_mobile/features/search/data/search_repository.dart';
+import 'package:tiktok_mobile/features/search/presentation/search_provider.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/data/user_remote_datasource.dart';
 import 'package:tiktok_mobile/features/user/data/user_repository.dart';
@@ -45,6 +48,11 @@ List<Override> mockOverrides() => [
       interactionRepositoryProvider.overrideWith(
         (ref) => _MockInteractionRepository(
           InteractionRemoteDatasource(ref.watch(apiClientProvider)),
+        ),
+      ),
+      searchRepositoryProvider.overrideWith(
+        (ref) => _MockSearchRepository(
+          SearchRemoteDatasource(ref.watch(apiClientProvider)),
         ),
       ),
     ];
@@ -604,6 +612,20 @@ class _MockFeedRepository extends FeedRepository {
           if (!_deleted.contains(v.id)) _edits[v.id] ?? v,
       ];
 
+  /// The offline leaderboard is the catalogue by view count — no recency
+  /// decay, but the same contract: best first, ids the caller hydrates.
+  @override
+  Future<List<VideoModel>> fetchTrending({int limit = 24}) async {
+    await _latency();
+    final ranked = [
+      for (final v in _live)
+        if (v.status == VideoStatus.published &&
+            v.visibility == VideoVisibility.public)
+          v,
+    ]..sort((a, b) => b.viewCount.compareTo(a.viewCount));
+    return ranked.take(limit).toList();
+  }
+
   /// No ranking offline: answering empty sends [FeedNotifier] straight to the
   /// chronological list below, which is the whole mock catalogue anyway.
   @override
@@ -885,4 +907,41 @@ class _MockCommentRepository extends CommentRepository {
 
   @override
   Future<void> deleteComment(String videoId, String commentId) => _latency();
+}
+
+
+/// Offline search. The mock catalogue carries no `tags` field, so a hashtag
+/// is matched against the caption text the same way a free-text query is —
+/// enough to exercise the chips, unlike the server where a tag is an exact
+/// keyword match.
+class _MockSearchRepository extends SearchRepository {
+  _MockSearchRepository(super.remoteDatasource);
+
+  @override
+  Future<SearchIdPage> searchVideos({
+    String? query,
+    String? hashtag,
+    int page = 0,
+    int size = 24,
+  }) async {
+    await _latency();
+    // One page then done, like the other mock listings.
+    if (page > 0) return const SearchIdPage(ids: [], last: true);
+    bool matches(VideoModel v, String term) {
+      final haystack = '${v.title} ${v.description ?? ''}'.toLowerCase();
+      return haystack.contains(term.toLowerCase());
+    }
+
+    return SearchIdPage(
+      ids: [
+        for (final v in _videos)
+          if (v.status == VideoStatus.published &&
+              v.visibility == VideoVisibility.public &&
+              (query == null || matches(v, query)) &&
+              (hashtag == null || matches(v, hashtag)))
+            v.id,
+      ],
+      last: true,
+    );
+  }
 }

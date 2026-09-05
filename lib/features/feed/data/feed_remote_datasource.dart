@@ -192,6 +192,23 @@ class FeedRemoteDatasource {
         .toList();
   }
 
+  /// The public leaderboard, as ids only, best first — same hydration dance as
+  /// [fetchRankedIds] but with no token and the same answer for everyone.
+  ///
+  /// Scored over the last 24 hours with a heavy recency decay, so last month's
+  /// hit is not here. The `score` beside each id is internal and unitless:
+  /// only the order within one response means anything, so it is dropped
+  /// (recommendation doc 3.1).
+  Future<List<String>> fetchTrendingIds({int limit = 24}) async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/recommendations/trending',
+      queryParameters: {'limit': limit},
+    );
+    return (response.data!['data'] as List)
+        .map((e) => (e as Map<String, dynamic>)['videoId'].toString())
+        .toList();
+  }
+
   /// Hydrates a whole ranked page in one request, answering in the order
   /// asked. Twenty single `/videos/{id}` calls would spend the gateway's
   /// entire 20 req/s per-IP budget on one scroll — and that budget is shared

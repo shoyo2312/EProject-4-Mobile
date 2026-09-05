@@ -85,6 +85,22 @@ class FeedRepository {
     }
   }
 
+  /// The trending leaderboard: rank, then hydrate, in two calls — like
+  /// [fetchRankedFeed] but public, so it works for a signed-out viewer too.
+  ///
+  /// An empty list is a normal answer for a cold system, and a shorter list
+  /// than the ranking asked for means an id was deleted in between. Neither is
+  /// an error.
+  Future<List<VideoModel>> fetchTrending({int limit = 24}) async {
+    try {
+      final ids = await _remoteDatasource.fetchTrendingIds(limit: limit);
+      if (ids.isEmpty) return [];
+      return await _remoteDatasource.fetchByIds(ids);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
   /// Turns a list of ids into playable videos in one request, in the order
   /// asked. Used wherever another service hands back ids and nothing else —
   /// the ranked feed above, the Liked and Saved histories.
