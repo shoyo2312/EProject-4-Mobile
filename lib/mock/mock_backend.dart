@@ -19,6 +19,10 @@ import 'package:tiktok_mobile/features/interaction/data/interaction_model.dart';
 import 'package:tiktok_mobile/features/interaction/data/interaction_remote_datasource.dart';
 import 'package:tiktok_mobile/features/interaction/data/interaction_repository.dart';
 import 'package:tiktok_mobile/features/interaction/presentation/interaction_provider.dart';
+import 'package:tiktok_mobile/features/notification/data/notification_model.dart';
+import 'package:tiktok_mobile/features/notification/data/notification_remote_datasource.dart';
+import 'package:tiktok_mobile/features/notification/data/notification_repository.dart';
+import 'package:tiktok_mobile/features/notification/presentation/notification_provider.dart';
 import 'package:tiktok_mobile/features/search/data/search_remote_datasource.dart';
 import 'package:tiktok_mobile/features/search/data/search_repository.dart';
 import 'package:tiktok_mobile/features/search/presentation/search_provider.dart';
@@ -48,6 +52,11 @@ List<Override> mockOverrides() => [
       interactionRepositoryProvider.overrideWith(
         (ref) => _MockInteractionRepository(
           InteractionRemoteDatasource(ref.watch(apiClientProvider)),
+        ),
+      ),
+      notificationRepositoryProvider.overrideWith(
+        (ref) => _MockNotificationRepository(
+          NotificationRemoteDatasource(ref.watch(apiClientProvider)),
         ),
       ),
       searchRepositoryProvider.overrideWith(
@@ -943,5 +952,77 @@ class _MockSearchRepository extends SearchRepository {
       ],
       last: true,
     );
+  }
+}
+
+
+/// Offline inbox. Holds the rows in memory so marking one read survives a tab
+/// switch, the way the real service does.
+class _MockNotificationRepository extends NotificationRepository {
+  _MockNotificationRepository(super.remoteDatasource);
+
+  final _rows = <NotificationModel>[
+    NotificationModel(
+      id: 'n1',
+      type: NotificationKind.like,
+      title: 'Benri Studio',
+      body: 'liked your video',
+      referenceId: 'v1',
+      read: false,
+      createdAt: DateTime.now().subtract(const Duration(hours: 2)),
+    ),
+    NotificationModel(
+      id: 'n2',
+      type: NotificationKind.comment,
+      title: 'Hà Noodles',
+      body: 'commented: "công thức ở đâu vậy bạn"',
+      referenceId: 'c1',
+      read: false,
+      createdAt: DateTime.now().subtract(const Duration(hours: 6)),
+    ),
+    NotificationModel(
+      id: 'n3',
+      type: NotificationKind.newFollower,
+      title: 'Long An Daily',
+      body: 'started following you',
+      referenceId: '6006',
+      read: false,
+      createdAt: DateTime.now().subtract(const Duration(days: 1)),
+    ),
+    NotificationModel(
+      id: 'n4',
+      type: NotificationKind.system,
+      title: 'Welcome to TikTok!',
+      body: 'Hi mihhuq1223, thanks for joining us.',
+      read: true,
+      createdAt: DateTime.now().subtract(const Duration(days: 4)),
+    ),
+  ];
+
+  @override
+  Future<List<NotificationModel>> list() async {
+    await _latency();
+    return List.unmodifiable(_rows);
+  }
+
+  @override
+  Future<int> unreadCount() async {
+    await _latency();
+    return _rows.where((n) => !n.read).length;
+  }
+
+  @override
+  Future<void> markRead(String notificationId) async {
+    await _latency();
+    final index = _rows.indexWhere((n) => n.id == notificationId);
+    if (index != -1) _rows[index] = _rows[index].copyWith(read: true);
+  }
+
+  @override
+  Future<void> markAllRead() async {
+    await _latency();
+    for (var i = 0; i < _rows.length; i++) {
+      _rows[i] = _rows[i].copyWith(read: true);
+    }
   }
 }
