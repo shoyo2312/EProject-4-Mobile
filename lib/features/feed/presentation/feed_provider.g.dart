@@ -40,7 +40,7 @@ final feedNotifierProvider =
 
 typedef _$FeedNotifier = AutoDisposeAsyncNotifier<List<VideoModel>>;
 String _$userVideosNotifierHash() =>
-    r'6bc1b637c5ca6fab2eda155cea4086037627790d';
+    r'e7067b0dfefcb268b2009222e5bb27fb8deb4d60';
 
 /// Copied from Dart SDK
 class _SystemHash {

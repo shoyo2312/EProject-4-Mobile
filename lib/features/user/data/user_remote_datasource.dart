@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:dio/dio.dart';
 import 'package:tiktok_mobile/core/network/api_client.dart';
 import 'package:tiktok_mobile/core/network/api_response.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
@@ -20,6 +23,29 @@ class UserRemoteDatasource {
     final response = await _apiClient.patch<Map<String, dynamic>>(
       '/users/me',
       data: changes,
+    );
+    return _unwrap(response.data!, UserProfileModel.fromJson);
+  }
+
+  /// The only way to set an avatar. `PATCH /me` takes an `avatarUrl`, but it
+  /// is validated against the server's own allow-list, so a client has no URL
+  /// it is permitted to send until something has already stored the bytes —
+  /// which is this call (user doc 3.2b).
+  ///
+  /// Answers the whole profile, exactly as `PATCH /me` does, so the caller
+  /// refreshes from one response either way.
+  Future<UserProfileModel> uploadAvatar(
+    File file, {
+    required String contentType,
+  }) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/users/me/avatar',
+      data: FormData.fromMap({
+        'file': await MultipartFile.fromFile(
+          file.path,
+          contentType: DioMediaType.parse(contentType),
+        ),
+      }),
     );
     return _unwrap(response.data!, UserProfileModel.fromJson);
   }

@@ -207,8 +207,44 @@ class FeedRemoteDatasource {
     return envelope.data!;
   }
 
+  /// Owner-only, like [deleteVideo]: anyone else gets `NOT_VIDEO_OWNER`.
+  /// Answers the updated video, so the caller replaces its row from the
+  /// response rather than guessing what changed.
+  Future<VideoModel> updateVisibility(
+    String videoId,
+    VideoVisibility visibility,
+  ) async {
+    final response = await _apiClient.patch<Map<String, dynamic>>(
+      '/videos/$videoId/visibility',
+      data: {
+        'visibility': visibility == VideoVisibility.private ? 'PRIVATE' : 'PUBLIC',
+      },
+    );
+    return _unwrapVideo(response.data!);
+  }
+
+  /// Owner-only. Turns *new* comments on or off; the ones already posted are
+  /// untouched.
+  Future<VideoModel> updateCommentsDisabled(
+    String videoId,
+    bool disabled,
+  ) async {
+    final response = await _apiClient.patch<Map<String, dynamic>>(
+      '/videos/$videoId/comments-setting',
+      data: {'disabled': disabled},
+    );
+    return _unwrapVideo(response.data!);
+  }
+
   Future<void> deleteVideo(String videoId) {
     return _apiClient.delete<void>('/videos/$videoId');
+  }
+
+  VideoModel _unwrapVideo(Map<String, dynamic> body) {
+    return ApiResponse<VideoModel>.fromJson(
+      body,
+      (json) => VideoModel.fromJson(json as Map<String, dynamic>),
+    ).data!;
   }
 
   PageResponse<VideoModel> _unwrapPage(Map<String, dynamic> body) {

@@ -103,6 +103,28 @@ class FeedRepository {
     }
   }
 
+  Future<VideoModel> updateVisibility(
+    String videoId,
+    VideoVisibility visibility,
+  ) async {
+    try {
+      return await _remoteDatasource.updateVisibility(videoId, visibility);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<VideoModel> updateCommentsDisabled(
+    String videoId,
+    bool disabled,
+  ) async {
+    try {
+      return await _remoteDatasource.updateCommentsDisabled(videoId, disabled);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
   Future<void> deleteVideo(String videoId) async {
     try {
       await _remoteDatasource.deleteVideo(videoId);

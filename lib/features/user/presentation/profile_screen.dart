@@ -509,6 +509,77 @@ class _UserVideosGrid extends ConsumerWidget {
   final String userId;
   final bool isOwnProfile;
 
+  /// The owner's menu for one of their own videos. Long-press rather than a
+  /// visible button: the grid is three across and a per-tile overflow icon at
+  /// that size is a mis-tap waiting to happen.
+  Future<void> _openManageSheet(
+    BuildContext context,
+    WidgetRef ref,
+    VideoModel video,
+  ) async {
+    final isPrivate = video.visibility == VideoVisibility.private;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: NowaColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            _ManageTile(
+              itemKey: const Key('manage_video_visibility'),
+              icon: isPrivate ? Icons.public : Icons.lock_outline,
+              label: isPrivate ? 'Make public' : 'Make private',
+              onTap: () => Navigator.of(sheetContext).pop('visibility'),
+            ),
+            _ManageTile(
+              itemKey: const Key('manage_video_comments'),
+              icon: video.commentsDisabled
+                  ? Icons.mode_comment_outlined
+                  : Icons.comments_disabled_outlined,
+              label: video.commentsDisabled
+                  ? 'Turn comments on'
+                  : 'Turn comments off',
+              onTap: () => Navigator.of(sheetContext).pop('comments'),
+            ),
+            _ManageTile(
+              itemKey: const Key('manage_video_delete'),
+              icon: Icons.delete_outline,
+              label: 'Delete',
+              danger: true,
+              onTap: () => Navigator.of(sheetContext).pop('delete'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !context.mounted) return;
+
+    if (action == 'delete') {
+      await _confirmDelete(context, ref, video);
+      return;
+    }
+    final notifier = ref.read(userVideosNotifierProvider(userId).notifier);
+    try {
+      if (action == 'visibility') {
+        await notifier.setVisibility(
+          video.id,
+          isPrivate ? VideoVisibility.public : VideoVisibility.private,
+        );
+      } else {
+        await notifier.setCommentsDisabled(video.id, !video.commentsDisabled);
+      }
+    } on AppException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
   /// Deleting is a soft delete with no restore endpoint, and the gesture that
   /// starts it is a long-press on a scrolling grid — easy to trigger by
   /// accident. Ask first.
@@ -571,11 +642,38 @@ class _UserVideosGrid extends ConsumerWidget {
           ? const _EmptyVideos()
           : _VideoGrid(
               videos: videos,
-              // Only the owner may delete, and only after confirming.
+              // Only the owner may edit or delete their own videos.
               onLongPress: isOwnProfile
-                  ? (video) => _confirmDelete(context, ref, video)
+                  ? (video) => _openManageSheet(context, ref, video)
                   : null,
             ),
+    );
+  }
+}
+
+class _ManageTile extends StatelessWidget {
+  const _ManageTile({
+    required this.itemKey,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.danger = false,
+  });
+
+  final Key itemKey;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = danger ? NowaColors.danger : NowaColors.text;
+    return ListTile(
+      key: itemKey,
+      onTap: onTap,
+      leading: Icon(icon, size: 20, color: color),
+      title: Text(label, style: work(size: 14.5, color: color)),
     );
   }
 }

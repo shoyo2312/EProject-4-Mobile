@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
@@ -37,6 +39,17 @@ class UserRepository {
   Future<UserProfileModel> updateMyProfile(Map<String, dynamic> changes) async {
     try {
       return await _remoteDatasource.updateMyProfile(changes);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<UserProfileModel> uploadAvatar(
+    File file, {
+    required String contentType,
+  }) async {
+    try {
+      return await _remoteDatasource.uploadAvatar(file, contentType: contentType);
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }

@@ -601,7 +601,7 @@ class _MockFeedRepository extends FeedRepository {
 
   List<VideoModel> get _live => [
         for (final v in _videos)
-          if (!_deleted.contains(v.id)) v,
+          if (!_deleted.contains(v.id)) _edits[v.id] ?? v,
       ];
 
   /// No ranking offline: answering empty sends [FeedNotifier] straight to the
@@ -701,6 +701,31 @@ class _MockFeedRepository extends FeedRepository {
     ];
   }
 
+  final _edits = <String, VideoModel>{};
+
+  @override
+  Future<VideoModel> updateVisibility(
+    String videoId,
+    VideoVisibility visibility,
+  ) async {
+    await _latency();
+    return _edit(videoId, (v) => v.copyWith(visibility: visibility));
+  }
+
+  @override
+  Future<VideoModel> updateCommentsDisabled(
+    String videoId,
+    bool disabled,
+  ) async {
+    await _latency();
+    return _edit(videoId, (v) => v.copyWith(commentsDisabled: disabled));
+  }
+
+  /// `_live` already hands back the edited copy, so this reads through it
+  /// rather than keeping a second notion of what the current video is.
+  VideoModel _edit(String videoId, VideoModel Function(VideoModel) change) =>
+      _edits[videoId] = change(_live.firstWhere((v) => v.id == videoId));
+
   @override
   Future<void> deleteVideo(String videoId) async => _deleted.add(videoId);
 
@@ -731,6 +756,18 @@ class _MockUserRepository extends UserRepository {
       bio: changes['bio'] as String? ?? _mine.bio,
       avatarUrl: changes['avatarUrl'] as String? ?? _mine.avatarUrl,
     );
+    return _mine;
+  }
+
+  /// Offline there is nowhere to put the bytes, so the picked file's own path
+  /// stands in for the URL the server would have chosen.
+  @override
+  Future<UserProfileModel> uploadAvatar(
+    File file, {
+    required String contentType,
+  }) async {
+    await _latency();
+    _mine = _mine.copyWith(avatarUrl: file.path);
     return _mine;
   }
 

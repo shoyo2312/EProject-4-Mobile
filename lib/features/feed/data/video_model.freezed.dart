@@ -33,7 +33,12 @@ mixin _$VideoModel {
   @JsonKey(unknownEnumValue: VideoStatus.unknown)
   VideoStatus get status => throw _privateConstructorUsedError;
   @JsonKey(unknownEnumValue: VideoVisibility.unknown)
-  VideoVisibility get visibility => throw _privateConstructorUsedError; // Updated asynchronously via Kafka, so they lag behind a like/comment that
+  VideoVisibility get visibility => throw _privateConstructorUsedError;
+
+  /// Set by the owner. New comments are refused while it is true; the ones
+  /// already posted stay readable.
+  bool get commentsDisabled =>
+      throw _privateConstructorUsedError; // Updated asynchronously via Kafka, so they lag behind a like/comment that
   // just happened — a value to sync against on reload, not an immediate
   // result (video doc 5).
   int get viewCount => throw _privateConstructorUsedError;
@@ -73,6 +78,7 @@ abstract class $VideoModelCopyWith<$Res> {
     @JsonKey(unknownEnumValue: VideoStatus.unknown) VideoStatus status,
     @JsonKey(unknownEnumValue: VideoVisibility.unknown)
     VideoVisibility visibility,
+    bool commentsDisabled,
     int viewCount,
     int likeCount,
     int commentCount,
@@ -105,6 +111,7 @@ class _$VideoModelCopyWithImpl<$Res, $Val extends VideoModel>
     Object? durationSeconds = freezed,
     Object? status = null,
     Object? visibility = null,
+    Object? commentsDisabled = null,
     Object? viewCount = null,
     Object? likeCount = null,
     Object? commentCount = null,
@@ -149,6 +156,10 @@ class _$VideoModelCopyWithImpl<$Res, $Val extends VideoModel>
                 ? _value.visibility
                 : visibility // ignore: cast_nullable_to_non_nullable
                       as VideoVisibility,
+            commentsDisabled: null == commentsDisabled
+                ? _value.commentsDisabled
+                : commentsDisabled // ignore: cast_nullable_to_non_nullable
+                      as bool,
             viewCount: null == viewCount
                 ? _value.viewCount
                 : viewCount // ignore: cast_nullable_to_non_nullable
@@ -195,6 +206,7 @@ abstract class _$$VideoModelImplCopyWith<$Res>
     @JsonKey(unknownEnumValue: VideoStatus.unknown) VideoStatus status,
     @JsonKey(unknownEnumValue: VideoVisibility.unknown)
     VideoVisibility visibility,
+    bool commentsDisabled,
     int viewCount,
     int likeCount,
     int commentCount,
@@ -226,6 +238,7 @@ class __$$VideoModelImplCopyWithImpl<$Res>
     Object? durationSeconds = freezed,
     Object? status = null,
     Object? visibility = null,
+    Object? commentsDisabled = null,
     Object? viewCount = null,
     Object? likeCount = null,
     Object? commentCount = null,
@@ -270,6 +283,10 @@ class __$$VideoModelImplCopyWithImpl<$Res>
             ? _value.visibility
             : visibility // ignore: cast_nullable_to_non_nullable
                   as VideoVisibility,
+        commentsDisabled: null == commentsDisabled
+            ? _value.commentsDisabled
+            : commentsDisabled // ignore: cast_nullable_to_non_nullable
+                  as bool,
         viewCount: null == viewCount
             ? _value.viewCount
             : viewCount // ignore: cast_nullable_to_non_nullable
@@ -309,6 +326,7 @@ class _$VideoModelImpl implements _VideoModel {
     @JsonKey(unknownEnumValue: VideoStatus.unknown) required this.status,
     @JsonKey(unknownEnumValue: VideoVisibility.unknown)
     required this.visibility,
+    this.commentsDisabled = false,
     required this.viewCount,
     required this.likeCount,
     required this.commentCount,
@@ -341,6 +359,12 @@ class _$VideoModelImpl implements _VideoModel {
   @override
   @JsonKey(unknownEnumValue: VideoVisibility.unknown)
   final VideoVisibility visibility;
+
+  /// Set by the owner. New comments are refused while it is true; the ones
+  /// already posted stay readable.
+  @override
+  @JsonKey()
+  final bool commentsDisabled;
   // Updated asynchronously via Kafka, so they lag behind a like/comment that
   // just happened — a value to sync against on reload, not an immediate
   // result (video doc 5).
@@ -361,7 +385,7 @@ class _$VideoModelImpl implements _VideoModel {
 
   @override
   String toString() {
-    return 'VideoModel(id: $id, userId: $userId, title: $title, description: $description, thumbnailUrl: $thumbnailUrl, hlsUrl: $hlsUrl, durationSeconds: $durationSeconds, status: $status, visibility: $visibility, viewCount: $viewCount, likeCount: $likeCount, commentCount: $commentCount, shareCount: $shareCount, createdAt: $createdAt)';
+    return 'VideoModel(id: $id, userId: $userId, title: $title, description: $description, thumbnailUrl: $thumbnailUrl, hlsUrl: $hlsUrl, durationSeconds: $durationSeconds, status: $status, visibility: $visibility, commentsDisabled: $commentsDisabled, viewCount: $viewCount, likeCount: $likeCount, commentCount: $commentCount, shareCount: $shareCount, createdAt: $createdAt)';
   }
 
   @override
@@ -382,6 +406,8 @@ class _$VideoModelImpl implements _VideoModel {
             (identical(other.status, status) || other.status == status) &&
             (identical(other.visibility, visibility) ||
                 other.visibility == visibility) &&
+            (identical(other.commentsDisabled, commentsDisabled) ||
+                other.commentsDisabled == commentsDisabled) &&
             (identical(other.viewCount, viewCount) ||
                 other.viewCount == viewCount) &&
             (identical(other.likeCount, likeCount) ||
@@ -407,6 +433,7 @@ class _$VideoModelImpl implements _VideoModel {
     durationSeconds,
     status,
     visibility,
+    commentsDisabled,
     viewCount,
     likeCount,
     commentCount,
@@ -441,6 +468,7 @@ abstract class _VideoModel implements VideoModel {
     required final VideoStatus status,
     @JsonKey(unknownEnumValue: VideoVisibility.unknown)
     required final VideoVisibility visibility,
+    final bool commentsDisabled,
     required final int viewCount,
     required final int likeCount,
     required final int commentCount,
@@ -471,7 +499,12 @@ abstract class _VideoModel implements VideoModel {
   VideoStatus get status;
   @override
   @JsonKey(unknownEnumValue: VideoVisibility.unknown)
-  VideoVisibility get visibility; // Updated asynchronously via Kafka, so they lag behind a like/comment that
+  VideoVisibility get visibility;
+
+  /// Set by the owner. New comments are refused while it is true; the ones
+  /// already posted stay readable.
+  @override
+  bool get commentsDisabled; // Updated asynchronously via Kafka, so they lag behind a like/comment that
   // just happened — a value to sync against on reload, not an immediate
   // result (video doc 5).
   @override

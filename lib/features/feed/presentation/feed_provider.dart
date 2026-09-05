@@ -158,6 +158,25 @@ class UserVideosNotifier extends _$UserVideosNotifier {
         state = AsyncData(_appendDistinct(state.value ?? [], page.content));
       });
 
+  /// Owner-only, and answered with the updated video — the row is replaced
+  /// from the response rather than patched locally, so a field the server
+  /// changed alongside the one asked for cannot drift.
+  Future<void> setVisibility(String videoId, VideoVisibility visibility) =>
+      _replace((repo) => repo.updateVisibility(videoId, visibility));
+
+  Future<void> setCommentsDisabled(String videoId, bool disabled) =>
+      _replace((repo) => repo.updateCommentsDisabled(videoId, disabled));
+
+  Future<void> _replace(
+    Future<VideoModel> Function(FeedRepository repo) edit,
+  ) async {
+    final updated = await edit(ref.read(feedRepositoryProvider));
+    state = AsyncData([
+      for (final video in state.value ?? <VideoModel>[])
+        if (video.id == updated.id) updated else video,
+    ]);
+  }
+
   /// Soft-delete, one-way: the video vanishes from every read endpoint at
   /// once and there is no restore API.
   Future<void> delete(String videoId) async {

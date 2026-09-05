@@ -50,6 +50,9 @@ class VideoModel with _$VideoModel {
     @JsonKey(unknownEnumValue: VideoStatus.unknown) required VideoStatus status,
     @JsonKey(unknownEnumValue: VideoVisibility.unknown)
     required VideoVisibility visibility,
+    /// Set by the owner. New comments are refused while it is true; the ones
+    /// already posted stay readable.
+    @Default(false) bool commentsDisabled,
     // Updated asynchronously via Kafka, so they lag behind a like/comment that
     // just happened — a value to sync against on reload, not an immediate
     // result (video doc 5).

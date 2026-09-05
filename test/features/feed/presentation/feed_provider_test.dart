@@ -244,4 +244,27 @@ void main() {
     final result = container.read(userVideosNotifierProvider('123')).value!;
     expect(result.map((v) => v.id), ['v2']);
   });
+
+  test('an edited video is replaced from the server response', () async {
+    when(() => feedRepository.getUserVideos('123')).thenAnswer(
+      (_) async => pageOf(['v1', 'v2'], number: 0, totalPages: 1),
+    );
+    // The server answers the whole video, so nothing is patched locally.
+    when(() => feedRepository.updateVisibility('v1', VideoVisibility.private))
+        .thenAnswer((_) async => makeVideo('v1').copyWith(
+              visibility: VideoVisibility.private,
+              commentsDisabled: true,
+            ));
+    await container.read(userVideosNotifierProvider('123').future);
+
+    await container
+        .read(userVideosNotifierProvider('123').notifier)
+        .setVisibility('v1', VideoVisibility.private);
+
+    final videos = container.read(userVideosNotifierProvider('123')).value!;
+    expect(videos.map((v) => v.id), ['v1', 'v2']);
+    expect(videos.first.visibility, VideoVisibility.private);
+    // Carried over from the response, not guessed at from the request.
+    expect(videos.first.commentsDisabled, isTrue);
+  });
 }

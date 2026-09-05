@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,8 +28,22 @@ class MyProfile extends _$MyProfile {
 
   Future<void> updateProfile(Map<String, dynamic> changes) async {
     final updated = await ref.read(userRepositoryProvider).updateMyProfile(changes);
-    ref.read(profileCacheProvider.notifier).put(updated);
-    state = AsyncData(updated);
+    _publish(updated);
+  }
+
+  /// Uploads the picked file and takes the profile the server answers with —
+  /// including the avatar URL it chose, which is the only one the allow-list
+  /// will accept back on a later `PATCH`.
+  Future<void> uploadAvatar(File file, {required String contentType}) async {
+    final updated = await ref
+        .read(userRepositoryProvider)
+        .uploadAvatar(file, contentType: contentType);
+    _publish(updated);
+  }
+
+  void _publish(UserProfileModel profile) {
+    ref.read(profileCacheProvider.notifier).put(profile);
+    state = AsyncData(profile);
   }
 }
 

@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
@@ -44,25 +47,72 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   late final _displayNameController =
       TextEditingController(text: widget.original.displayName);
   late final _bioController = TextEditingController(text: widget.original.bio ?? '');
-  late final _avatarUrlController =
-      TextEditingController(text: widget.original.avatarUrl ?? '');
 
   String? _error;
   bool _isSaving = false;
+  bool _isUploadingAvatar = false;
 
-  @override
-  void initState() {
-    super.initState();
-    // The avatar preview follows what is typed into the URL field.
-    _avatarUrlController.addListener(() => setState(() {}));
-  }
+  /// What the server will actually store: an SVG is an image to a picker and a
+  /// script host to a browser, so it is not on the list.
+  static const _avatarTypes = {
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'png': 'image/png',
+    'webp': 'image/webp',
+  };
+
+  /// The server's own ceiling (`app.avatar.max-bytes`). Checked here so a
+  /// 20 MB photo is refused before it is uploaded over a phone connection.
+  static const _maxAvatarBytes = 5 * 1024 * 1024;
 
   @override
   void dispose() {
     _displayNameController.dispose();
     _bioController.dispose();
-    _avatarUrlController.dispose();
     super.dispose();
+  }
+
+  /// Picks a picture and replaces the avatar with it in one call — the profile
+  /// that comes back already points at the stored file, so there is nothing to
+  /// save afterwards and nothing for the form to carry.
+  Future<void> _pickAvatar() async {
+    if (_isUploadingAvatar) return;
+    final XFile? picked;
+    try {
+      picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+    } on Exception {
+      // A refused photo-library permission arrives as an exception, not null.
+      setState(() => _error = 'Photo access was refused');
+      return;
+    }
+    if (picked == null) return;
+
+    final extension = picked.path.split('.').last.toLowerCase();
+    final contentType = _avatarTypes[extension];
+    if (contentType == null) {
+      setState(() => _error = 'Pick a JPG, PNG or WebP image');
+      return;
+    }
+    final file = File(picked.path);
+    if (await file.length() > _maxAvatarBytes) {
+      if (!mounted) return;
+      setState(() => _error = 'That image is larger than 5 MB');
+      return;
+    }
+
+    setState(() {
+      _error = null;
+      _isUploadingAvatar = true;
+    });
+    try {
+      await ref
+          .read(myProfileProvider.notifier)
+          .uploadAvatar(file, contentType: contentType);
+    } on AppException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _isUploadingAvatar = false);
+    }
   }
 
   Future<void> _save() async {
@@ -83,11 +133,6 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     final newBio = _bioController.text;
     if (newBio != (widget.original.bio ?? '')) {
       changes['bio'] = newBio;
-    }
-
-    final newAvatarUrl = _avatarUrlController.text.trim();
-    if (newAvatarUrl != (widget.original.avatarUrl ?? '')) {
-      changes['avatarUrl'] = newAvatarUrl;
     }
 
     if (changes.isEmpty) {
@@ -117,10 +162,42 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Center(
-            child: NowaAvatar(
-              url: _avatarUrlController.text.trim(),
-              size: 96,
-              radius: 32,
+            child: GestureDetector(
+              key: const Key('edit_profile_avatar_picker'),
+              onTap: _pickAvatar,
+              child: Column(
+                children: [
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      NowaAvatar(
+                        // The stored URL, not a local preview: the upload
+                        // finishes before this rebuilds, so there is never a
+                        // moment where the two could disagree.
+                        url: ref.watch(myProfileProvider).valueOrNull?.avatarUrl ??
+                            widget.original.avatarUrl ??
+                            '',
+                        size: 96,
+                        radius: 32,
+                      ),
+                      if (_isUploadingAvatar)
+                        const SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Change photo',
+                    style: work(size: 13, color: NowaColors.accent),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 26),
@@ -138,13 +215,6 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
             helper: 'Leave empty to clear',
             maxLength: 500,
             maxLines: 3,
-          ),
-          const SizedBox(height: 18),
-          _Field(
-            fieldKey: const Key('edit_profile_avatar_url_field'),
-            controller: _avatarUrlController,
-            label: 'Avatar URL',
-            helper: 'Must be an https URL from the upload flow',
           ),
           if (_error != null) ...[
             const SizedBox(height: 16),
