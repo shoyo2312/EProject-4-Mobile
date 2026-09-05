@@ -11,6 +11,9 @@ import 'package:tiktok_mobile/features/feed/data/feed_remote_datasource.dart';
 import 'package:tiktok_mobile/features/feed/data/feed_repository.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 import 'package:tiktok_mobile/features/feed/presentation/feed_provider.dart';
+import 'package:tiktok_mobile/features/interaction/data/interaction_model.dart';
+import 'package:tiktok_mobile/features/interaction/data/interaction_repository.dart';
+import 'package:tiktok_mobile/features/interaction/presentation/interaction_provider.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/data/user_repository.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
@@ -19,6 +22,8 @@ class MockFeedRepository extends Mock implements FeedRepository {}
 
 class MockUserRepository extends Mock implements UserRepository {}
 
+class MockInteractionRepository extends Mock implements InteractionRepository {}
+
 /// The feed resolves the authors of every page it loads through the profile
 /// cache; without this override that reaches for a real ApiClient.
 Override authorOverride() {
@@ -26,6 +31,15 @@ Override authorOverride() {
   when(() => userRepository.getProfiles(any()))
       .thenAnswer((_) async => <String, UserProfileModel>{});
   return userRepositoryProvider.overrideWithValue(userRepository);
+}
+
+/// A signed-in feed also batches the caller's own hearts for every page it
+/// loads; without this override that reaches for a real ApiClient too.
+Override likeStatusOverride() {
+  final interactionRepository = MockInteractionRepository();
+  when(() => interactionRepository.getLikeStatuses(any()))
+      .thenAnswer((_) async => <LikeStatus>[]);
+  return interactionRepositoryProvider.overrideWithValue(interactionRepository);
 }
 
 VideoModel makeVideo(String id) => VideoModel(
@@ -88,6 +102,7 @@ void main() {
         authStateProvider.overrideWith(_SignedInAuthState.new),
         feedRepositoryProvider.overrideWithValue(feedRepository),
         authorOverride(),
+        likeStatusOverride(),
       ],
     );
   }
@@ -99,6 +114,7 @@ void main() {
         authStateProvider.overrideWith(_SignedOutAuthState.new),
         feedRepositoryProvider.overrideWithValue(feedRepository),
         authorOverride(),
+        likeStatusOverride(),
       ],
     );
   });

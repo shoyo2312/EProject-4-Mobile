@@ -64,6 +64,54 @@ class InteractionRepository {
     }
   }
 
+  Future<List<LikeStatus>> getLikeStatuses(List<String> ids) async {
+    try {
+      return await _remoteDatasource.getLikeStatuses(ids);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<SaveStatus> save(String videoId) async {
+    try {
+      return await _remoteDatasource.save(videoId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<SaveStatus> unsave(String videoId) async {
+    try {
+      return await _remoteDatasource.unsave(videoId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<SaveStatus> getSaveStatus(String videoId) async {
+    try {
+      return await _remoteDatasource.getSaveStatus(videoId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<VideoIdPage> getLikedVideoIds({String? cursor, int size = 20}) async {
+    try {
+      return await _remoteDatasource.getLikedVideoIds(cursor: cursor, size: size);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<VideoIdPage> getSavedVideoIds({String? cursor, int size = 20}) async {
+    try {
+      return await _remoteDatasource.getSavedVideoIds(cursor: cursor, size: size);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
   Future<void> share(String videoId) async {
     try {
       await _remoteDatasource.share(videoId);

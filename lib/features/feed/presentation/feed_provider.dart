@@ -8,6 +8,7 @@ import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/feed/data/feed_remote_datasource.dart';
 import 'package:tiktok_mobile/features/feed/data/feed_repository.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
+import 'package:tiktok_mobile/features/interaction/presentation/interaction_provider.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
 part 'feed_provider.g.dart';
@@ -40,6 +41,9 @@ class FeedNotifier extends _$FeedNotifier {
   bool _rankingSpent = false;
   bool _chronologicalSpent = false;
 
+  /// Both the ranked feed and the batched like-status read need a token.
+  bool _signedIn = false;
+
   final _more = LoadMoreGuard();
 
   @override
@@ -48,25 +52,40 @@ class FeedNotifier extends _$FeedNotifier {
     // has only the chronological feed. Awaiting the session (rather than
     // reading whatever it holds right now) keeps a signed-in viewer off the
     // fallback just because `/me` had not answered yet.
-    _rankingSpent = await ref.watch(authStateProvider.future) == null;
+    _signedIn = await ref.watch(authStateProvider.future) != null;
+    _rankingSpent = !_signedIn;
     _cursor = null;
     _chronologicalSpent = false;
     return _loadPage();
   }
 
-  /// Resolves the authors of [videos] in one batched request before the page
-  /// is handed to the UI, so each row finds its name and picture in the shared
-  /// cache instead of firing its own `GET /users/{id}`.
+  /// Resolves the authors and the caller's own hearts for [videos] in one
+  /// batched request each before the page is handed to the UI, so a row finds
+  /// both in a shared cache instead of firing its own `GET /users/{id}` and
+  /// `GET /like-status`. Twenty cards' worth of those would spend the gateway's
+  /// whole 20 req/s per-IP budget on one scroll.
   ///
-  /// A failure here is swallowed on purpose: a feed that plays with placeholder
-  /// avatars beats a feed that shows an error page.
-  Future<List<VideoModel>> _withAuthors(List<VideoModel> videos) async {
+  /// Failures here are swallowed on purpose: a feed that plays with placeholder
+  /// avatars and unfilled hearts beats a feed that shows an error page. The
+  /// per-video providers fall back to their own single-video reads.
+  Future<List<VideoModel>> _hydrate(List<VideoModel> videos) async {
     try {
       await ref
           .read(profileCacheProvider.notifier)
           .loadMissing(videos.map((v) => v.userId));
     } on AppException {
       // ignore — see above
+    }
+    // Skipped entirely for a guest: the batch endpoint needs a token, and every
+    // row would come back `liked: false` anyway.
+    if (_signedIn) {
+      try {
+        await ref
+            .read(likeStatusCacheProvider.notifier)
+            .loadMissing(videos.map((v) => v.id));
+      } on AppException {
+        // ignore — see above
+      }
     }
     return videos;
   }
@@ -79,7 +98,7 @@ class FeedNotifier extends _$FeedNotifier {
         final ranked = await ref
             .read(feedRepositoryProvider)
             .fetchRankedFeed(limit: _pageSize);
-        if (ranked.isNotEmpty) return _withAuthors(ranked);
+        if (ranked.isNotEmpty) return _hydrate(ranked);
       } on AppException {
         // recommendation-service being down must not take the feed with it.
       }
@@ -92,7 +111,7 @@ class FeedNotifier extends _$FeedNotifier {
         .fetchFeed(cursor: _cursor, size: _pageSize);
     _cursor = page.nextCursor;
     _chronologicalSpent = page.nextCursor == null;
-    return _withAuthors(page.items);
+    return _hydrate(page.items);
   }
 
   Future<void> loadMore() => _more.run(() async {

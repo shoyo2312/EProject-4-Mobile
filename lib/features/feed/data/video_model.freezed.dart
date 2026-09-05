@@ -39,10 +39,9 @@ mixin _$VideoModel {
   int get viewCount => throw _privateConstructorUsedError;
   int get likeCount => throw _privateConstructorUsedError;
   int get commentCount =>
-      throw _privateConstructorUsedError; // Save/share have no counter in the API yet, so they default to 0 and the
-  // rail falls back to a plain label — same arrangement as
-  // CommentModel.replyCount.
-  int get saveCount => throw _privateConstructorUsedError;
+      throw _privateConstructorUsedError; // Shares have no counter on VideoResponse, so this stays 0 and the rail
+  // falls back to a plain label. Saves have no counter anywhere — a save is
+  // private — so there is no field for them at all.
   int get shareCount => throw _privateConstructorUsedError;
   DateTime get createdAt => throw _privateConstructorUsedError;
 
@@ -77,7 +76,6 @@ abstract class $VideoModelCopyWith<$Res> {
     int viewCount,
     int likeCount,
     int commentCount,
-    int saveCount,
     int shareCount,
     DateTime createdAt,
   });
@@ -110,7 +108,6 @@ class _$VideoModelCopyWithImpl<$Res, $Val extends VideoModel>
     Object? viewCount = null,
     Object? likeCount = null,
     Object? commentCount = null,
-    Object? saveCount = null,
     Object? shareCount = null,
     Object? createdAt = null,
   }) {
@@ -164,10 +161,6 @@ class _$VideoModelCopyWithImpl<$Res, $Val extends VideoModel>
                 ? _value.commentCount
                 : commentCount // ignore: cast_nullable_to_non_nullable
                       as int,
-            saveCount: null == saveCount
-                ? _value.saveCount
-                : saveCount // ignore: cast_nullable_to_non_nullable
-                      as int,
             shareCount: null == shareCount
                 ? _value.shareCount
                 : shareCount // ignore: cast_nullable_to_non_nullable
@@ -205,7 +198,6 @@ abstract class _$$VideoModelImplCopyWith<$Res>
     int viewCount,
     int likeCount,
     int commentCount,
-    int saveCount,
     int shareCount,
     DateTime createdAt,
   });
@@ -237,7 +229,6 @@ class __$$VideoModelImplCopyWithImpl<$Res>
     Object? viewCount = null,
     Object? likeCount = null,
     Object? commentCount = null,
-    Object? saveCount = null,
     Object? shareCount = null,
     Object? createdAt = null,
   }) {
@@ -291,10 +282,6 @@ class __$$VideoModelImplCopyWithImpl<$Res>
             ? _value.commentCount
             : commentCount // ignore: cast_nullable_to_non_nullable
                   as int,
-        saveCount: null == saveCount
-            ? _value.saveCount
-            : saveCount // ignore: cast_nullable_to_non_nullable
-                  as int,
         shareCount: null == shareCount
             ? _value.shareCount
             : shareCount // ignore: cast_nullable_to_non_nullable
@@ -325,7 +312,6 @@ class _$VideoModelImpl implements _VideoModel {
     required this.viewCount,
     required this.likeCount,
     required this.commentCount,
-    this.saveCount = 0,
     this.shareCount = 0,
     required this.createdAt,
   });
@@ -364,12 +350,9 @@ class _$VideoModelImpl implements _VideoModel {
   final int likeCount;
   @override
   final int commentCount;
-  // Save/share have no counter in the API yet, so they default to 0 and the
-  // rail falls back to a plain label — same arrangement as
-  // CommentModel.replyCount.
-  @override
-  @JsonKey()
-  final int saveCount;
+  // Shares have no counter on VideoResponse, so this stays 0 and the rail
+  // falls back to a plain label. Saves have no counter anywhere — a save is
+  // private — so there is no field for them at all.
   @override
   @JsonKey()
   final int shareCount;
@@ -378,7 +361,7 @@ class _$VideoModelImpl implements _VideoModel {
 
   @override
   String toString() {
-    return 'VideoModel(id: $id, userId: $userId, title: $title, description: $description, thumbnailUrl: $thumbnailUrl, hlsUrl: $hlsUrl, durationSeconds: $durationSeconds, status: $status, visibility: $visibility, viewCount: $viewCount, likeCount: $likeCount, commentCount: $commentCount, saveCount: $saveCount, shareCount: $shareCount, createdAt: $createdAt)';
+    return 'VideoModel(id: $id, userId: $userId, title: $title, description: $description, thumbnailUrl: $thumbnailUrl, hlsUrl: $hlsUrl, durationSeconds: $durationSeconds, status: $status, visibility: $visibility, viewCount: $viewCount, likeCount: $likeCount, commentCount: $commentCount, shareCount: $shareCount, createdAt: $createdAt)';
   }
 
   @override
@@ -405,8 +388,6 @@ class _$VideoModelImpl implements _VideoModel {
                 other.likeCount == likeCount) &&
             (identical(other.commentCount, commentCount) ||
                 other.commentCount == commentCount) &&
-            (identical(other.saveCount, saveCount) ||
-                other.saveCount == saveCount) &&
             (identical(other.shareCount, shareCount) ||
                 other.shareCount == shareCount) &&
             (identical(other.createdAt, createdAt) ||
@@ -429,7 +410,6 @@ class _$VideoModelImpl implements _VideoModel {
     viewCount,
     likeCount,
     commentCount,
-    saveCount,
     shareCount,
     createdAt,
   );
@@ -464,7 +444,6 @@ abstract class _VideoModel implements VideoModel {
     required final int viewCount,
     required final int likeCount,
     required final int commentCount,
-    final int saveCount,
     final int shareCount,
     required final DateTime createdAt,
   }) = _$VideoModelImpl;
@@ -500,11 +479,9 @@ abstract class _VideoModel implements VideoModel {
   @override
   int get likeCount;
   @override
-  int get commentCount; // Save/share have no counter in the API yet, so they default to 0 and the
-  // rail falls back to a plain label — same arrangement as
-  // CommentModel.replyCount.
-  @override
-  int get saveCount;
+  int get commentCount; // Shares have no counter on VideoResponse, so this stays 0 and the rail
+  // falls back to a plain label. Saves have no counter anywhere — a save is
+  // private — so there is no field for them at all.
   @override
   int get shareCount;
   @override

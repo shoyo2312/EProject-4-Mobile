@@ -481,3 +481,177 @@ abstract class _InteractionCounts implements InteractionCounts {
   _$$InteractionCountsImplCopyWith<_$InteractionCountsImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
+
+SaveStatus _$SaveStatusFromJson(Map<String, dynamic> json) {
+  return _SaveStatus.fromJson(json);
+}
+
+/// @nodoc
+mixin _$SaveStatus {
+  @JsonKey(fromJson: _idFromJson)
+  String get videoId => throw _privateConstructorUsedError;
+  bool get saved => throw _privateConstructorUsedError;
+
+  /// Serializes this SaveStatus to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of SaveStatus
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $SaveStatusCopyWith<SaveStatus> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $SaveStatusCopyWith<$Res> {
+  factory $SaveStatusCopyWith(
+    SaveStatus value,
+    $Res Function(SaveStatus) then,
+  ) = _$SaveStatusCopyWithImpl<$Res, SaveStatus>;
+  @useResult
+  $Res call({@JsonKey(fromJson: _idFromJson) String videoId, bool saved});
+}
+
+/// @nodoc
+class _$SaveStatusCopyWithImpl<$Res, $Val extends SaveStatus>
+    implements $SaveStatusCopyWith<$Res> {
+  _$SaveStatusCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of SaveStatus
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? videoId = null, Object? saved = null}) {
+    return _then(
+      _value.copyWith(
+            videoId: null == videoId
+                ? _value.videoId
+                : videoId // ignore: cast_nullable_to_non_nullable
+                      as String,
+            saved: null == saved
+                ? _value.saved
+                : saved // ignore: cast_nullable_to_non_nullable
+                      as bool,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$SaveStatusImplCopyWith<$Res>
+    implements $SaveStatusCopyWith<$Res> {
+  factory _$$SaveStatusImplCopyWith(
+    _$SaveStatusImpl value,
+    $Res Function(_$SaveStatusImpl) then,
+  ) = __$$SaveStatusImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({@JsonKey(fromJson: _idFromJson) String videoId, bool saved});
+}
+
+/// @nodoc
+class __$$SaveStatusImplCopyWithImpl<$Res>
+    extends _$SaveStatusCopyWithImpl<$Res, _$SaveStatusImpl>
+    implements _$$SaveStatusImplCopyWith<$Res> {
+  __$$SaveStatusImplCopyWithImpl(
+    _$SaveStatusImpl _value,
+    $Res Function(_$SaveStatusImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of SaveStatus
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? videoId = null, Object? saved = null}) {
+    return _then(
+      _$SaveStatusImpl(
+        videoId: null == videoId
+            ? _value.videoId
+            : videoId // ignore: cast_nullable_to_non_nullable
+                  as String,
+        saved: null == saved
+            ? _value.saved
+            : saved // ignore: cast_nullable_to_non_nullable
+                  as bool,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$SaveStatusImpl implements _SaveStatus {
+  const _$SaveStatusImpl({
+    @JsonKey(fromJson: _idFromJson) required this.videoId,
+    required this.saved,
+  });
+
+  factory _$SaveStatusImpl.fromJson(Map<String, dynamic> json) =>
+      _$$SaveStatusImplFromJson(json);
+
+  @override
+  @JsonKey(fromJson: _idFromJson)
+  final String videoId;
+  @override
+  final bool saved;
+
+  @override
+  String toString() {
+    return 'SaveStatus(videoId: $videoId, saved: $saved)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$SaveStatusImpl &&
+            (identical(other.videoId, videoId) || other.videoId == videoId) &&
+            (identical(other.saved, saved) || other.saved == saved));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, videoId, saved);
+
+  /// Create a copy of SaveStatus
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$SaveStatusImplCopyWith<_$SaveStatusImpl> get copyWith =>
+      __$$SaveStatusImplCopyWithImpl<_$SaveStatusImpl>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$SaveStatusImplToJson(this);
+  }
+}
+
+abstract class _SaveStatus implements SaveStatus {
+  const factory _SaveStatus({
+    @JsonKey(fromJson: _idFromJson) required final String videoId,
+    required final bool saved,
+  }) = _$SaveStatusImpl;
+
+  factory _SaveStatus.fromJson(Map<String, dynamic> json) =
+      _$SaveStatusImpl.fromJson;
+
+  @override
+  @JsonKey(fromJson: _idFromJson)
+  String get videoId;
+  @override
+  bool get saved;
+
+  /// Create a copy of SaveStatus
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$SaveStatusImplCopyWith<_$SaveStatusImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}

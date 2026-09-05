@@ -146,7 +146,6 @@ final _videos = <VideoModel>[
     viewCount: 1284000,
     likeCount: 162000,
     commentCount: 1491,
-    saveCount: 29970,
     shareCount: 57100,
     createdAt: DateTime(2026, 8, 2),
   ),
@@ -163,7 +162,6 @@ final _videos = <VideoModel>[
     viewCount: 88400,
     likeCount: 12300,
     commentCount: 217,
-    saveCount: 1140,
     shareCount: 3200,
     createdAt: DateTime(2026, 8, 5),
   ),
@@ -180,7 +178,6 @@ final _videos = <VideoModel>[
     viewCount: 4210,
     likeCount: 512,
     commentCount: 3204,
-    saveCount: 88,
     shareCount: 41,
     createdAt: DateTime(2026, 8, 8),
   ),
@@ -197,7 +194,6 @@ final _videos = <VideoModel>[
     viewCount: 730000,
     likeCount: 91200,
     commentCount: 8760,
-    saveCount: 12400,
     shareCount: 6800,
     createdAt: DateTime(2026, 8, 10),
   ),
@@ -214,7 +210,6 @@ final _videos = <VideoModel>[
     viewCount: 2900000,
     likeCount: 410000,
     commentCount: 9987,
-    saveCount: 61000,
     shareCount: 124000,
     createdAt: DateTime(2026, 8, 12),
   ),
@@ -233,7 +228,6 @@ final _videos = <VideoModel>[
     viewCount: 412000,
     likeCount: 26700,
     commentCount: 310,
-    saveCount: 2997,
     shareCount: 57100,
     createdAt: DateTime(2026, 8, 14, 9),
   ),
@@ -250,7 +244,6 @@ final _videos = <VideoModel>[
     viewCount: 96000,
     likeCount: 8420,
     commentCount: 296,
-    saveCount: 1140,
     shareCount: 3200,
     createdAt: DateTime(2026, 8, 14, 6),
   ),
@@ -268,7 +261,6 @@ final _videos = <VideoModel>[
     viewCount: 2400000,
     likeCount: 51300,
     commentCount: 742,
-    saveCount: 6100,
     shareCount: 12400,
     createdAt: DateTime(2026, 8, 13, 22),
   ),
@@ -285,7 +277,6 @@ final _videos = <VideoModel>[
     viewCount: 640000,
     likeCount: 14900,
     commentCount: 208,
-    saveCount: 3410,
     shareCount: 5800,
     createdAt: DateTime(2026, 8, 13, 14),
   ),
@@ -303,7 +294,6 @@ final _videos = <VideoModel>[
     viewCount: 84000,
     likeCount: 6300,
     commentCount: 412,
-    saveCount: 920,
     shareCount: 1500,
     createdAt: DateTime(2026, 8, 11),
   ),
@@ -320,7 +310,6 @@ final _videos = <VideoModel>[
     viewCount: 1100000,
     likeCount: 78000,
     commentCount: 2140,
-    saveCount: 15600,
     shareCount: 8900,
     createdAt: DateTime(2026, 8, 9),
   ),
@@ -337,7 +326,6 @@ final _videos = <VideoModel>[
     viewCount: 340000,
     likeCount: 21000,
     commentCount: 604,
-    saveCount: 7300,
     shareCount: 2200,
     createdAt: DateTime(2026, 8, 6),
   ),
@@ -354,7 +342,6 @@ final _videos = <VideoModel>[
     viewCount: 18000,
     likeCount: 1400,
     commentCount: 287,
-    saveCount: 210,
     shareCount: 96,
     createdAt: DateTime(2026, 8, 3),
   ),
@@ -506,6 +493,7 @@ class _MockInteractionRepository extends InteractionRepository {
   _MockInteractionRepository(super.remoteDatasource);
 
   final _liked = <String>{};
+  final _saved = <String>{};
   final _counts = <String, int>{};
 
   LikeStatus _status(String videoId) => LikeStatus(
@@ -561,6 +549,46 @@ class _MockInteractionRepository extends InteractionRepository {
     required int durationMs,
   }) =>
       _latency();
+
+  @override
+  Future<List<LikeStatus>> getLikeStatuses(List<String> ids) async {
+    await _latency();
+    return [for (final id in ids) _status(id)];
+  }
+
+  @override
+  Future<SaveStatus> getSaveStatus(String videoId) async {
+    await _latency();
+    return SaveStatus(videoId: videoId, saved: _saved.contains(videoId));
+  }
+
+  @override
+  Future<SaveStatus> save(String videoId) async {
+    await _latency();
+    _saved.add(videoId);
+    return SaveStatus(videoId: videoId, saved: true);
+  }
+
+  @override
+  Future<SaveStatus> unsave(String videoId) async {
+    await _latency();
+    _saved.remove(videoId);
+    return SaveStatus(videoId: videoId, saved: false);
+  }
+
+  /// One page, then the end: the offline catalogue is small enough that paging
+  /// it would only exercise the cursor plumbing, not the screens.
+  @override
+  Future<VideoIdPage> getLikedVideoIds({String? cursor, int size = 20}) async {
+    await _latency();
+    return VideoIdPage(videoIds: _liked.toList(), hasMore: false);
+  }
+
+  @override
+  Future<VideoIdPage> getSavedVideoIds({String? cursor, int size = 20}) async {
+    await _latency();
+    return VideoIdPage(videoIds: _saved.toList(), hasMore: false);
+  }
 
   @override
   Future<void> share(String videoId) => _latency();
@@ -659,6 +687,18 @@ class _MockFeedRepository extends FeedRepository {
     );
     _videos[_videos.indexOf(video)] = published;
     return published;
+  }
+
+  /// Answers in the order asked and drops ids that no longer resolve, exactly
+  /// as `GET /videos/batch` does — the Liked and Saved tabs depend on both.
+  @override
+  Future<List<VideoModel>> fetchByIds(List<String> ids) async {
+    await _latency();
+    final byId = {for (final v in _live) v.id: v};
+    return [
+      for (final id in ids)
+        ?byId[id],
+    ];
   }
 
   @override

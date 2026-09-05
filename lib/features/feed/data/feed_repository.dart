@@ -69,6 +69,20 @@ class FeedRepository {
     }
   }
 
+  /// Turns a list of ids into playable videos in one request, in the order
+  /// asked. Used wherever another service hands back ids and nothing else —
+  /// the ranked feed above, the Liked and Saved histories.
+  ///
+  /// Ids that no longer resolve are absent from the result rather than failing
+  /// it, so the list can come back shorter than [ids] (video doc 3.4b).
+  Future<List<VideoModel>> fetchByIds(List<String> ids) async {
+    try {
+      return await _remoteDatasource.fetchByIds(ids);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
   Future<PageResponse<VideoModel>> getUserVideos(
     String userId, {
     int page = 0,

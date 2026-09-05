@@ -42,3 +42,37 @@ class InteractionCounts with _$InteractionCounts {
   factory InteractionCounts.fromJson(Map<String, dynamic> json) =>
       _$InteractionCountsFromJson(json);
 }
+
+/// The answer to `POST /save`, `DELETE /save` and `GET /save-status`.
+///
+/// No count alongside it, unlike [LikeStatus]: a save is private to the user
+/// and there is no `save_count` column to read one from. Authenticated only —
+/// there is no anonymous answer to give (interaction doc 3.11).
+@freezed
+class SaveStatus with _$SaveStatus {
+  const factory SaveStatus({
+    @JsonKey(fromJson: _idFromJson) required String videoId,
+    required bool saved,
+  }) = _SaveStatus;
+
+  factory SaveStatus.fromJson(Map<String, dynamic> json) =>
+      _$SaveStatusFromJson(json);
+}
+
+/// One page of `GET /interactions/users/me/likes` or `.../saves`: video ids and
+/// nothing else.
+///
+/// interaction-service stores no video metadata, so the caller hydrates these
+/// through `GET /videos/batch` — which is also why ids that no longer resolve
+/// simply come back missing from the hydration rather than failing it.
+class VideoIdPage {
+  const VideoIdPage({
+    required this.videoIds,
+    required this.hasMore,
+    this.nextCursor,
+  });
+
+  final List<String> videoIds;
+  final bool hasMore;
+  final String? nextCursor;
+}

@@ -23,7 +23,7 @@ final feedRepositoryProvider = Provider<FeedRepository>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef FeedRepositoryRef = ProviderRef<FeedRepository>;
-String _$feedNotifierHash() => r'c34cbe73edcc19e2e962d4cd52ec735d15672f59';
+String _$feedNotifierHash() => r'1494ba7e20f2376f9cfad561612e1834aced500d';
 
 /// See also [FeedNotifier].
 @ProviderFor(FeedNotifier)

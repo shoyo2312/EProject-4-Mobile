@@ -56,10 +56,9 @@ class VideoModel with _$VideoModel {
     required int viewCount,
     required int likeCount,
     required int commentCount,
-    // Save/share have no counter in the API yet, so they default to 0 and the
-    // rail falls back to a plain label — same arrangement as
-    // CommentModel.replyCount.
-    @Default(0) int saveCount,
+    // Shares have no counter on VideoResponse, so this stays 0 and the rail
+    // falls back to a plain label. Saves have no counter anywhere — a save is
+    // private — so there is no field for them at all.
     @Default(0) int shareCount,
     required DateTime createdAt,
   }) = _VideoModel;

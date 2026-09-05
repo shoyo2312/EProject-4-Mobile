@@ -39,3 +39,12 @@ Map<String, dynamic> _$$InteractionCountsImplToJson(
   'shareCount': instance.shareCount,
   'viewCount': instance.viewCount,
 };
+
+_$SaveStatusImpl _$$SaveStatusImplFromJson(Map<String, dynamic> json) =>
+    _$SaveStatusImpl(
+      videoId: _idFromJson(json['videoId']),
+      saved: json['saved'] as bool,
+    );
+
+Map<String, dynamic> _$$SaveStatusImplToJson(_$SaveStatusImpl instance) =>
+    <String, dynamic>{'videoId': instance.videoId, 'saved': instance.saved};
