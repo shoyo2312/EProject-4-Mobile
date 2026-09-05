@@ -47,16 +47,46 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     super.dispose();
   }
 
+  bool get _isFollowingTab => _tab == 'Following';
+
   void _onPageChanged(int index, List<VideoModel> videos) {
     setState(() => _activeIndex = index);
-    if (index >= videos.length - 2) {
+    if (index < videos.length - 2) return;
+    if (_isFollowingTab) {
+      ref.read(followingFeedNotifierProvider.notifier).loadMore();
+    } else {
       ref.read(feedNotifierProvider.notifier).loadMore();
     }
   }
 
+  /// Both feeds share one PageView, so the position has to go back to the top
+  /// with the data — otherwise a switch lands on page 12 of a list that may
+  /// only have three rows.
+  void _onTabChanged(String tab) {
+    if (tab == _tab) return;
+    setState(() {
+      _tab = tab;
+      _activeIndex = 0;
+    });
+    if (_pageController.hasClients) _pageController.jumpToPage(0);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final feedState = ref.watch(feedNotifierProvider);
+    // Friends means mutual follows, and no service answers that question —
+    // user-service exposes followers and following, never the intersection.
+    if (_tab == 'Friends') {
+      return Stack(
+        children: [
+          const ErrorView(message: 'Friends is not available yet'),
+          _topBar(context),
+        ],
+      );
+    }
+
+    final feedState = _isFollowingTab
+        ? ref.watch(followingFeedNotifierProvider)
+        : ref.watch(feedNotifierProvider);
 
     return Stack(
       children: [
@@ -64,10 +94,18 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
           loading: () => const LoadingView(),
           error: (error, _) => ErrorView(
             message: error.toString(),
-            onRetry: () => ref.invalidate(feedNotifierProvider),
+            onRetry: () => ref.invalidate(_isFollowingTab
+                ? followingFeedNotifierProvider
+                : feedNotifierProvider),
           ),
           data: (videos) {
-            if (videos.isEmpty) return const ErrorView(message: 'No videos yet');
+            if (videos.isEmpty) {
+              return ErrorView(
+                message: _isFollowingTab
+                    ? 'Nothing from the people you follow yet'
+                    : 'No videos yet',
+              );
+            }
             return PageView.builder(
               controller: _pageController,
               scrollDirection: Axis.vertical,
@@ -83,23 +121,25 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
             );
           },
         ),
-        Positioned(
-          left: 14,
-          right: 14,
-          top: MediaQuery.of(context).padding.top + 10,
-          child: _TopBar(
-            tab: _tab,
-            onTab: (t) => setState(() => _tab = t),
-            onSearch: widget.onOpenDiscover,
-          ),
-        ),
+        _topBar(context),
       ],
     );
   }
+
+  Widget _topBar(BuildContext context) => Positioned(
+        left: 14,
+        right: 14,
+        top: MediaQuery.of(context).padding.top + 10,
+        child: _TopBar(
+          tab: _tab,
+          onTab: _onTabChanged,
+          onSearch: widget.onOpenDiscover,
+        ),
+      );
 }
 
-/// LIVE badge, source chips, search. There is a single feed endpoint, so the
-/// chips mark the intent rather than switching data sources.
+/// LIVE badge, source chips, search. "For You" and "Following" are separate
+/// endpoints; "Friends" is neither, and says so.
 class _TopBar extends StatelessWidget {
   const _TopBar({required this.tab, required this.onTab, this.onSearch});
 

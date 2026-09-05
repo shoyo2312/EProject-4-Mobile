@@ -58,6 +58,23 @@ VideoModel makeVideo(String id) => VideoModel(
 VideoPage feedPage(List<String> ids, {String? nextCursor}) =>
     VideoPage(items: ids.map(makeVideo).toList(), nextCursor: nextCursor);
 
+PageResponse<UserProfileModel> profilePage(List<String> userIds) =>
+    PageResponse(
+      content: [
+        for (final id in userIds)
+          UserProfileModel(
+            userId: id,
+            displayName: 'user $id',
+            followerCount: 0,
+            followingCount: 0,
+          ),
+      ],
+      size: 100,
+      number: 0,
+      totalElements: userIds.length,
+      totalPages: 1,
+    );
+
 PageResponse<VideoModel> pageOf(
   List<String> ids, {
   required int number,
@@ -266,5 +283,70 @@ void main() {
     expect(videos.first.visibility, VideoVisibility.private);
     // Carried over from the response, not guessed at from the request.
     expect(videos.first.commentsDisabled, isTrue);
+  });
+
+  group('following feed', () {
+    late MockUserRepository userRepository;
+
+    ProviderContainer signedInWith(MockUserRepository repo) => ProviderContainer(
+          overrides: [
+            authStateProvider.overrideWith(_SignedInAuthState.new),
+            feedRepositoryProvider.overrideWithValue(feedRepository),
+            userRepositoryProvider.overrideWithValue(repo),
+            likeStatusOverride(),
+          ],
+        );
+
+    setUp(() {
+      userRepository = MockUserRepository();
+      when(() => userRepository.getProfiles(any()))
+          .thenAnswer((_) async => <String, UserProfileModel>{});
+    });
+
+    test('the follow list is read once and passed to video-service', () async {
+      when(() => userRepository.getFollowing('1',
+              page: any(named: 'page'), size: any(named: 'size')))
+          .thenAnswer((_) async => profilePage(['7', '9']));
+      when(() => feedRepository.fetchFollowingFeed(
+            followedUserIds: ['7', '9'],
+            cursor: null,
+            size: any(named: 'size'),
+          )).thenAnswer((_) async => feedPage(['v1'], nextCursor: 'c1'));
+      when(() => feedRepository.fetchFollowingFeed(
+            followedUserIds: ['7', '9'],
+            cursor: 'c1',
+            size: any(named: 'size'),
+          )).thenAnswer((_) async => feedPage(['v2']));
+      final following = signedInWith(userRepository);
+      addTearDown(following.dispose);
+      await following.read(followingFeedNotifierProvider.future);
+
+      await following.read(followingFeedNotifierProvider.notifier).loadMore();
+
+      expect(
+        following.read(followingFeedNotifierProvider).value!.map((v) => v.id),
+        ['v1', 'v2'],
+      );
+      // Read once for the session, not once per page.
+      verify(() => userRepository.getFollowing('1',
+          page: any(named: 'page'), size: any(named: 'size'))).called(1);
+    });
+
+    test('following nobody asks video-service nothing at all', () async {
+      when(() => userRepository.getFollowing('1',
+              page: any(named: 'page'), size: any(named: 'size')))
+          .thenAnswer((_) async => profilePage([]));
+      final following = signedInWith(userRepository);
+      addTearDown(following.dispose);
+
+      final result = await following.read(followingFeedNotifierProvider.future);
+
+      expect(result, isEmpty);
+      verifyNever(() => feedRepository.fetchFollowingFeed(
+            followedUserIds: any(named: 'followedUserIds'),
+            cursor: any(named: 'cursor'),
+            size: any(named: 'size'),
+          ));
+    });
   });
 }

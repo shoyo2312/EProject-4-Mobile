@@ -143,6 +143,34 @@ class FeedRemoteDatasource {
     return VideoPage(items: items, nextCursor: body['nextCursor'] as String?);
   }
 
+  /// The Following tab. Same page shape and same cursor protocol as
+  /// [fetchFeed], drawn only from the authors named in [followedUserIds] —
+  /// video-service holds no follow graph, so the caller reads those from
+  /// user-service and passes them in (video doc 3.2b).
+  ///
+  /// Naming an account the caller does not follow is not a way in: the
+  /// visibility filter behind this is the public one, so it can only ever
+  /// return what `/videos/users/{id}` would already hand out.
+  Future<VideoPage> fetchFollowingFeed({
+    required List<String> followedUserIds,
+    String? cursor,
+    int size = 20,
+  }) async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/videos/feed/following',
+      queryParameters: {
+        'followedUserIds': followedUserIds.join(','),
+        'cursor': ?cursor,
+        'size': size,
+      },
+    );
+    final body = response.data!['data'] as Map<String, dynamic>;
+    final items = (body['items'] as List)
+        .map((e) => VideoModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+    return VideoPage(items: items, nextCursor: body['nextCursor'] as String?);
+  }
+
   /// One ranked page from recommendation-service, as ids only: it is not
   /// allowed to read video-service's data, so it never returns anything
   /// showable (recommendation doc 4). **The order is the ranking** — keep it.

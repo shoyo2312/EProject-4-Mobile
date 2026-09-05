@@ -188,3 +188,79 @@ class UserVideosNotifier extends _$UserVideosNotifier {
     ]);
   }
 }
+
+/// How many accounts the Following tab draws from. video-service has no follow
+/// graph, so every id travels in the query string — this is the point past
+/// which that string stops being reasonable, not a limit the server imposes.
+const _followedIdLimit = 100;
+
+/// The Following tab: only the accounts the viewer follows, newest first.
+///
+/// Two services, one list — user-service knows who is followed, video-service
+/// knows what they posted — so the follow list is read once per session here
+/// rather than on every page.
+@riverpod
+class FollowingFeedNotifier extends _$FollowingFeedNotifier {
+  String? _cursor;
+  List<String> _followedUserIds = const [];
+  final _more = LoadMoreGuard();
+
+  @override
+  FutureOr<List<VideoModel>> build() async {
+    final me = await ref.watch(authStateProvider.future);
+    // Signed out there is no follow graph to read, and the tab has nothing to
+    // show rather than an error to raise.
+    if (me == null) {
+      _more.done = true;
+      return [];
+    }
+    _cursor = null;
+    _followedUserIds = (await ref
+            .read(userRepositoryProvider)
+            .getFollowing(me.id, size: _followedIdLimit))
+        .content
+        .map((profile) => profile.userId)
+        .toList();
+    if (_followedUserIds.isEmpty) {
+      _more.done = true;
+      return [];
+    }
+    return _loadPage();
+  }
+
+  Future<List<VideoModel>> _loadPage() async {
+    final page = await ref.read(feedRepositoryProvider).fetchFollowingFeed(
+          followedUserIds: _followedUserIds,
+          cursor: _cursor,
+          size: _pageSize,
+        );
+    _cursor = page.nextCursor;
+    _more.done = page.nextCursor == null;
+    return _hydrateAuthors(page.items);
+  }
+
+  /// Only the authors: the hearts are batched by [FeedNotifier] for its own
+  /// pages, and this tab's rows go through the same cache, so a clip seen on
+  /// both is already filled in.
+  Future<List<VideoModel>> _hydrateAuthors(List<VideoModel> videos) async {
+    try {
+      await ref
+          .read(profileCacheProvider.notifier)
+          .loadMissing(videos.map((v) => v.userId));
+    } on AppException {
+      // Placeholder avatars beat an error page — same bargain as the main feed.
+    }
+    try {
+      await ref
+          .read(likeStatusCacheProvider.notifier)
+          .loadMissing(videos.map((v) => v.id));
+    } on AppException {
+      // ignore — see above
+    }
+    return videos;
+  }
+
+  Future<void> loadMore() => _more.run(() async {
+        state = AsyncData(_appendDistinct(state.value ?? [], await _loadPage()));
+      });
+}

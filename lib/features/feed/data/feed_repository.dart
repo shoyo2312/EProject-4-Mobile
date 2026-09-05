@@ -53,6 +53,22 @@ class FeedRepository {
     }
   }
 
+  Future<VideoPage> fetchFollowingFeed({
+    required List<String> followedUserIds,
+    String? cursor,
+    int size = 20,
+  }) async {
+    try {
+      return await _remoteDatasource.fetchFollowingFeed(
+        followedUserIds: followedUserIds,
+        cursor: cursor,
+        size: size,
+      );
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
   /// The personalised feed: rank, then hydrate, in two calls.
   ///
   /// Two failure shapes matter to the caller and neither is an error here —

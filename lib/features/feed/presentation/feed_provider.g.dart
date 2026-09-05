@@ -222,5 +222,31 @@ class _UserVideosNotifierProviderElement
   String get userId => (origin as UserVideosNotifierProvider).userId;
 }
 
+String _$followingFeedNotifierHash() =>
+    r'82a70382cfa53f93fb8cdf3133e350abe649b501';
+
+/// The Following tab: only the accounts the viewer follows, newest first.
+///
+/// Two services, one list — user-service knows who is followed, video-service
+/// knows what they posted — so the follow list is read once per session here
+/// rather than on every page.
+///
+/// Copied from [FollowingFeedNotifier].
+@ProviderFor(FollowingFeedNotifier)
+final followingFeedNotifierProvider =
+    AutoDisposeAsyncNotifierProvider<
+      FollowingFeedNotifier,
+      List<VideoModel>
+    >.internal(
+      FollowingFeedNotifier.new,
+      name: r'followingFeedNotifierProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$followingFeedNotifierHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$FollowingFeedNotifier = AutoDisposeAsyncNotifier<List<VideoModel>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

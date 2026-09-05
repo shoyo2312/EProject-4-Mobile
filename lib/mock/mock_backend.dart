@@ -609,6 +609,24 @@ class _MockFeedRepository extends FeedRepository {
   @override
   Future<List<VideoModel>> fetchRankedFeed({int limit = 10}) async => [];
 
+  /// Offline everyone follows everyone, so this is the catalogue filtered by
+  /// author — enough to exercise the empty case and the populated one.
+  @override
+  Future<VideoPage> fetchFollowingFeed({
+    required List<String> followedUserIds,
+    String? cursor,
+    int size = 20,
+  }) async {
+    await _latency();
+    final followed = followedUserIds.toSet();
+    return VideoPage(
+      items: [
+        for (final v in _live)
+          if (followed.contains(v.userId)) v,
+      ],
+    );
+  }
+
   @override
   Future<VideoPage> fetchFeed({String? cursor, int size = 20}) async {
     await _latency();
@@ -814,6 +832,7 @@ class _MockUserRepository extends UserRepository {
   Future<PageResponse<UserProfileModel>> getFollowing(
     String userId, {
     int page = 0,
+    int size = 20,
   }) async =>
       _singlePage(page > 0 ? [] : _profiles.values.toList());
 
