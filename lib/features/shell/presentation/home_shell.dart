@@ -6,6 +6,7 @@ import 'package:tiktok_mobile/features/create/presentation/create_screen.dart';
 import 'package:tiktok_mobile/features/discover/presentation/discover_screen.dart';
 import 'package:tiktok_mobile/features/feed/presentation/feed_screen.dart';
 import 'package:tiktok_mobile/features/inbox/presentation/inbox_screen.dart';
+import 'package:tiktok_mobile/features/notification/presentation/notification_provider.dart';
 import 'package:tiktok_mobile/features/user/presentation/profile_screen.dart';
 
 /// The five tabs behind the floating nav bar. An IndexedStack keeps each
@@ -62,7 +63,14 @@ class _HomeShellState extends ConsumerState<HomeShell> {
             left: 12,
             right: 12,
             bottom: 12 + MediaQuery.of(context).padding.bottom,
-            child: NowaNavBar(index: _index, onTap: _go),
+            // Its own count request, not the inbox list: the Inbox tab is not
+            // built until it is opened, and the badge has to be right before
+            // then. Signed out it answers 0 without a request.
+            child: NowaNavBar(
+              index: _index,
+              onTap: _go,
+              unread: ref.watch(unreadCountProvider).valueOrNull ?? 0,
+            ),
           ),
         ],
       ),

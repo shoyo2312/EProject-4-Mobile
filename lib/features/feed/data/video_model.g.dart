@@ -25,10 +25,10 @@ _$VideoModelImpl _$$VideoModelImplFromJson(Map<String, dynamic> json) =>
         json['visibility'],
         unknownValue: VideoVisibility.unknown,
       ),
+      commentsDisabled: json['commentsDisabled'] as bool? ?? false,
       viewCount: (json['viewCount'] as num).toInt(),
       likeCount: (json['likeCount'] as num).toInt(),
       commentCount: (json['commentCount'] as num).toInt(),
-      saveCount: (json['saveCount'] as num?)?.toInt() ?? 0,
       shareCount: (json['shareCount'] as num?)?.toInt() ?? 0,
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
@@ -44,10 +44,10 @@ Map<String, dynamic> _$$VideoModelImplToJson(_$VideoModelImpl instance) =>
       'durationSeconds': instance.durationSeconds,
       'status': _$VideoStatusEnumMap[instance.status]!,
       'visibility': _$VideoVisibilityEnumMap[instance.visibility]!,
+      'commentsDisabled': instance.commentsDisabled,
       'viewCount': instance.viewCount,
       'likeCount': instance.likeCount,
       'commentCount': instance.commentCount,
-      'saveCount': instance.saveCount,
       'shareCount': instance.shareCount,
       'createdAt': instance.createdAt.toIso8601String(),
     };

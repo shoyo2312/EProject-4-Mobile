@@ -8,6 +8,7 @@ import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/feed/data/feed_remote_datasource.dart';
 import 'package:tiktok_mobile/features/feed/data/feed_repository.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
+import 'package:tiktok_mobile/features/interaction/presentation/interaction_provider.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
 part 'feed_provider.g.dart';
@@ -40,6 +41,9 @@ class FeedNotifier extends _$FeedNotifier {
   bool _rankingSpent = false;
   bool _chronologicalSpent = false;
 
+  /// Both the ranked feed and the batched like-status read need a token.
+  bool _signedIn = false;
+
   final _more = LoadMoreGuard();
 
   @override
@@ -48,25 +52,40 @@ class FeedNotifier extends _$FeedNotifier {
     // has only the chronological feed. Awaiting the session (rather than
     // reading whatever it holds right now) keeps a signed-in viewer off the
     // fallback just because `/me` had not answered yet.
-    _rankingSpent = await ref.watch(authStateProvider.future) == null;
+    _signedIn = await ref.watch(authStateProvider.future) != null;
+    _rankingSpent = !_signedIn;
     _cursor = null;
     _chronologicalSpent = false;
     return _loadPage();
   }
 
-  /// Resolves the authors of [videos] in one batched request before the page
-  /// is handed to the UI, so each row finds its name and picture in the shared
-  /// cache instead of firing its own `GET /users/{id}`.
+  /// Resolves the authors and the caller's own hearts for [videos] in one
+  /// batched request each before the page is handed to the UI, so a row finds
+  /// both in a shared cache instead of firing its own `GET /users/{id}` and
+  /// `GET /like-status`. Twenty cards' worth of those would spend the gateway's
+  /// whole 20 req/s per-IP budget on one scroll.
   ///
-  /// A failure here is swallowed on purpose: a feed that plays with placeholder
-  /// avatars beats a feed that shows an error page.
-  Future<List<VideoModel>> _withAuthors(List<VideoModel> videos) async {
+  /// Failures here are swallowed on purpose: a feed that plays with placeholder
+  /// avatars and unfilled hearts beats a feed that shows an error page. The
+  /// per-video providers fall back to their own single-video reads.
+  Future<List<VideoModel>> _hydrate(List<VideoModel> videos) async {
     try {
       await ref
           .read(profileCacheProvider.notifier)
           .loadMissing(videos.map((v) => v.userId));
     } on AppException {
       // ignore — see above
+    }
+    // Skipped entirely for a guest: the batch endpoint needs a token, and every
+    // row would come back `liked: false` anyway.
+    if (_signedIn) {
+      try {
+        await ref
+            .read(likeStatusCacheProvider.notifier)
+            .loadMissing(videos.map((v) => v.id));
+      } on AppException {
+        // ignore — see above
+      }
     }
     return videos;
   }
@@ -79,7 +98,7 @@ class FeedNotifier extends _$FeedNotifier {
         final ranked = await ref
             .read(feedRepositoryProvider)
             .fetchRankedFeed(limit: _pageSize);
-        if (ranked.isNotEmpty) return _withAuthors(ranked);
+        if (ranked.isNotEmpty) return _hydrate(ranked);
       } on AppException {
         // recommendation-service being down must not take the feed with it.
       }
@@ -92,7 +111,7 @@ class FeedNotifier extends _$FeedNotifier {
         .fetchFeed(cursor: _cursor, size: _pageSize);
     _cursor = page.nextCursor;
     _chronologicalSpent = page.nextCursor == null;
-    return _withAuthors(page.items);
+    return _hydrate(page.items);
   }
 
   Future<void> loadMore() => _more.run(() async {
@@ -139,6 +158,25 @@ class UserVideosNotifier extends _$UserVideosNotifier {
         state = AsyncData(_appendDistinct(state.value ?? [], page.content));
       });
 
+  /// Owner-only, and answered with the updated video — the row is replaced
+  /// from the response rather than patched locally, so a field the server
+  /// changed alongside the one asked for cannot drift.
+  Future<void> setVisibility(String videoId, VideoVisibility visibility) =>
+      _replace((repo) => repo.updateVisibility(videoId, visibility));
+
+  Future<void> setCommentsDisabled(String videoId, bool disabled) =>
+      _replace((repo) => repo.updateCommentsDisabled(videoId, disabled));
+
+  Future<void> _replace(
+    Future<VideoModel> Function(FeedRepository repo) edit,
+  ) async {
+    final updated = await edit(ref.read(feedRepositoryProvider));
+    state = AsyncData([
+      for (final video in state.value ?? <VideoModel>[])
+        if (video.id == updated.id) updated else video,
+    ]);
+  }
+
   /// Soft-delete, one-way: the video vanishes from every read endpoint at
   /// once and there is no restore API.
   Future<void> delete(String videoId) async {
@@ -149,4 +187,80 @@ class UserVideosNotifier extends _$UserVideosNotifier {
         if (video.id != videoId) video,
     ]);
   }
+}
+
+/// How many accounts the Following tab draws from. video-service has no follow
+/// graph, so every id travels in the query string — this is the point past
+/// which that string stops being reasonable, not a limit the server imposes.
+const _followedIdLimit = 100;
+
+/// The Following tab: only the accounts the viewer follows, newest first.
+///
+/// Two services, one list — user-service knows who is followed, video-service
+/// knows what they posted — so the follow list is read once per session here
+/// rather than on every page.
+@riverpod
+class FollowingFeedNotifier extends _$FollowingFeedNotifier {
+  String? _cursor;
+  List<String> _followedUserIds = const [];
+  final _more = LoadMoreGuard();
+
+  @override
+  FutureOr<List<VideoModel>> build() async {
+    final me = await ref.watch(authStateProvider.future);
+    // Signed out there is no follow graph to read, and the tab has nothing to
+    // show rather than an error to raise.
+    if (me == null) {
+      _more.done = true;
+      return [];
+    }
+    _cursor = null;
+    _followedUserIds = (await ref
+            .read(userRepositoryProvider)
+            .getFollowing(me.id, size: _followedIdLimit))
+        .content
+        .map((profile) => profile.userId)
+        .toList();
+    if (_followedUserIds.isEmpty) {
+      _more.done = true;
+      return [];
+    }
+    return _loadPage();
+  }
+
+  Future<List<VideoModel>> _loadPage() async {
+    final page = await ref.read(feedRepositoryProvider).fetchFollowingFeed(
+          followedUserIds: _followedUserIds,
+          cursor: _cursor,
+          size: _pageSize,
+        );
+    _cursor = page.nextCursor;
+    _more.done = page.nextCursor == null;
+    return _hydrateAuthors(page.items);
+  }
+
+  /// Only the authors: the hearts are batched by [FeedNotifier] for its own
+  /// pages, and this tab's rows go through the same cache, so a clip seen on
+  /// both is already filled in.
+  Future<List<VideoModel>> _hydrateAuthors(List<VideoModel> videos) async {
+    try {
+      await ref
+          .read(profileCacheProvider.notifier)
+          .loadMissing(videos.map((v) => v.userId));
+    } on AppException {
+      // Placeholder avatars beat an error page — same bargain as the main feed.
+    }
+    try {
+      await ref
+          .read(likeStatusCacheProvider.notifier)
+          .loadMissing(videos.map((v) => v.id));
+    } on AppException {
+      // ignore — see above
+    }
+    return videos;
+  }
+
+  Future<void> loadMore() => _more.run(() async {
+        state = AsyncData(_appendDistinct(state.value ?? [], await _loadPage()));
+      });
 }

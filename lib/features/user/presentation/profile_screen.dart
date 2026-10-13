@@ -7,9 +7,11 @@ import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/error_view.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
+import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 import 'package:tiktok_mobile/features/feed/presentation/video_viewer_screen.dart';
 import 'package:tiktok_mobile/features/feed/presentation/feed_provider.dart';
+import 'package:tiktok_mobile/features/interaction/presentation/interaction_provider.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
@@ -168,6 +170,21 @@ class _OtherProfileBody extends ConsumerWidget {
   final String userId;
   final bool embedded;
 
+  /// Opens the thread with this person, creating it on the server if this is
+  /// the first message. The id comes back from the server rather than being
+  /// guessed: two people have exactly one conversation, and which document it
+  /// is was decided the first time either of them tapped this.
+  Future<void> _openChat(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final conversationId =
+          await ref.read(conversationsProvider.notifier).openWith(userId);
+      if (context.mounted) context.push('/messages/$conversationId');
+    } on AppException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileState = ref.watch(profileNotifierProvider(userId));
@@ -193,6 +210,12 @@ class _OtherProfileBody extends ConsumerWidget {
             onTap: notifier.toggleFollow,
           ),
           iconActions: [
+            _IconAction(
+              buttonKey: const Key('profile_message_button'),
+              icon: Icons.send_outlined,
+              tooltip: 'Message',
+              onTap: () => _openChat(context, ref),
+            ),
             _IconAction(
               buttonKey: const Key('profile_block_button'),
               icon: Icons.block,
@@ -376,15 +399,22 @@ class _ProfileContentState extends State<_ProfileContent> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                // Only "Posts" has an endpoint: liked/saved lists live in
-                // interaction-service, which exposes no API yet.
                 if (_tab == 'Posts')
                   _UserVideosGrid(
                     userId: profile.userId,
                     isOwnProfile: widget.isOwnProfile,
                   )
+                // Likes and saves are private: interaction-service only ever
+                // answers for "me", so there is nothing to show on someone
+                // else's profile — not an empty list, no endpoint at all.
+                else if (!widget.isOwnProfile)
+                  _PrivateTab(tab: _tab)
                 else
-                  _NotAvailable(tab: _tab),
+                  _HistoryVideosGrid(
+                    history: _tab == 'Liked'
+                        ? VideoHistory.liked
+                        : VideoHistory.saved,
+                  ),
               ],
             ),
           ),
@@ -394,8 +424,8 @@ class _ProfileContentState extends State<_ProfileContent> {
   }
 }
 
-class _NotAvailable extends StatelessWidget {
-  const _NotAvailable({required this.tab});
+class _PrivateTab extends StatelessWidget {
+  const _PrivateTab({required this.tab});
 
   final String tab;
 
@@ -405,10 +435,88 @@ class _NotAvailable extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 48),
       child: Center(
         child: Text(
-          '$tab videos are not available yet',
+          '$tab videos are private',
           style: work(size: 13, color: NowaColors.text.withValues(alpha: 0.45)),
         ),
       ),
+    );
+  }
+}
+
+/// The caller's own Liked or Saved tab. Two hops behind it — ids from
+/// interaction-service, videos from video-service — which is why a row can be
+/// missing from a page: the video was deleted after it was liked.
+class _HistoryVideosGrid extends ConsumerWidget {
+  const _HistoryVideosGrid({required this.history});
+
+  final VideoHistory history;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final provider = historyVideosNotifierProvider(history);
+    return ref.watch(provider).when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 48),
+            child: LoadingView(),
+          ),
+          error: (error, _) => ErrorView(
+            message: error.toString(),
+            onRetry: () => ref.invalidate(provider),
+          ),
+          data: (videos) => videos.isEmpty
+              ? const _EmptyVideos()
+              : _VideoGrid(
+                  videos: videos,
+                  // Deleting is the owner's gesture on their own posts, not on
+                  // a list of other people's videos they happened to like.
+                  onLongPress: null,
+                ),
+        );
+  }
+}
+
+/// The three-across thumbnail grid shared by every profile tab. Never scrolls
+/// itself — it always sits inside the profile's own ListView.
+class _VideoGrid extends StatelessWidget {
+  const _VideoGrid({required this.videos, required this.onLongPress});
+
+  final List<VideoModel> videos;
+  final void Function(VideoModel video)? onLongPress;
+
+  /// Opens the tapped clip in the full-screen viewer. Only PUBLISHED videos
+  /// carry an hlsUrl — the owner's own grid also holds PROCESSING/FAILED ones,
+  /// which have nothing to play, so they are skipped here and in the swipe
+  /// list behind them.
+  void _openViewer(BuildContext context, VideoModel tapped) {
+    final playable = videos.where((v) => v.hlsUrl != null).toList();
+    final index = playable.indexWhere((v) => v.id == tapped.id);
+    if (index == -1) return;
+    VideoViewerScreen.open(context, videos: playable, initialIndex: index);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      padding: EdgeInsets.zero,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 5,
+        mainAxisSpacing: 5,
+        childAspectRatio: 9 / 13,
+      ),
+      itemCount: videos.length,
+      itemBuilder: (context, index) {
+        final video = videos[index];
+        return GestureDetector(
+          key: Key('profile_video_${video.id}'),
+          onTap: () => _openViewer(context, video),
+          onLongPress:
+              onLongPress == null ? null : () => onLongPress!(video),
+          child: _VideoThumbnail(video: video),
+        );
+      },
     );
   }
 }
@@ -423,19 +531,75 @@ class _UserVideosGrid extends ConsumerWidget {
   final String userId;
   final bool isOwnProfile;
 
-  /// Opens the tapped clip in the full-screen viewer. Only PUBLISHED videos
-  /// carry an hlsUrl — the owner's own grid also holds PROCESSING/FAILED ones,
-  /// which have nothing to play, so they are skipped here and in the swipe
-  /// list behind them.
-  void _openViewer(
+  /// The owner's menu for one of their own videos. Long-press rather than a
+  /// visible button: the grid is three across and a per-tile overflow icon at
+  /// that size is a mis-tap waiting to happen.
+  Future<void> _openManageSheet(
     BuildContext context,
-    List<VideoModel> videos,
-    VideoModel tapped,
-  ) {
-    final playable = videos.where((v) => v.hlsUrl != null).toList();
-    final index = playable.indexWhere((v) => v.id == tapped.id);
-    if (index == -1) return;
-    VideoViewerScreen.open(context, videos: playable, initialIndex: index);
+    WidgetRef ref,
+    VideoModel video,
+  ) async {
+    final isPrivate = video.visibility == VideoVisibility.private;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: NowaColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            _ManageTile(
+              itemKey: const Key('manage_video_visibility'),
+              icon: isPrivate ? Icons.public : Icons.lock_outline,
+              label: isPrivate ? 'Make public' : 'Make private',
+              onTap: () => Navigator.of(sheetContext).pop('visibility'),
+            ),
+            _ManageTile(
+              itemKey: const Key('manage_video_comments'),
+              icon: video.commentsDisabled
+                  ? Icons.mode_comment_outlined
+                  : Icons.comments_disabled_outlined,
+              label: video.commentsDisabled
+                  ? 'Turn comments on'
+                  : 'Turn comments off',
+              onTap: () => Navigator.of(sheetContext).pop('comments'),
+            ),
+            _ManageTile(
+              itemKey: const Key('manage_video_delete'),
+              icon: Icons.delete_outline,
+              label: 'Delete',
+              danger: true,
+              onTap: () => Navigator.of(sheetContext).pop('delete'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !context.mounted) return;
+
+    if (action == 'delete') {
+      await _confirmDelete(context, ref, video);
+      return;
+    }
+    final notifier = ref.read(userVideosNotifierProvider(userId).notifier);
+    try {
+      if (action == 'visibility') {
+        await notifier.setVisibility(
+          video.id,
+          isPrivate ? VideoVisibility.public : VideoVisibility.private,
+        );
+      } else {
+        await notifier.setCommentsDisabled(video.id, !video.commentsDisabled);
+      }
+    } on AppException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    }
   }
 
   /// Deleting is a soft delete with no restore endpoint, and the gesture that
@@ -496,32 +660,42 @@ class _UserVideosGrid extends ConsumerWidget {
         message: error.toString(),
         onRetry: () => ref.invalidate(userVideosNotifierProvider(userId)),
       ),
-      data: (videos) {
-        if (videos.isEmpty) return const _EmptyVideos();
-        return GridView.builder(
-          shrinkWrap: true,
-          padding: EdgeInsets.zero,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 5,
-            mainAxisSpacing: 5,
-            childAspectRatio: 9 / 13,
-          ),
-          itemCount: videos.length,
-          itemBuilder: (context, index) {
-            final video = videos[index];
-            return GestureDetector(
-              key: Key('profile_video_${video.id}'),
-              onTap: () => _openViewer(context, videos, video),
-              // Only the owner may delete, and only after confirming.
-              onLongPress:
-                  isOwnProfile ? () => _confirmDelete(context, ref, video) : null,
-              child: _VideoThumbnail(video: video),
-            );
-          },
-        );
-      },
+      data: (videos) => videos.isEmpty
+          ? const _EmptyVideos()
+          : _VideoGrid(
+              videos: videos,
+              // Only the owner may edit or delete their own videos.
+              onLongPress: isOwnProfile
+                  ? (video) => _openManageSheet(context, ref, video)
+                  : null,
+            ),
+    );
+  }
+}
+
+class _ManageTile extends StatelessWidget {
+  const _ManageTile({
+    required this.itemKey,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.danger = false,
+  });
+
+  final Key itemKey;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = danger ? NowaColors.danger : NowaColors.text;
+    return ListTile(
+      key: itemKey,
+      onTap: onTap,
+      leading: Icon(icon, size: 20, color: color),
+      title: Text(label, style: work(size: 14.5, color: color)),
     );
   }
 }

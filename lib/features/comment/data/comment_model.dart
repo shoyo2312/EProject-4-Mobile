@@ -21,6 +21,10 @@ class CommentModel with _$CommentModel {
     @JsonKey(fromJson: _idFromJson) required String userId,
     @JsonKey(name: 'content') required String text,
     required DateTime createdAt,
+    /// Denormalised tally kept by interaction-service.
+    @Default(0) int likeCount,
+    /// Always false on an anonymous listing — a guest has no hearts to fill.
+    @Default(false) bool likedByMe,
   }) = _CommentModel;
 
   factory CommentModel.fromJson(Map<String, dynamic> json) =>

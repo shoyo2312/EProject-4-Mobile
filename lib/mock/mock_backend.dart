@@ -1,9 +1,17 @@
+import 'dart:io';
 import 'dart:math';
+
+import 'package:dio/dio.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
 import 'package:tiktok_mobile/features/auth/data/user_model.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
+import 'package:tiktok_mobile/features/chat/data/chat_model.dart';
+import 'package:tiktok_mobile/features/chat/data/chat_remote_datasource.dart';
+import 'package:tiktok_mobile/features/chat/data/chat_repository.dart';
+import 'package:tiktok_mobile/features/chat/data/chat_socket.dart';
+import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_model.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_remote_datasource.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_repository.dart';
@@ -16,6 +24,13 @@ import 'package:tiktok_mobile/features/interaction/data/interaction_model.dart';
 import 'package:tiktok_mobile/features/interaction/data/interaction_remote_datasource.dart';
 import 'package:tiktok_mobile/features/interaction/data/interaction_repository.dart';
 import 'package:tiktok_mobile/features/interaction/presentation/interaction_provider.dart';
+import 'package:tiktok_mobile/features/notification/data/notification_model.dart';
+import 'package:tiktok_mobile/features/notification/data/notification_remote_datasource.dart';
+import 'package:tiktok_mobile/features/notification/data/notification_repository.dart';
+import 'package:tiktok_mobile/features/notification/presentation/notification_provider.dart';
+import 'package:tiktok_mobile/features/search/data/search_remote_datasource.dart';
+import 'package:tiktok_mobile/features/search/data/search_repository.dart';
+import 'package:tiktok_mobile/features/search/presentation/search_provider.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/data/user_remote_datasource.dart';
 import 'package:tiktok_mobile/features/user/data/user_repository.dart';
@@ -42,6 +57,22 @@ List<Override> mockOverrides() => [
       interactionRepositoryProvider.overrideWith(
         (ref) => _MockInteractionRepository(
           InteractionRemoteDatasource(ref.watch(apiClientProvider)),
+        ),
+      ),
+      chatRepositoryProvider.overrideWith(
+        (ref) => _MockChatRepository(
+          ChatRemoteDatasource(ref.watch(apiClientProvider)),
+          ChatSocket(ref.watch(tokenStorageProvider)),
+        ),
+      ),
+      notificationRepositoryProvider.overrideWith(
+        (ref) => _MockNotificationRepository(
+          NotificationRemoteDatasource(ref.watch(apiClientProvider)),
+        ),
+      ),
+      searchRepositoryProvider.overrideWith(
+        (ref) => _MockSearchRepository(
+          SearchRemoteDatasource(ref.watch(apiClientProvider)),
         ),
       ),
     ];
@@ -143,7 +174,6 @@ final _videos = <VideoModel>[
     viewCount: 1284000,
     likeCount: 162000,
     commentCount: 1491,
-    saveCount: 29970,
     shareCount: 57100,
     createdAt: DateTime(2026, 8, 2),
   ),
@@ -160,7 +190,6 @@ final _videos = <VideoModel>[
     viewCount: 88400,
     likeCount: 12300,
     commentCount: 217,
-    saveCount: 1140,
     shareCount: 3200,
     createdAt: DateTime(2026, 8, 5),
   ),
@@ -177,7 +206,6 @@ final _videos = <VideoModel>[
     viewCount: 4210,
     likeCount: 512,
     commentCount: 3204,
-    saveCount: 88,
     shareCount: 41,
     createdAt: DateTime(2026, 8, 8),
   ),
@@ -194,7 +222,6 @@ final _videos = <VideoModel>[
     viewCount: 730000,
     likeCount: 91200,
     commentCount: 8760,
-    saveCount: 12400,
     shareCount: 6800,
     createdAt: DateTime(2026, 8, 10),
   ),
@@ -211,7 +238,6 @@ final _videos = <VideoModel>[
     viewCount: 2900000,
     likeCount: 410000,
     commentCount: 9987,
-    saveCount: 61000,
     shareCount: 124000,
     createdAt: DateTime(2026, 8, 12),
   ),
@@ -230,7 +256,6 @@ final _videos = <VideoModel>[
     viewCount: 412000,
     likeCount: 26700,
     commentCount: 310,
-    saveCount: 2997,
     shareCount: 57100,
     createdAt: DateTime(2026, 8, 14, 9),
   ),
@@ -247,7 +272,6 @@ final _videos = <VideoModel>[
     viewCount: 96000,
     likeCount: 8420,
     commentCount: 296,
-    saveCount: 1140,
     shareCount: 3200,
     createdAt: DateTime(2026, 8, 14, 6),
   ),
@@ -265,7 +289,6 @@ final _videos = <VideoModel>[
     viewCount: 2400000,
     likeCount: 51300,
     commentCount: 742,
-    saveCount: 6100,
     shareCount: 12400,
     createdAt: DateTime(2026, 8, 13, 22),
   ),
@@ -282,7 +305,6 @@ final _videos = <VideoModel>[
     viewCount: 640000,
     likeCount: 14900,
     commentCount: 208,
-    saveCount: 3410,
     shareCount: 5800,
     createdAt: DateTime(2026, 8, 13, 14),
   ),
@@ -300,7 +322,6 @@ final _videos = <VideoModel>[
     viewCount: 84000,
     likeCount: 6300,
     commentCount: 412,
-    saveCount: 920,
     shareCount: 1500,
     createdAt: DateTime(2026, 8, 11),
   ),
@@ -317,7 +338,6 @@ final _videos = <VideoModel>[
     viewCount: 1100000,
     likeCount: 78000,
     commentCount: 2140,
-    saveCount: 15600,
     shareCount: 8900,
     createdAt: DateTime(2026, 8, 9),
   ),
@@ -334,7 +354,6 @@ final _videos = <VideoModel>[
     viewCount: 340000,
     likeCount: 21000,
     commentCount: 604,
-    saveCount: 7300,
     shareCount: 2200,
     createdAt: DateTime(2026, 8, 6),
   ),
@@ -351,7 +370,6 @@ final _videos = <VideoModel>[
     viewCount: 18000,
     likeCount: 1400,
     commentCount: 287,
-    saveCount: 210,
     shareCount: 96,
     createdAt: DateTime(2026, 8, 3),
   ),
@@ -503,6 +521,7 @@ class _MockInteractionRepository extends InteractionRepository {
   _MockInteractionRepository(super.remoteDatasource);
 
   final _liked = <String>{};
+  final _saved = <String>{};
   final _counts = <String, int>{};
 
   LikeStatus _status(String videoId) => LikeStatus(
@@ -560,6 +579,46 @@ class _MockInteractionRepository extends InteractionRepository {
       _latency();
 
   @override
+  Future<List<LikeStatus>> getLikeStatuses(List<String> ids) async {
+    await _latency();
+    return [for (final id in ids) _status(id)];
+  }
+
+  @override
+  Future<SaveStatus> getSaveStatus(String videoId) async {
+    await _latency();
+    return SaveStatus(videoId: videoId, saved: _saved.contains(videoId));
+  }
+
+  @override
+  Future<SaveStatus> save(String videoId) async {
+    await _latency();
+    _saved.add(videoId);
+    return SaveStatus(videoId: videoId, saved: true);
+  }
+
+  @override
+  Future<SaveStatus> unsave(String videoId) async {
+    await _latency();
+    _saved.remove(videoId);
+    return SaveStatus(videoId: videoId, saved: false);
+  }
+
+  /// One page, then the end: the offline catalogue is small enough that paging
+  /// it would only exercise the cursor plumbing, not the screens.
+  @override
+  Future<VideoIdPage> getLikedVideoIds({String? cursor, int size = 20}) async {
+    await _latency();
+    return VideoIdPage(videoIds: _liked.toList(), hasMore: false);
+  }
+
+  @override
+  Future<VideoIdPage> getSavedVideoIds({String? cursor, int size = 20}) async {
+    await _latency();
+    return VideoIdPage(videoIds: _saved.toList(), hasMore: false);
+  }
+
+  @override
   Future<void> share(String videoId) => _latency();
 }
 
@@ -570,13 +629,45 @@ class _MockFeedRepository extends FeedRepository {
 
   List<VideoModel> get _live => [
         for (final v in _videos)
-          if (!_deleted.contains(v.id)) v,
+          if (!_deleted.contains(v.id)) _edits[v.id] ?? v,
       ];
+
+  /// The offline leaderboard is the catalogue by view count — no recency
+  /// decay, but the same contract: best first, ids the caller hydrates.
+  @override
+  Future<List<VideoModel>> fetchTrending({int limit = 24}) async {
+    await _latency();
+    final ranked = [
+      for (final v in _live)
+        if (v.status == VideoStatus.published &&
+            v.visibility == VideoVisibility.public)
+          v,
+    ]..sort((a, b) => b.viewCount.compareTo(a.viewCount));
+    return ranked.take(limit).toList();
+  }
 
   /// No ranking offline: answering empty sends [FeedNotifier] straight to the
   /// chronological list below, which is the whole mock catalogue anyway.
   @override
   Future<List<VideoModel>> fetchRankedFeed({int limit = 10}) async => [];
+
+  /// Offline everyone follows everyone, so this is the catalogue filtered by
+  /// author — enough to exercise the empty case and the populated one.
+  @override
+  Future<VideoPage> fetchFollowingFeed({
+    required List<String> followedUserIds,
+    String? cursor,
+    int size = 20,
+  }) async {
+    await _latency();
+    final followed = followedUserIds.toSet();
+    return VideoPage(
+      items: [
+        for (final v in _live)
+          if (followed.contains(v.userId)) v,
+      ],
+    );
+  }
 
   @override
   Future<VideoPage> fetchFeed({String? cursor, int size = 20}) async {
@@ -611,9 +702,89 @@ class _MockFeedRepository extends FeedRepository {
     ]);
   }
 
+  /// Nothing is uploaded offline: the file is ignored and a PROCESSING row is
+  /// added, which [getVideo] then reports as PUBLISHED — the same two states
+  /// the real publish flow walks through.
   @override
-  Future<VideoModel> getVideo(String videoId) async =>
-      _live.firstWhere((v) => v.id == videoId);
+  Future<VideoModel> uploadAndPublish({
+    required File file,
+    required String contentType,
+    required String title,
+    String? description,
+    required VideoVisibility visibility,
+    List<String> tags = const [],
+    void Function(int sent, int total)? onProgress,
+    CancelToken? cancelToken,
+  }) async {
+    for (var sent = 0; sent <= 10; sent++) {
+      await _latency();
+      onProgress?.call(sent, 10);
+    }
+    final video = VideoModel(
+      id: 'upload-${_videos.length + 1}',
+      userId: _meId,
+      title: title,
+      description: description,
+      status: VideoStatus.processing,
+      visibility: visibility,
+      viewCount: 0,
+      likeCount: 0,
+      commentCount: 0,
+      createdAt: DateTime.now(),
+    );
+    _videos.insert(0, video);
+    return video;
+  }
+
+  @override
+  Future<VideoModel> getVideo(String videoId) async {
+    final video = _live.firstWhere((v) => v.id == videoId);
+    if (video.status != VideoStatus.processing) return video;
+    // Transcoding "finishes" on the first poll.
+    final published = video.copyWith(
+      status: VideoStatus.published,
+      hlsUrl: _hlsA,
+    );
+    _videos[_videos.indexOf(video)] = published;
+    return published;
+  }
+
+  /// Answers in the order asked and drops ids that no longer resolve, exactly
+  /// as `GET /videos/batch` does — the Liked and Saved tabs depend on both.
+  @override
+  Future<List<VideoModel>> fetchByIds(List<String> ids) async {
+    await _latency();
+    final byId = {for (final v in _live) v.id: v};
+    return [
+      for (final id in ids)
+        ?byId[id],
+    ];
+  }
+
+  final _edits = <String, VideoModel>{};
+
+  @override
+  Future<VideoModel> updateVisibility(
+    String videoId,
+    VideoVisibility visibility,
+  ) async {
+    await _latency();
+    return _edit(videoId, (v) => v.copyWith(visibility: visibility));
+  }
+
+  @override
+  Future<VideoModel> updateCommentsDisabled(
+    String videoId,
+    bool disabled,
+  ) async {
+    await _latency();
+    return _edit(videoId, (v) => v.copyWith(commentsDisabled: disabled));
+  }
+
+  /// `_live` already hands back the edited copy, so this reads through it
+  /// rather than keeping a second notion of what the current video is.
+  VideoModel _edit(String videoId, VideoModel Function(VideoModel) change) =>
+      _edits[videoId] = change(_live.firstWhere((v) => v.id == videoId));
 
   @override
   Future<void> deleteVideo(String videoId) async => _deleted.add(videoId);
@@ -645,6 +816,18 @@ class _MockUserRepository extends UserRepository {
       bio: changes['bio'] as String? ?? _mine.bio,
       avatarUrl: changes['avatarUrl'] as String? ?? _mine.avatarUrl,
     );
+    return _mine;
+  }
+
+  /// Offline there is nowhere to put the bytes, so the picked file's own path
+  /// stands in for the URL the server would have chosen.
+  @override
+  Future<UserProfileModel> uploadAvatar(
+    File file, {
+    required String contentType,
+  }) async {
+    await _latency();
+    _mine = _mine.copyWith(avatarUrl: file.path);
     return _mine;
   }
 
@@ -691,6 +874,7 @@ class _MockUserRepository extends UserRepository {
   Future<PageResponse<UserProfileModel>> getFollowing(
     String userId, {
     int page = 0,
+    int size = 20,
   }) async =>
       _singlePage(page > 0 ? [] : _profiles.values.toList());
 
@@ -724,6 +908,220 @@ class _MockCommentRepository extends CommentRepository {
     );
   }
 
+  /// The offline catalogue's comments all start at zero likes, so the tally
+  /// after one tap is exactly one.
+  @override
+  Future<CommentLikeResult> likeComment(String videoId, String commentId) async {
+    await _latency();
+    return const CommentLikeResult(liked: true, likeCount: 1);
+  }
+
+  @override
+  Future<CommentLikeResult> unlikeComment(
+    String videoId,
+    String commentId,
+  ) async {
+    await _latency();
+    return const CommentLikeResult(liked: false, likeCount: 0);
+  }
+
   @override
   Future<void> deleteComment(String videoId, String commentId) => _latency();
+}
+
+
+/// Offline search. The mock catalogue carries no `tags` field, so a hashtag
+/// is matched against the caption text the same way a free-text query is —
+/// enough to exercise the chips, unlike the server where a tag is an exact
+/// keyword match.
+class _MockSearchRepository extends SearchRepository {
+  _MockSearchRepository(super.remoteDatasource);
+
+  @override
+  Future<SearchIdPage> searchVideos({
+    String? query,
+    String? hashtag,
+    int page = 0,
+    int size = 24,
+  }) async {
+    await _latency();
+    // One page then done, like the other mock listings.
+    if (page > 0) return const SearchIdPage(ids: [], last: true);
+    bool matches(VideoModel v, String term) {
+      final haystack = '${v.title} ${v.description ?? ''}'.toLowerCase();
+      return haystack.contains(term.toLowerCase());
+    }
+
+    return SearchIdPage(
+      ids: [
+        for (final v in _videos)
+          if (v.status == VideoStatus.published &&
+              v.visibility == VideoVisibility.public &&
+              (query == null || matches(v, query)) &&
+              (hashtag == null || matches(v, hashtag)))
+            v.id,
+      ],
+      last: true,
+    );
+  }
+}
+
+
+/// Offline inbox. Holds the rows in memory so marking one read survives a tab
+/// switch, the way the real service does.
+class _MockNotificationRepository extends NotificationRepository {
+  _MockNotificationRepository(super.remoteDatasource);
+
+  final _rows = <NotificationModel>[
+    NotificationModel(
+      id: 'n1',
+      type: NotificationKind.like,
+      title: 'Benri Studio',
+      body: 'liked your video',
+      referenceId: 'v1',
+      read: false,
+      createdAt: DateTime.now().subtract(const Duration(hours: 2)),
+    ),
+    NotificationModel(
+      id: 'n2',
+      type: NotificationKind.comment,
+      title: 'Hà Noodles',
+      body: 'commented: "công thức ở đâu vậy bạn"',
+      referenceId: 'c1',
+      read: false,
+      createdAt: DateTime.now().subtract(const Duration(hours: 6)),
+    ),
+    NotificationModel(
+      id: 'n3',
+      type: NotificationKind.newFollower,
+      title: 'Long An Daily',
+      body: 'started following you',
+      referenceId: '6006',
+      read: false,
+      createdAt: DateTime.now().subtract(const Duration(days: 1)),
+    ),
+    NotificationModel(
+      id: 'n4',
+      type: NotificationKind.system,
+      title: 'Welcome to TikTok!',
+      body: 'Hi mihhuq1223, thanks for joining us.',
+      read: true,
+      createdAt: DateTime.now().subtract(const Duration(days: 4)),
+    ),
+  ];
+
+  @override
+  Future<List<NotificationModel>> list() async {
+    await _latency();
+    return List.unmodifiable(_rows);
+  }
+
+  @override
+  Future<int> unreadCount() async {
+    await _latency();
+    return _rows.where((n) => !n.read).length;
+  }
+
+  @override
+  Future<void> markRead(String notificationId) async {
+    await _latency();
+    final index = _rows.indexWhere((n) => n.id == notificationId);
+    if (index != -1) _rows[index] = _rows[index].copyWith(read: true);
+  }
+
+  @override
+  Future<void> markAllRead() async {
+    await _latency();
+    for (var i = 0; i < _rows.length; i++) {
+      _rows[i] = _rows[i].copyWith(read: true);
+    }
+  }
+}
+
+
+/// Offline chat. One thread with one other person, kept in memory so a sent
+/// message survives leaving the screen. No socket: [liveMessages] is an empty
+/// stream, and the thread still shows what it sends because the send path adds
+/// the server's copy itself.
+class _MockChatRepository extends ChatRepository {
+  _MockChatRepository(super.remoteDatasource, super.socket);
+
+  static const _conversationId = 'conv1';
+  static const _otherId = '2002';
+
+  final _messages = <MessageModel>[
+    MessageModel(
+      id: 'm2',
+      conversationId: _conversationId,
+      senderId: _otherId,
+      content: 'quay ở đâu vậy bro',
+      sentAt: DateTime.now().subtract(const Duration(minutes: 12)),
+    ),
+    MessageModel(
+      id: 'm1',
+      conversationId: _conversationId,
+      senderId: _meId,
+      content: 'clip mới lên rồi nha',
+      sentAt: DateTime.now().subtract(const Duration(hours: 3)),
+    ),
+  ];
+
+  @override
+  Future<List<ConversationModel>> listConversations() async {
+    await _latency();
+    return [
+      ConversationModel(
+        id: _conversationId,
+        participantIds: const [_meId, _otherId],
+        lastMessageContent: _messages.first.content,
+        lastMessageSenderId: _messages.first.senderId,
+        lastMessageAt: _messages.first.sentAt,
+        createdAt: DateTime.now().subtract(const Duration(days: 2)),
+        hasUnread: _messages.first.senderId != _meId,
+      ),
+    ];
+  }
+
+  @override
+  Future<ConversationModel> openConversation(String participantId) async =>
+      (await listConversations()).first;
+
+  @override
+  Future<ConversationModel> getConversation(String conversationId) async =>
+      (await listConversations()).first;
+
+  @override
+  Future<MessagePage> listMessages(
+    String conversationId, {
+    String? cursor,
+    int size = 30,
+  }) async {
+    await _latency();
+    // One page then done — hasMore is the only stop condition.
+    if (cursor != null) {
+      return const MessagePage(items: [], hasMore: false);
+    }
+    return MessagePage(items: List.unmodifiable(_messages), hasMore: false);
+  }
+
+  @override
+  Future<MessageModel> sendMessage(String conversationId, String content) async {
+    await _latency();
+    final message = MessageModel(
+      id: 'm${_messages.length + 1}',
+      conversationId: conversationId,
+      senderId: _meId,
+      content: content,
+      sentAt: DateTime.now(),
+    );
+    _messages.insert(0, message);
+    return message;
+  }
+
+  @override
+  Future<void> markRead(String conversationId) async {}
+
+  @override
+  Stream<MessageModel> liveMessages(String conversationId) =>
+      const Stream.empty();
 }

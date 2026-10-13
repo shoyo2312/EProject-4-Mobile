@@ -42,9 +42,6 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
       PageController(initialPage: widget.initialIndex);
   late int _activeIndex = widget.initialIndex;
 
-  // Save only: like goes through interaction-service inside the panel.
-  final _saved = <String>{};
-
   @override
   void dispose() {
     _pageController.dispose();
@@ -68,10 +65,6 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
                 key: Key('viewer_panel_${video.id}'),
                 video: video,
                 isActive: index == _activeIndex,
-                saved: _saved.contains(video.id),
-                onSave: () => setState(() => _saved.contains(video.id)
-                    ? _saved.remove(video.id)
-                    : _saved.add(video.id)),
               );
             },
           ),

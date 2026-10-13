@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/features/auth/data/user_model.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_model.dart';
@@ -20,6 +21,96 @@ class MockCommentRepository extends Mock implements CommentRepository {}
 class MockUserRepository extends Mock implements UserRepository {}
 
 void main() {
+  /// Sheet backed by one existing comment and a resolvable author.
+  Future<MockCommentRepository> pumpSheet(
+    WidgetTester tester, {
+    bool commentsDisabled = false,
+  }) async {
+    final commentRepository = MockCommentRepository();
+    when(() => commentRepository.fetchComments('v1', cursor: null)).thenAnswer(
+      (_) async => CommentPage(
+        items: [
+          CommentModel(
+            id: 'c1',
+            videoId: 'v1',
+            userId: 'u1',
+            text: 'first comment',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ],
+        hasMore: false,
+        nextCursor: null,
+      ),
+    );
+    final userRepository = MockUserRepository();
+    when(() => userRepository.getProfiles(any()))
+        .thenAnswer((_) async => <String, UserProfileModel>{});
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          commentRepositoryProvider.overrideWithValue(commentRepository),
+          userRepositoryProvider.overrideWithValue(userRepository),
+          authStateProvider.overrideWith(_SignedInAuthState.new),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: CommentSheet(
+              videoId: 'v1',
+              commentsDisabled: commentsDisabled,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    return commentRepository;
+  }
+
+  testWidgets('a video with comments off still shows the thread, not the box',
+      (tester) async {
+    await pumpSheet(tester, commentsDisabled: true);
+
+    expect(find.text('first comment'), findsOneWidget);
+    expect(find.byKey(const Key('comments_disabled_notice')), findsOneWidget);
+    expect(find.byKey(const Key('comment_input_field')), findsNothing);
+  });
+
+  testWidgets('a rejected post puts the text back and closes the box',
+      (tester) async {
+    final commentRepository = await pumpSheet(tester);
+    // The owner switched comments off while the sheet was open — the server
+    // saying so is the only way this sheet finds out.
+    when(() => commentRepository.postComment('v1', 'hello')).thenThrow(
+      const ServerException(403, 'Comments are turned off',
+          code: 'COMMENTS_DISABLED'),
+    );
+
+    await tester.enterText(
+        find.byKey(const Key('comment_input_field')), 'hello');
+    await tester.tap(find.byKey(const Key('comment_send_button')));
+    await tester.pump();
+
+    expect(find.byKey(const Key('comments_disabled_notice')), findsOneWidget);
+    expect(find.byKey(const Key('comment_input_field')), findsNothing);
+  });
+
+  testWidgets('a failed post does not swallow what was typed', (tester) async {
+    final commentRepository = await pumpSheet(tester);
+    when(() => commentRepository.postComment('v1', 'hello'))
+        .thenThrow(const NetworkException());
+
+    await tester.enterText(
+        find.byKey(const Key('comment_input_field')), 'hello');
+    await tester.tap(find.byKey(const Key('comment_send_button')));
+    await tester.pump();
+
+    final field = tester.widget<TextField>(
+        find.byKey(const Key('comment_input_field')));
+    expect(field.controller!.text, 'hello');
+  });
+
   testWidgets('renders existing comments and posts a new one', (tester) async {
     final commentRepository = MockCommentRepository();
     final existing = CommentModel(

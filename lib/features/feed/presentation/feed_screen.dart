@@ -41,26 +41,52 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   int _activeIndex = 0;
   String _tab = 'For You';
 
-  // Save has no endpoint behind it yet, so it lives here and resets with the
-  // screen. Like does not: it goes through interaction-service.
-  final _saved = <String>{};
-
   @override
   void dispose() {
     _pageController.dispose();
     super.dispose();
   }
 
+  bool get _isFollowingTab => _tab == 'Following';
+
   void _onPageChanged(int index, List<VideoModel> videos) {
     setState(() => _activeIndex = index);
-    if (index >= videos.length - 2) {
+    if (index < videos.length - 2) return;
+    if (_isFollowingTab) {
+      ref.read(followingFeedNotifierProvider.notifier).loadMore();
+    } else {
       ref.read(feedNotifierProvider.notifier).loadMore();
     }
   }
 
+  /// Both feeds share one PageView, so the position has to go back to the top
+  /// with the data — otherwise a switch lands on page 12 of a list that may
+  /// only have three rows.
+  void _onTabChanged(String tab) {
+    if (tab == _tab) return;
+    setState(() {
+      _tab = tab;
+      _activeIndex = 0;
+    });
+    if (_pageController.hasClients) _pageController.jumpToPage(0);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final feedState = ref.watch(feedNotifierProvider);
+    // Friends means mutual follows, and no service answers that question —
+    // user-service exposes followers and following, never the intersection.
+    if (_tab == 'Friends') {
+      return Stack(
+        children: [
+          const ErrorView(message: 'Friends is not available yet'),
+          _topBar(context),
+        ],
+      );
+    }
+
+    final feedState = _isFollowingTab
+        ? ref.watch(followingFeedNotifierProvider)
+        : ref.watch(feedNotifierProvider);
 
     return Stack(
       children: [
@@ -68,10 +94,18 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
           loading: () => const LoadingView(),
           error: (error, _) => ErrorView(
             message: error.toString(),
-            onRetry: () => ref.invalidate(feedNotifierProvider),
+            onRetry: () => ref.invalidate(_isFollowingTab
+                ? followingFeedNotifierProvider
+                : feedNotifierProvider),
           ),
           data: (videos) {
-            if (videos.isEmpty) return const ErrorView(message: 'No videos yet');
+            if (videos.isEmpty) {
+              return ErrorView(
+                message: _isFollowingTab
+                    ? 'Nothing from the people you follow yet'
+                    : 'No videos yet',
+              );
+            }
             return PageView.builder(
               controller: _pageController,
               scrollDirection: Axis.vertical,
@@ -82,32 +116,30 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                 return FeedVideoPanel(
                   video: video,
                   isActive: index == _activeIndex && widget.visible,
-                  saved: _saved.contains(video.id),
-                  onSave: () => setState(() => _saved.contains(video.id)
-                      ? _saved.remove(video.id)
-                      : _saved.add(video.id)),
                 );
               },
             );
           },
         ),
-        Positioned(
-          left: 14,
-          right: 14,
-          top: MediaQuery.of(context).padding.top + 10,
-          child: _TopBar(
-            tab: _tab,
-            onTab: (t) => setState(() => _tab = t),
-            onSearch: widget.onOpenDiscover,
-          ),
-        ),
+        _topBar(context),
       ],
     );
   }
+
+  Widget _topBar(BuildContext context) => Positioned(
+        left: 14,
+        right: 14,
+        top: MediaQuery.of(context).padding.top + 10,
+        child: _TopBar(
+          tab: _tab,
+          onTab: _onTabChanged,
+          onSearch: widget.onOpenDiscover,
+        ),
+      );
 }
 
-/// LIVE badge, source chips, search. There is a single feed endpoint, so the
-/// chips mark the intent rather than switching data sources.
+/// LIVE badge, source chips, search. "For You" and "Following" are separate
+/// endpoints; "Friends" is neither, and says so.
 class _TopBar extends StatelessWidget {
   const _TopBar({required this.tab, required this.onTab, this.onSearch});
 
@@ -177,14 +209,10 @@ class FeedVideoPanel extends ConsumerStatefulWidget {
     super.key,
     required this.video,
     required this.isActive,
-    required this.saved,
-    required this.onSave,
   });
 
   final VideoModel video;
   final bool isActive;
-  final bool saved;
-  final VoidCallback onSave;
 
   @override
   ConsumerState<FeedVideoPanel> createState() => _FeedVideoPanelState();
@@ -238,6 +266,16 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTick
     }
     final notifier = ref.read(likeNotifierProvider(widget.video.id).notifier);
     toggle ? notifier.toggle() : notifier.like();
+  }
+
+  /// Saving needs an account too, and for a harder reason than liking: a save
+  /// is private, so there is no signed-out state for it to fall back to.
+  void _save() {
+    if (!_signedIn) {
+      context.push('/login');
+      return;
+    }
+    ref.read(saveNotifierProvider(widget.video.id).notifier).toggle();
   }
 
   /// Anonymous views are not counted at all — the server has nothing to
@@ -304,6 +342,11 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTick
     final counts = widget.isActive
         ? ref.watch(videoCountsProvider(video.id)).valueOrNull
         : null;
+    // Same rule again: only the clip on screen asks, and a guest is answered
+    // locally rather than over the network.
+    final save = widget.isActive
+        ? ref.watch(saveNotifierProvider(video.id)).valueOrNull
+        : null;
     return GestureDetector(
       onTap: () => setState(() => _paused = !_paused),
       onDoubleTap: _doubleTap,
@@ -353,9 +396,9 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTick
                   // but it is never wildly wrong.
                   liked: like?.liked ?? false,
                   likeCount: like?.likeCount ?? video.likeCount,
-                  saved: widget.saved,
+                  saved: save?.saved ?? false,
                   onLike: _like,
-                  onSave: widget.onSave,
+                  onSave: _save,
                   onShare: _share,
                 ),
               ],
@@ -608,8 +651,8 @@ class _DurationPill extends StatelessWidget {
   }
 }
 
-/// Save is still visual-only — there is no endpoint behind it. Like, comment,
-/// share and the view counter are real.
+/// Every action here is wired to interaction-service. Save is the one without a
+/// number: there is no `save_count` to read, because a save is private.
 class _Rail extends StatelessWidget {
   const _Rail({
     required this.video,
@@ -647,23 +690,25 @@ class _Rail extends StatelessWidget {
         ),
         RailAction(
           itemKey: Key('feed_comment_count_${video.id}'),
-          icon: Icons.mode_comment_outlined,
+          // Still tappable when off: the thread already posted stays readable.
+          icon: video.commentsDisabled
+              ? Icons.comments_disabled_outlined
+              : Icons.mode_comment_outlined,
           label: compact(counts?.commentCount ?? video.commentCount),
           onTap: () => showCommentSheet(
             context,
             videoId: video.id,
             totalCount: counts?.commentCount ?? video.commentCount,
+            commentsDisabled: video.commentsDisabled,
           ),
         ),
         RailAction(
           itemKey: Key('feed_save_button_${video.id}'),
           icon: saved ? Icons.bookmark : Icons.bookmark_border,
           color: saved ? NowaColors.supportInk : Colors.white,
-          // No saveCount from the API means no number to show — fall back to
-          // the verb so the slot never reads "0".
-          label: video.saveCount == 0
-              ? (saved ? 'Saved' : 'Save')
-              : compact(video.saveCount + (saved ? 1 : 0)),
+          // A save is private, so there is no count anywhere in the API to
+          // show — the slot carries the verb instead of a number.
+          label: saved ? 'Saved' : 'Save',
           onTap: onSave,
         ),
         RailAction(

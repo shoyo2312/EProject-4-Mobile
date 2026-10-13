@@ -10,6 +10,12 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Record a video to post.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Record sound with your video.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Pick a video from your library to post.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Connects to the development API server running on your computer.</string>
 	<key>CFBundleDevelopmentRegion</key>

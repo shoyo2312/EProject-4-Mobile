@@ -22,7 +22,7 @@ void main() {
       isTrue,
     );
     // The rail shows a number rather than a bare verb for save and share.
-    expect(page.items.every((v) => v.saveCount > 0 && v.shareCount > 0), isTrue);
+    expect(page.items.every((v) => v.shareCount > 0), isTrue);
   });
 
   test('comments page by cursor up to the video total', () async {

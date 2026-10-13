@@ -23,7 +23,7 @@ final feedRepositoryProvider = Provider<FeedRepository>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef FeedRepositoryRef = ProviderRef<FeedRepository>;
-String _$feedNotifierHash() => r'c34cbe73edcc19e2e962d4cd52ec735d15672f59';
+String _$feedNotifierHash() => r'1494ba7e20f2376f9cfad561612e1834aced500d';
 
 /// See also [FeedNotifier].
 @ProviderFor(FeedNotifier)
@@ -40,7 +40,7 @@ final feedNotifierProvider =
 
 typedef _$FeedNotifier = AutoDisposeAsyncNotifier<List<VideoModel>>;
 String _$userVideosNotifierHash() =>
-    r'6bc1b637c5ca6fab2eda155cea4086037627790d';
+    r'e7067b0dfefcb268b2009222e5bb27fb8deb4d60';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -222,5 +222,31 @@ class _UserVideosNotifierProviderElement
   String get userId => (origin as UserVideosNotifierProvider).userId;
 }
 
+String _$followingFeedNotifierHash() =>
+    r'82a70382cfa53f93fb8cdf3133e350abe649b501';
+
+/// The Following tab: only the accounts the viewer follows, newest first.
+///
+/// Two services, one list — user-service knows who is followed, video-service
+/// knows what they posted — so the follow list is read once per session here
+/// rather than on every page.
+///
+/// Copied from [FollowingFeedNotifier].
+@ProviderFor(FollowingFeedNotifier)
+final followingFeedNotifierProvider =
+    AutoDisposeAsyncNotifierProvider<
+      FollowingFeedNotifier,
+      List<VideoModel>
+    >.internal(
+      FollowingFeedNotifier.new,
+      name: r'followingFeedNotifierProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$followingFeedNotifierHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$FollowingFeedNotifier = AutoDisposeAsyncNotifier<List<VideoModel>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

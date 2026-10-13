@@ -33,16 +33,20 @@ mixin _$VideoModel {
   @JsonKey(unknownEnumValue: VideoStatus.unknown)
   VideoStatus get status => throw _privateConstructorUsedError;
   @JsonKey(unknownEnumValue: VideoVisibility.unknown)
-  VideoVisibility get visibility => throw _privateConstructorUsedError; // Updated asynchronously via Kafka, so they lag behind a like/comment that
+  VideoVisibility get visibility => throw _privateConstructorUsedError;
+
+  /// Set by the owner. New comments are refused while it is true; the ones
+  /// already posted stay readable.
+  bool get commentsDisabled =>
+      throw _privateConstructorUsedError; // Updated asynchronously via Kafka, so they lag behind a like/comment that
   // just happened — a value to sync against on reload, not an immediate
   // result (video doc 5).
   int get viewCount => throw _privateConstructorUsedError;
   int get likeCount => throw _privateConstructorUsedError;
   int get commentCount =>
-      throw _privateConstructorUsedError; // Save/share have no counter in the API yet, so they default to 0 and the
-  // rail falls back to a plain label — same arrangement as
-  // CommentModel.replyCount.
-  int get saveCount => throw _privateConstructorUsedError;
+      throw _privateConstructorUsedError; // Shares have no counter on VideoResponse, so this stays 0 and the rail
+  // falls back to a plain label. Saves have no counter anywhere — a save is
+  // private — so there is no field for them at all.
   int get shareCount => throw _privateConstructorUsedError;
   DateTime get createdAt => throw _privateConstructorUsedError;
 
@@ -74,10 +78,10 @@ abstract class $VideoModelCopyWith<$Res> {
     @JsonKey(unknownEnumValue: VideoStatus.unknown) VideoStatus status,
     @JsonKey(unknownEnumValue: VideoVisibility.unknown)
     VideoVisibility visibility,
+    bool commentsDisabled,
     int viewCount,
     int likeCount,
     int commentCount,
-    int saveCount,
     int shareCount,
     DateTime createdAt,
   });
@@ -107,10 +111,10 @@ class _$VideoModelCopyWithImpl<$Res, $Val extends VideoModel>
     Object? durationSeconds = freezed,
     Object? status = null,
     Object? visibility = null,
+    Object? commentsDisabled = null,
     Object? viewCount = null,
     Object? likeCount = null,
     Object? commentCount = null,
-    Object? saveCount = null,
     Object? shareCount = null,
     Object? createdAt = null,
   }) {
@@ -152,6 +156,10 @@ class _$VideoModelCopyWithImpl<$Res, $Val extends VideoModel>
                 ? _value.visibility
                 : visibility // ignore: cast_nullable_to_non_nullable
                       as VideoVisibility,
+            commentsDisabled: null == commentsDisabled
+                ? _value.commentsDisabled
+                : commentsDisabled // ignore: cast_nullable_to_non_nullable
+                      as bool,
             viewCount: null == viewCount
                 ? _value.viewCount
                 : viewCount // ignore: cast_nullable_to_non_nullable
@@ -163,10 +171,6 @@ class _$VideoModelCopyWithImpl<$Res, $Val extends VideoModel>
             commentCount: null == commentCount
                 ? _value.commentCount
                 : commentCount // ignore: cast_nullable_to_non_nullable
-                      as int,
-            saveCount: null == saveCount
-                ? _value.saveCount
-                : saveCount // ignore: cast_nullable_to_non_nullable
                       as int,
             shareCount: null == shareCount
                 ? _value.shareCount
@@ -202,10 +206,10 @@ abstract class _$$VideoModelImplCopyWith<$Res>
     @JsonKey(unknownEnumValue: VideoStatus.unknown) VideoStatus status,
     @JsonKey(unknownEnumValue: VideoVisibility.unknown)
     VideoVisibility visibility,
+    bool commentsDisabled,
     int viewCount,
     int likeCount,
     int commentCount,
-    int saveCount,
     int shareCount,
     DateTime createdAt,
   });
@@ -234,10 +238,10 @@ class __$$VideoModelImplCopyWithImpl<$Res>
     Object? durationSeconds = freezed,
     Object? status = null,
     Object? visibility = null,
+    Object? commentsDisabled = null,
     Object? viewCount = null,
     Object? likeCount = null,
     Object? commentCount = null,
-    Object? saveCount = null,
     Object? shareCount = null,
     Object? createdAt = null,
   }) {
@@ -279,6 +283,10 @@ class __$$VideoModelImplCopyWithImpl<$Res>
             ? _value.visibility
             : visibility // ignore: cast_nullable_to_non_nullable
                   as VideoVisibility,
+        commentsDisabled: null == commentsDisabled
+            ? _value.commentsDisabled
+            : commentsDisabled // ignore: cast_nullable_to_non_nullable
+                  as bool,
         viewCount: null == viewCount
             ? _value.viewCount
             : viewCount // ignore: cast_nullable_to_non_nullable
@@ -290,10 +298,6 @@ class __$$VideoModelImplCopyWithImpl<$Res>
         commentCount: null == commentCount
             ? _value.commentCount
             : commentCount // ignore: cast_nullable_to_non_nullable
-                  as int,
-        saveCount: null == saveCount
-            ? _value.saveCount
-            : saveCount // ignore: cast_nullable_to_non_nullable
                   as int,
         shareCount: null == shareCount
             ? _value.shareCount
@@ -322,10 +326,10 @@ class _$VideoModelImpl implements _VideoModel {
     @JsonKey(unknownEnumValue: VideoStatus.unknown) required this.status,
     @JsonKey(unknownEnumValue: VideoVisibility.unknown)
     required this.visibility,
+    this.commentsDisabled = false,
     required this.viewCount,
     required this.likeCount,
     required this.commentCount,
-    this.saveCount = 0,
     this.shareCount = 0,
     required this.createdAt,
   });
@@ -355,6 +359,12 @@ class _$VideoModelImpl implements _VideoModel {
   @override
   @JsonKey(unknownEnumValue: VideoVisibility.unknown)
   final VideoVisibility visibility;
+
+  /// Set by the owner. New comments are refused while it is true; the ones
+  /// already posted stay readable.
+  @override
+  @JsonKey()
+  final bool commentsDisabled;
   // Updated asynchronously via Kafka, so they lag behind a like/comment that
   // just happened — a value to sync against on reload, not an immediate
   // result (video doc 5).
@@ -364,12 +374,9 @@ class _$VideoModelImpl implements _VideoModel {
   final int likeCount;
   @override
   final int commentCount;
-  // Save/share have no counter in the API yet, so they default to 0 and the
-  // rail falls back to a plain label — same arrangement as
-  // CommentModel.replyCount.
-  @override
-  @JsonKey()
-  final int saveCount;
+  // Shares have no counter on VideoResponse, so this stays 0 and the rail
+  // falls back to a plain label. Saves have no counter anywhere — a save is
+  // private — so there is no field for them at all.
   @override
   @JsonKey()
   final int shareCount;
@@ -378,7 +385,7 @@ class _$VideoModelImpl implements _VideoModel {
 
   @override
   String toString() {
-    return 'VideoModel(id: $id, userId: $userId, title: $title, description: $description, thumbnailUrl: $thumbnailUrl, hlsUrl: $hlsUrl, durationSeconds: $durationSeconds, status: $status, visibility: $visibility, viewCount: $viewCount, likeCount: $likeCount, commentCount: $commentCount, saveCount: $saveCount, shareCount: $shareCount, createdAt: $createdAt)';
+    return 'VideoModel(id: $id, userId: $userId, title: $title, description: $description, thumbnailUrl: $thumbnailUrl, hlsUrl: $hlsUrl, durationSeconds: $durationSeconds, status: $status, visibility: $visibility, commentsDisabled: $commentsDisabled, viewCount: $viewCount, likeCount: $likeCount, commentCount: $commentCount, shareCount: $shareCount, createdAt: $createdAt)';
   }
 
   @override
@@ -399,14 +406,14 @@ class _$VideoModelImpl implements _VideoModel {
             (identical(other.status, status) || other.status == status) &&
             (identical(other.visibility, visibility) ||
                 other.visibility == visibility) &&
+            (identical(other.commentsDisabled, commentsDisabled) ||
+                other.commentsDisabled == commentsDisabled) &&
             (identical(other.viewCount, viewCount) ||
                 other.viewCount == viewCount) &&
             (identical(other.likeCount, likeCount) ||
                 other.likeCount == likeCount) &&
             (identical(other.commentCount, commentCount) ||
                 other.commentCount == commentCount) &&
-            (identical(other.saveCount, saveCount) ||
-                other.saveCount == saveCount) &&
             (identical(other.shareCount, shareCount) ||
                 other.shareCount == shareCount) &&
             (identical(other.createdAt, createdAt) ||
@@ -426,10 +433,10 @@ class _$VideoModelImpl implements _VideoModel {
     durationSeconds,
     status,
     visibility,
+    commentsDisabled,
     viewCount,
     likeCount,
     commentCount,
-    saveCount,
     shareCount,
     createdAt,
   );
@@ -461,10 +468,10 @@ abstract class _VideoModel implements VideoModel {
     required final VideoStatus status,
     @JsonKey(unknownEnumValue: VideoVisibility.unknown)
     required final VideoVisibility visibility,
+    final bool commentsDisabled,
     required final int viewCount,
     required final int likeCount,
     required final int commentCount,
-    final int saveCount,
     final int shareCount,
     required final DateTime createdAt,
   }) = _$VideoModelImpl;
@@ -492,7 +499,12 @@ abstract class _VideoModel implements VideoModel {
   VideoStatus get status;
   @override
   @JsonKey(unknownEnumValue: VideoVisibility.unknown)
-  VideoVisibility get visibility; // Updated asynchronously via Kafka, so they lag behind a like/comment that
+  VideoVisibility get visibility;
+
+  /// Set by the owner. New comments are refused while it is true; the ones
+  /// already posted stay readable.
+  @override
+  bool get commentsDisabled; // Updated asynchronously via Kafka, so they lag behind a like/comment that
   // just happened — a value to sync against on reload, not an immediate
   // result (video doc 5).
   @override
@@ -500,11 +512,9 @@ abstract class _VideoModel implements VideoModel {
   @override
   int get likeCount;
   @override
-  int get commentCount; // Save/share have no counter in the API yet, so they default to 0 and the
-  // rail falls back to a plain label — same arrangement as
-  // CommentModel.replyCount.
-  @override
-  int get saveCount;
+  int get commentCount; // Shares have no counter on VideoResponse, so this stays 0 and the rail
+  // falls back to a plain label. Saves have no counter anywhere — a save is
+  // private — so there is no field for them at all.
   @override
   int get shareCount;
   @override

@@ -86,6 +86,85 @@ class InteractionRemoteDatasource {
     ).data!;
   }
 
+  /// Batch form of [getLikeStatus] — one request for a whole feed page instead
+  /// of one per card. Authenticated only, unlike the single-video form: there
+  /// is no anonymous answer worth a round trip, since every row would be
+  /// `liked: false`.
+  ///
+  /// Rows for ids the caller has never touched still come back (`liked: false`
+  /// with the real count), but do not count on a row per id — key the result by
+  /// `videoId` rather than zipping it against [ids].
+  Future<List<LikeStatus>> getLikeStatuses(List<String> ids) async {
+    if (ids.isEmpty) return [];
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/interactions/videos/like-status/batch',
+      queryParameters: {'ids': ids.join(',')},
+    );
+    return (response.data!['data'] as List)
+        .map((e) => LikeStatus.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Idempotent, like [like]: saving twice answers `saved: true` either way.
+  Future<SaveStatus> save(String videoId) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/interactions/videos/$videoId/save',
+    );
+    return _unwrapSave(response.data!);
+  }
+
+  Future<SaveStatus> unsave(String videoId) async {
+    final response = await _apiClient.delete<Map<String, dynamic>>(
+      '/interactions/videos/$videoId/save',
+    );
+    return _unwrapSave(response.data!);
+  }
+
+  /// Needs a token — a save is private, so there is no guest answer and a
+  /// signed-out caller gets 401 rather than `saved: false`.
+  Future<SaveStatus> getSaveStatus(String videoId) async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/interactions/videos/$videoId/save-status',
+    );
+    return _unwrapSave(response.data!);
+  }
+
+  /// The caller's own liked videos, newest first. Ids only — see [VideoIdPage].
+  Future<VideoIdPage> getLikedVideoIds({String? cursor, int size = 20}) =>
+      _fetchVideoIdPage('/interactions/users/me/likes', cursor, size);
+
+  /// The caller's own saved videos. Same shape and same paging as
+  /// [getLikedVideoIds].
+  Future<VideoIdPage> getSavedVideoIds({String? cursor, int size = 20}) =>
+      _fetchVideoIdPage('/interactions/users/me/saves', cursor, size);
+
+  Future<VideoIdPage> _fetchVideoIdPage(
+    String path,
+    String? cursor,
+    int size,
+  ) async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      path,
+      queryParameters: {'cursor': ?cursor, 'size': size},
+    );
+    final body = response.data!['data'] as Map<String, dynamic>;
+    return VideoIdPage(
+      // Snowflakes arrive as JSON numbers here but as strings from
+      // video-service; keep the string form so these can be handed straight to
+      // `GET /videos/batch`.
+      videoIds: (body['videoIds'] as List).map((e) => e.toString()).toList(),
+      hasMore: body['hasMore'] as bool? ?? false,
+      nextCursor: body['nextCursor'] as String?,
+    );
+  }
+
+  SaveStatus _unwrapSave(Map<String, dynamic> body) {
+    return ApiResponse<SaveStatus>.fromJson(
+      body,
+      (json) => SaveStatus.fromJson(json as Map<String, dynamic>),
+    ).data!;
+  }
+
   LikeStatus _unwrap(Map<String, dynamic> body) {
     return ApiResponse<LikeStatus>.fromJson(
       body,

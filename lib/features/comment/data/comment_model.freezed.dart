@@ -31,6 +31,12 @@ mixin _$CommentModel {
   String get text => throw _privateConstructorUsedError;
   DateTime get createdAt => throw _privateConstructorUsedError;
 
+  /// Denormalised tally kept by interaction-service.
+  int get likeCount => throw _privateConstructorUsedError;
+
+  /// Always false on an anonymous listing — a guest has no hearts to fill.
+  bool get likedByMe => throw _privateConstructorUsedError;
+
   /// Serializes this CommentModel to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -54,6 +60,8 @@ abstract class $CommentModelCopyWith<$Res> {
     @JsonKey(fromJson: _idFromJson) String userId,
     @JsonKey(name: 'content') String text,
     DateTime createdAt,
+    int likeCount,
+    bool likedByMe,
   });
 }
 
@@ -77,6 +85,8 @@ class _$CommentModelCopyWithImpl<$Res, $Val extends CommentModel>
     Object? userId = null,
     Object? text = null,
     Object? createdAt = null,
+    Object? likeCount = null,
+    Object? likedByMe = null,
   }) {
     return _then(
       _value.copyWith(
@@ -100,6 +110,14 @@ class _$CommentModelCopyWithImpl<$Res, $Val extends CommentModel>
                 ? _value.createdAt
                 : createdAt // ignore: cast_nullable_to_non_nullable
                       as DateTime,
+            likeCount: null == likeCount
+                ? _value.likeCount
+                : likeCount // ignore: cast_nullable_to_non_nullable
+                      as int,
+            likedByMe: null == likedByMe
+                ? _value.likedByMe
+                : likedByMe // ignore: cast_nullable_to_non_nullable
+                      as bool,
           )
           as $Val,
     );
@@ -121,6 +139,8 @@ abstract class _$$CommentModelImplCopyWith<$Res>
     @JsonKey(fromJson: _idFromJson) String userId,
     @JsonKey(name: 'content') String text,
     DateTime createdAt,
+    int likeCount,
+    bool likedByMe,
   });
 }
 
@@ -143,6 +163,8 @@ class __$$CommentModelImplCopyWithImpl<$Res>
     Object? userId = null,
     Object? text = null,
     Object? createdAt = null,
+    Object? likeCount = null,
+    Object? likedByMe = null,
   }) {
     return _then(
       _$CommentModelImpl(
@@ -166,6 +188,14 @@ class __$$CommentModelImplCopyWithImpl<$Res>
             ? _value.createdAt
             : createdAt // ignore: cast_nullable_to_non_nullable
                   as DateTime,
+        likeCount: null == likeCount
+            ? _value.likeCount
+            : likeCount // ignore: cast_nullable_to_non_nullable
+                  as int,
+        likedByMe: null == likedByMe
+            ? _value.likedByMe
+            : likedByMe // ignore: cast_nullable_to_non_nullable
+                  as bool,
       ),
     );
   }
@@ -180,6 +210,8 @@ class _$CommentModelImpl implements _CommentModel {
     @JsonKey(fromJson: _idFromJson) required this.userId,
     @JsonKey(name: 'content') required this.text,
     required this.createdAt,
+    this.likeCount = 0,
+    this.likedByMe = false,
   });
 
   factory _$CommentModelImpl.fromJson(Map<String, dynamic> json) =>
@@ -200,9 +232,19 @@ class _$CommentModelImpl implements _CommentModel {
   @override
   final DateTime createdAt;
 
+  /// Denormalised tally kept by interaction-service.
+  @override
+  @JsonKey()
+  final int likeCount;
+
+  /// Always false on an anonymous listing — a guest has no hearts to fill.
+  @override
+  @JsonKey()
+  final bool likedByMe;
+
   @override
   String toString() {
-    return 'CommentModel(id: $id, videoId: $videoId, userId: $userId, text: $text, createdAt: $createdAt)';
+    return 'CommentModel(id: $id, videoId: $videoId, userId: $userId, text: $text, createdAt: $createdAt, likeCount: $likeCount, likedByMe: $likedByMe)';
   }
 
   @override
@@ -215,13 +257,25 @@ class _$CommentModelImpl implements _CommentModel {
             (identical(other.userId, userId) || other.userId == userId) &&
             (identical(other.text, text) || other.text == text) &&
             (identical(other.createdAt, createdAt) ||
-                other.createdAt == createdAt));
+                other.createdAt == createdAt) &&
+            (identical(other.likeCount, likeCount) ||
+                other.likeCount == likeCount) &&
+            (identical(other.likedByMe, likedByMe) ||
+                other.likedByMe == likedByMe));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, id, videoId, userId, text, createdAt);
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    videoId,
+    userId,
+    text,
+    createdAt,
+    likeCount,
+    likedByMe,
+  );
 
   /// Create a copy of CommentModel
   /// with the given fields replaced by the non-null parameter values.
@@ -244,6 +298,8 @@ abstract class _CommentModel implements CommentModel {
     @JsonKey(fromJson: _idFromJson) required final String userId,
     @JsonKey(name: 'content') required final String text,
     required final DateTime createdAt,
+    final int likeCount,
+    final bool likedByMe,
   }) = _$CommentModelImpl;
 
   factory _CommentModel.fromJson(Map<String, dynamic> json) =
@@ -263,6 +319,14 @@ abstract class _CommentModel implements CommentModel {
   String get text;
   @override
   DateTime get createdAt;
+
+  /// Denormalised tally kept by interaction-service.
+  @override
+  int get likeCount;
+
+  /// Always false on an anonymous listing — a guest has no hearts to fill.
+  @override
+  bool get likedByMe;
 
   /// Create a copy of CommentModel
   /// with the given fields replaced by the non-null parameter values.

@@ -71,6 +71,45 @@ class CommentNotifier extends _$CommentNotifier {
     state = AsyncData([created, ...current]);
   }
 
+  /// Optimistic, and safe to tap again after a failure: like and unlike are
+  /// both idempotent. The tally comes back from the server because someone else
+  /// may have liked the same comment in between.
+  Future<void> toggleLike(String commentId) async {
+    final current = state.value ?? [];
+    final index = current.indexWhere((c) => c.id == commentId);
+    if (index == -1) return;
+    final comment = current[index];
+
+    final wantLiked = !comment.likedByMe;
+    void write(CommentModel value) {
+      final next = [...state.value ?? current];
+      final at = next.indexWhere((c) => c.id == commentId);
+      // The list can have been re-paged under the tap; a comment that is gone
+      // has nothing left to update.
+      if (at == -1) return;
+      next[at] = value;
+      state = AsyncData(next);
+    }
+
+    write(comment.copyWith(
+      likedByMe: wantLiked,
+      likeCount: comment.likeCount + (wantLiked ? 1 : -1),
+    ));
+
+    final repository = ref.read(commentRepositoryProvider);
+    try {
+      final result = wantLiked
+          ? await repository.likeComment(videoId, commentId)
+          : await repository.unlikeComment(videoId, commentId);
+      write(comment.copyWith(
+        likedByMe: result.liked,
+        likeCount: result.likeCount,
+      ));
+    } on AppException {
+      write(comment);
+    }
+  }
+
   /// Own comments only — anything else answers `NOT_COMMENT_OWNER`.
   Future<void> deleteComment(String commentId) async {
     await ref.read(commentRepositoryProvider).deleteComment(videoId, commentId);
