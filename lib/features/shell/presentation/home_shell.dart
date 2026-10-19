@@ -42,7 +42,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       // (and its audio keeps running) under Discover or Inbox.
       () => FeedScreen(visible: _index == 0, onOpenDiscover: () => _go(1)),
       () => const DiscoverScreen(),
-      () => CreateScreen(onClose: () => _go(0)),
+      () => CreateScreen(onClose: () => _go(0), onPosted: () => _go(4)),
       () => const InboxScreen(),
       () => const ProfileScreen(embedded: true),
     ];

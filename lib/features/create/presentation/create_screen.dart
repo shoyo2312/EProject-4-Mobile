@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
-import 'package:tiktok_mobile/features/create/presentation/post_sheet.dart';
+import 'package:tiktok_mobile/features/create/presentation/video_preview_screen.dart';
 import 'package:tiktok_mobile/features/create/presentation/upload_provider.dart';
 
 /// The camera screen from the design, wired to video-service's three-step
@@ -17,9 +17,19 @@ import 'package:tiktok_mobile/features/create/presentation/upload_provider.dart'
 /// The overlay controls (flip, speed, filter, timer, clip length) stay
 /// presentational — they belong to a capture pipeline that does not exist.
 class CreateScreen extends ConsumerStatefulWidget {
-  const CreateScreen({super.key, required this.onClose, this.picker});
+  const CreateScreen({
+    super.key,
+    required this.onClose,
+    required this.onPosted,
+    this.picker,
+  });
 
   final VoidCallback onClose;
+
+  /// Called once a post is up. The camera is the wrong place to land after
+  /// posting — the video belongs to the profile grid, so the shell switches
+  /// there instead.
+  final VoidCallback onPosted;
 
   /// Injected in tests; the real screen opens the system picker.
   final ImagePicker? picker;
@@ -33,8 +43,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
 
   late final ImagePicker _picker = widget.picker ?? ImagePicker();
 
-  /// Pick or record a clip, collect its title, then upload. Every failure
-  /// after this point shows up in [uploadNotifierProvider], not here.
+  /// Pick or record a clip, review it, then hand off to the details screen,
+  /// which collects the rest and runs the upload.
   Future<void> _pick(ImageSource source) async {
     if (ref.read(uploadNotifierProvider).busy) return;
 
@@ -50,16 +60,11 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     if (picked == null || !mounted) return;
 
     final file = File(picked.path);
-    final details = await showPostSheet(context, file: file);
-    if (details == null || !mounted) return;
-
-    await ref.read(uploadNotifierProvider.notifier).start(
-          file: file,
-          title: details.title,
-          description: details.description,
-          visibility: details.visibility,
-          tags: details.tags,
-        );
+    // Preview, then details. The details screen runs the upload itself and
+    // only comes back once the post is up.
+    final posted = await showVideoPreview(context, file: file);
+    if (posted != true || !mounted) return;
+    widget.onPosted();
   }
 
   void _toast(String message) => ScaffoldMessenger.of(context).showSnackBar(
