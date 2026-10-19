@@ -1,5 +1,7 @@
 import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart';
+
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:tiktok_mobile/core/constants/env.dart';
@@ -56,6 +58,11 @@ class SocialSignIn {
       if (e.code == GoogleSignInExceptionCode.canceled) {
         throw const SocialSignInCancelled();
       }
+      // Debug only: the SDK's own description says which of the many setup
+      // mistakes this is, and it never reaches the user-facing message.
+      if (kDebugMode) {
+        debugPrint('[google] ${e.code.name}: ${e.description}');
+      }
       throw SocialSignInException('Google sign-in failed: ${e.code.name}');
     }
   }
@@ -89,6 +96,9 @@ class SocialSignIn {
         throw const SocialSignInCancelled();
       case LoginStatus.failed:
       case LoginStatus.operationInProgress:
+        if (kDebugMode) {
+          debugPrint('[facebook] ${result.status.name}: ${result.message}');
+        }
         throw SocialSignInException(
           result.message ?? 'Facebook sign-in failed',
         );
