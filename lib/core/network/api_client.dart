@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:tiktok_mobile/core/constants/env.dart';
 import 'package:tiktok_mobile/core/network/api_response.dart';
 
@@ -31,6 +32,20 @@ class ApiClient {
   final Dio dio;
   final TokenStorage tokenStorage;
 
+  /// Debug builds only, and deliberately narrow: method, path, status and the
+  /// server's own error code. No headers and no bodies — the Authorization
+  /// header and every token-bearing response would otherwise end up in a log.
+  void _logFailure(DioException err) {
+    if (!kDebugMode) return;
+    final body = err.response?.data;
+    final code = body is Map ? body['code'] : null;
+    final message = body is Map ? body['message'] : null;
+    debugPrint('[api] ${err.requestOptions.method} ${err.requestOptions.path}'
+        ' -> ${err.response?.statusCode ?? err.type.name}'
+        '${code == null ? '' : ' $code'}'
+        '${message == null ? '' : ': $message'}');
+  }
+
   // Shared across concurrent 401s so only one /auth/refresh call is made.
   Future<String?>? _refreshing;
 
@@ -49,6 +64,7 @@ class ApiClient {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
+    _logFailure(err);
     final isRefreshCall = err.requestOptions.path == _refreshPath;
     final alreadyRetried = err.requestOptions.extra[_retriedAfterRefreshKey] == true;
     if (err.response?.statusCode != 401 || isRefreshCall || alreadyRetried) {

@@ -7,7 +7,13 @@ import 'package:tiktok_mobile/features/auth/presentation/widgets/auth_ui.dart';
 
 /// The step between "signed in at the provider" and "signed in here", shown
 /// when that provider account's email address already belongs to an account of
-/// ours and the provider never asserted the address is verified.
+/// ours and the provider never asserted the address is verified — or when the
+/// provider account was linked before our account's address was proven, and
+/// whoever now owns the mailbox has to vouch for the link.
+///
+/// The code goes to our account's address, which in the second case need not
+/// be the provider's (Facebook may not share one at all), so the copy says "the
+/// address on your account", never the provider's.
 ///
 /// Deliberately names neither the account nor the address: whoever owns it
 /// already knows both, and to anyone else printing them would confirm that a
@@ -79,9 +85,8 @@ class _SocialLinkScreenState extends ConsumerState<SocialLinkScreen> {
         const AuthTitle("Confirm it's you"),
         const SizedBox(height: 12),
         AuthHelperText(
-          'That $provider account uses an email address that already has an '
-          'account here. We emailed a 6-digit code to it — enter it to log in '
-          'and connect $provider to that account.',
+          'We emailed a 6-digit code to the address on your account here. '
+          'Enter it to log in with $provider.',
         ),
         const SizedBox(height: 28),
         AuthField.otp(

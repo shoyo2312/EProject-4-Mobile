@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
@@ -147,6 +148,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
               child: TextField(
                 key: const Key('discover_search_field'),
                 controller: _searchController,
+                // search-service refuses a longer term with 400 QUERY_TOO_LONG. A
+                // formatter rather than maxLength, which would draw a counter here.
+                inputFormatters: [LengthLimitingTextInputFormatter(200)],
                 onChanged: _onQueryChanged,
                 textInputAction: TextInputAction.search,
                 style: work(size: 14, height: 1.2),

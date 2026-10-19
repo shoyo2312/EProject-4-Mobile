@@ -6,6 +6,15 @@ import 'package:tiktok_mobile/core/network/api_response.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 
+/// The string video-service wants on the wire. `unknown` only ever comes back
+/// from the server — nothing sends it — so PUBLIC is the safe read of anything
+/// but the two named cases.
+String wireVisibility(VideoVisibility visibility) => switch (visibility) {
+      VideoVisibility.private => 'PRIVATE',
+      VideoVisibility.friends => 'FRIENDS',
+      VideoVisibility.public || VideoVisibility.unknown => 'PUBLIC',
+    };
+
 /// One `/feed` page. Cursor pagination: [nextCursor] is an opaque server
 /// string — pass it back verbatim, never parse or display it. `null` means the
 /// feed is exhausted; that is the only stop condition (video doc 3.2).
@@ -24,11 +33,16 @@ class VideoPage {
 class UploadTicket {
   const UploadTicket({
     required this.uploadUrl,
+    required this.formFields,
     required this.fileUrl,
     required this.expiresInSeconds,
   });
 
   final String uploadUrl;
+
+  /// Every field the presigned POST policy must carry (policy, signature, key,
+  /// Content-Type). Sent before the file, which S3 requires to come last.
+  final Map<String, String> formFields;
   final String fileUrl;
   final int expiresInSeconds;
 }
@@ -67,14 +81,18 @@ class FeedRemoteDatasource {
     final body = response.data!['data'] as Map<String, dynamic>;
     return UploadTicket(
       uploadUrl: body['uploadUrl'] as String,
+      formFields: (body['formFields'] as Map<String, dynamic>).map(
+        (key, value) => MapEntry(key, value as String),
+      ),
       fileUrl: body['fileUrl'] as String,
-      expiresInSeconds: body['expiresInSeconds'] as int,
+      expiresInSeconds: (body['expiresInSeconds'] as num).toInt(),
     );
   }
 
-  /// Step 2: a plain PUT of the bytes to the presigned URL. Streamed from
-  /// disk rather than read into memory — a 3-minute clip does not fit in a
-  /// phone's heap twice.
+  /// Step 2: a multipart POST of the presigned policy fields plus the file to
+  /// the bucket URL. Not a PUT of the raw bytes — the server signs a POST
+  /// policy, and storage rejects anything that does not carry its fields.
+  /// The file part goes last, which S3 requires.
   Future<void> uploadFile(
     UploadTicket ticket,
     File file, {
@@ -82,18 +100,24 @@ class FeedRemoteDatasource {
     void Function(int sent, int total)? onProgress,
     CancelToken? cancelToken,
   }) async {
-    final length = await file.length();
-    await _uploadDio.put<void>(
+    final form = FormData();
+    ticket.formFields.forEach((name, value) {
+      form.fields.add(MapEntry(name, value));
+    });
+    form.files.add(MapEntry(
+      'file',
+      await MultipartFile.fromFile(
+        file.path,
+        filename: file.uri.pathSegments.last,
+        contentType: DioMediaType.parse(contentType),
+      ),
+    ));
+
+    await _uploadDio.post<void>(
       ticket.uploadUrl,
-      data: file.openRead(),
+      data: form,
       cancelToken: cancelToken,
       onSendProgress: onProgress,
-      options: Options(
-        headers: {
-          Headers.contentTypeHeader: contentType,
-          Headers.contentLengthHeader: length,
-        },
-      ),
     );
   }
 
@@ -115,9 +139,7 @@ class FeedRemoteDatasource {
         if (description != null && description.isNotEmpty)
           'description': description,
         'rawFileUrl': rawFileUrl,
-        'visibility': visibility == VideoVisibility.private
-            ? 'PRIVATE'
-            : 'PUBLIC',
+        'visibility': wireVisibility(visibility),
         if (tags.isNotEmpty) 'tags': tags,
       },
     );
@@ -262,7 +284,7 @@ class FeedRemoteDatasource {
     final response = await _apiClient.patch<Map<String, dynamic>>(
       '/videos/$videoId/visibility',
       data: {
-        'visibility': visibility == VideoVisibility.private ? 'PRIVATE' : 'PUBLIC',
+        'visibility': wireVisibility(visibility),
       },
     );
     return _unwrapVideo(response.data!);
