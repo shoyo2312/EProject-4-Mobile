@@ -62,6 +62,7 @@ const _$VideoStatusEnumMap = {
 
 const _$VideoVisibilityEnumMap = {
   VideoVisibility.public: 'PUBLIC',
+  VideoVisibility.friends: 'FRIENDS',
   VideoVisibility.private: 'PRIVATE',
   VideoVisibility.unknown: 'unknown',
 };

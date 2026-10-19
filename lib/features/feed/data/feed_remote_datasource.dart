@@ -6,6 +6,15 @@ import 'package:tiktok_mobile/core/network/api_response.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 
+/// The string video-service wants on the wire. `unknown` only ever comes back
+/// from the server — nothing sends it — so PUBLIC is the safe read of anything
+/// but the two named cases.
+String wireVisibility(VideoVisibility visibility) => switch (visibility) {
+      VideoVisibility.private => 'PRIVATE',
+      VideoVisibility.friends => 'FRIENDS',
+      VideoVisibility.public || VideoVisibility.unknown => 'PUBLIC',
+    };
+
 /// One `/feed` page. Cursor pagination: [nextCursor] is an opaque server
 /// string — pass it back verbatim, never parse or display it. `null` means the
 /// feed is exhausted; that is the only stop condition (video doc 3.2).
@@ -115,9 +124,7 @@ class FeedRemoteDatasource {
         if (description != null && description.isNotEmpty)
           'description': description,
         'rawFileUrl': rawFileUrl,
-        'visibility': visibility == VideoVisibility.private
-            ? 'PRIVATE'
-            : 'PUBLIC',
+        'visibility': wireVisibility(visibility),
         if (tags.isNotEmpty) 'tags': tags,
       },
     );
@@ -262,7 +269,7 @@ class FeedRemoteDatasource {
     final response = await _apiClient.patch<Map<String, dynamic>>(
       '/videos/$videoId/visibility',
       data: {
-        'visibility': visibility == VideoVisibility.private ? 'PRIVATE' : 'PUBLIC',
+        'visibility': wireVisibility(visibility),
       },
     );
     return _unwrapVideo(response.data!);

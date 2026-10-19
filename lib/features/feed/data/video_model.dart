@@ -26,6 +26,8 @@ enum VideoStatus {
 enum VideoVisibility {
   @JsonValue('PUBLIC')
   public,
+  @JsonValue('FRIENDS')
+  friends,
   @JsonValue('PRIVATE')
   private,
   unknown,
