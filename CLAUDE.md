@@ -101,7 +101,7 @@ dart run build_runner build --delete-conflicting-outputs   # Sinh freezed/json/r
 dart run build_runner watch  --delete-conflicting-outputs  # Sinh liên tục khi dev
 
 flutter run --dart-define=USE_MOCK=true                    # Chạy không cần backend
-flutter run --dart-define=API_BASE_URL=http://localhost:8080/api/v1
+flutter run                                                # Backend thật; emulator Android tự dùng 10.0.2.2
 
 flutter analyze                                            # Lint (flutter_lints)
 flutter test                                               # Unit + widget
@@ -110,7 +110,7 @@ flutter test integration_test/auth_flow_test.dart \
   --dart-define=API_BASE_URL=http://localhost:8080/api/v1  # Cần backend thật + thiết bị
 ```
 
-Android emulator gọi máy host bằng `10.0.2.2`, không phải `localhost`.
+Không truyền `API_BASE_URL` thì `Env.apiBaseUrl` tự chọn: emulator Android → `10.0.2.2`, nơi khác → `localhost`. Máy thật phải truyền IP LAN.
 
 ## 6. Key Rules — KHÔNG được vi phạm
 - [ ] KHÔNG hard-code base URL / secret trong code — dùng `Env` + `--dart-define`

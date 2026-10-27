@@ -55,13 +55,15 @@ class SocialSignIn {
       }
       return idToken;
     } on GoogleSignInException catch (e) {
-      if (e.code == GoogleSignInExceptionCode.canceled) {
-        throw const SocialSignInCancelled();
-      }
       // Debug only: the SDK's own description says which of the many setup
       // mistakes this is, and it never reaches the user-facing message.
+      // Logged for `canceled` too: on Android a missing SHA-1 / Android OAuth
+      // client surfaces as `canceled`, which would otherwise leave no trace.
       if (kDebugMode) {
         debugPrint('[google] ${e.code.name}: ${e.description}');
+      }
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        throw const SocialSignInCancelled();
       }
       throw SocialSignInException('Google sign-in failed: ${e.code.name}');
     }

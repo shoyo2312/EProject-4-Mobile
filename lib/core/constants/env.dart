@@ -1,8 +1,21 @@
+import 'package:flutter/foundation.dart';
+
 class Env {
-  static const String apiBaseUrl = String.fromEnvironment(
+  static const String _apiBaseUrlOverride = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:8080/api/v1',
   );
+
+  /// `--dart-define=API_BASE_URL=...` wins when given. Otherwise the Android
+  /// emulator gets `10.0.2.2` — its alias for the host machine, since its own
+  /// `localhost` is the emulator itself — and everything else gets
+  /// `localhost`, so a plain `flutter run` reaches a backend on this machine.
+  static String get apiBaseUrl {
+    if (_apiBaseUrlOverride.isNotEmpty) return _apiBaseUrlOverride;
+    final host = !kIsWeb && defaultTargetPlatform == TargetPlatform.android
+        ? '10.0.2.2'
+        : 'localhost';
+    return 'http://$host:8080/api/v1';
+  }
 
   /// `--dart-define=USE_MOCK=true` runs the app off in-memory sample data
   /// instead of the backend. Off by default, release builds included.
