@@ -114,6 +114,10 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
               itemBuilder: (context, index) {
                 final video = videos[index];
                 return FeedVideoPanel(
+                  // Keyed by video: when the list changes under the PageView
+                  // (For You ↔ Following, a refresh), page 0's state must not
+                  // carry over — its player would keep the old clip's sound.
+                  key: ValueKey(video.id),
                   video: video,
                   isActive: index == _activeIndex && widget.visible,
                 );
@@ -242,9 +246,15 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTick
     super.dispose();
   }
 
+  /// Kept for [_sendWatch], which the player calls from its own dispose —
+  /// while this panel is being torn down too, when `ref` can no longer look
+  /// anything up (it throws "Looking up a deactivated widget's ancestor").
+  late final ProviderContainer _container;
+
   @override
   void initState() {
     super.initState();
+    _container = ProviderScope.containerOf(context, listen: false);
     if (widget.isActive) _sendView();
   }
 
@@ -302,8 +312,8 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTick
   /// counted twice is dirty training data, and a session lost to a flaky
   /// network costs nothing.
   void _sendWatch(Duration watched, Duration duration) {
-    if (!_signedIn) return;
-    ref
+    if (_container.read(authStateProvider).valueOrNull == null) return;
+    _container
         .read(interactionRepositoryProvider)
         .recordWatch(
           widget.video.id,
@@ -357,6 +367,8 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTick
           // the striped frame is the fallback for anything else.
           if (video.hlsUrl != null)
             VideoPlayerWidget(
+              // The player opens its URL once, in initState.
+              key: ValueKey(video.hlsUrl),
               url: video.hlsUrl!,
               isActive: widget.isActive,
               paused: _paused,

@@ -45,7 +45,14 @@ class VideoPlayerWidget extends StatefulWidget {
 
 class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   late final VideoPlayerController _controller;
+  late final AppLifecycleListener _lifecycle;
   bool _initialized = false;
+
+  /// False while a full-screen route covers this one (login, a profile, the
+  /// grid viewer). The Overlay turns tickers off under an opaque route, so
+  /// [TickerMode] is the signal — and a bottom sheet, which is not opaque,
+  /// leaves the clip playing under the comments as it should.
+  bool _onScreen = true;
 
   /// Watch time is measured on the wall clock while the player reports itself
   /// playing, not from `position`: a looping clip rewinds its position, and
@@ -70,6 +77,21 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         // widget tests, network failures) so the widget just keeps showing
         // its loading state instead of crashing.
       });
+    // video_player resumes any clip that was playing when the app went to the
+    // background (Google sign-in opens its own activity, for one), even if
+    // this widget has gone inactive in the meantime. Re-apply our own rule
+    // after it. Registered after the controller's observer, so it runs last.
+    _lifecycle = AppLifecycleListener(onResume: _syncPlayback);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final onScreen = TickerMode.valuesOf(context).enabled;
+    if (onScreen != _onScreen) {
+      _onScreen = onScreen;
+      _syncPlayback();
+    }
   }
 
   @override
@@ -116,7 +138,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
 
   void _syncPlayback() {
     if (!_initialized) return;
-    if (widget.isActive && !widget.paused) {
+    if (widget.isActive && !widget.paused && _onScreen) {
       _controller.play();
     } else {
       _controller.pause();
@@ -128,10 +150,17 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     // ponytail: an app sent to background keeps its open stretch until the
     // widget is disposed, so that session is reported long. Add an
     // AppLifecycleListener here if the training data proves it matters.
-    _flushWatch();
-    _controller.removeListener(_onPlaybackChanged);
-    _controller.dispose();
-    super.dispose();
+    // The player is released in `finally`: if reporting the watch throws, a
+    // controller left undisposed keeps playing its audio with no widget left
+    // to stop it.
+    try {
+      _flushWatch();
+    } finally {
+      _lifecycle.dispose();
+      _controller.removeListener(_onPlaybackChanged);
+      _controller.dispose();
+      super.dispose();
+    }
   }
 
   @override

@@ -138,9 +138,20 @@ dart run build_runner watch --delete-conflicting-outputs
 # Không cần backend — dữ liệu mẫu trong bộ nhớ
 flutter run --dart-define=USE_MOCK=true
 
-# Với backend thật
-flutter run --dart-define=API_BASE_URL=http://localhost:8080/api/v1
+# Với backend thật (emulator Android / iOS Simulator / desktop tự trỏ về máy dev)
+flutter run
+
+# Máy thật cùng LAN
+flutter run --dart-define=API_BASE_URL=http://<IP-máy-dev>:8080/api/v1
+
+# Máy thật Android cắm USB (tự adb reverse cổng 8080 + 9000 rồi flutter run)
+./scripts/run_android_usb.ps1
 ```
+
+Upload: backend local ký link MinIO cho `localhost:9000`. Khi API không ở `localhost`
+(emulator `10.0.2.2`, IP LAN) app tự đổi host của link upload sang host của API
+(`lib/core/network/media_url.dart`). Máy thật qua USB thì cần `adb reverse tcp:9000 tcp:9000`
+— script trên đã làm.
 
 ### 5. Kiểm tra trước khi commit
 
@@ -154,14 +165,14 @@ Không có file `.env` — mọi cấu hình truyền qua `--dart-define`, đọ
 
 | Biến           | Mặc định                       | Ý nghĩa                                         |
 |----------------|--------------------------------|-------------------------------------------------|
-| `API_BASE_URL` | `http://localhost:8080/api/v1` | Gốc của api-gateway                             |
+| `API_BASE_URL` | theo nền tảng (bảng dưới)      | Gốc của api-gateway                             |
 | `USE_MOCK`     | `false`                        | `true` → thay repository bằng mock trong bộ nhớ |
 
-| Thiết bị          | `API_BASE_URL` nên dùng           |
-|-------------------|-----------------------------------|
-| iOS Simulator     | `http://localhost:8080/api/v1`    |
-| Android Emulator  | `http://10.0.2.2:8080/api/v1`     |
-| Máy thật cùng LAN | `http://<IP-máy-dev>:8080/api/v1` |
+| Thiết bị          | Mặc định khi không truyền `API_BASE_URL` |
+|-------------------|------------------------------------------|
+| Android Emulator  | `http://10.0.2.2:8080/api/v1`            |
+| iOS Simulator / desktop / web | `http://localhost:8080/api/v1` |
+| Máy thật cùng LAN | không tự đoán được — phải truyền `http://<IP-máy-dev>:8080/api/v1` |
 
 ## 🧭 Bản đồ route
 

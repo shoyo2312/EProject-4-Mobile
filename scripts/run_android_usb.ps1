@@ -1,0 +1,21 @@
+# Run the app on a real Android phone plugged in over USB, against the backend
+# on this machine. adb reverse makes the phone's localhost:8080 (api-gateway)
+# and localhost:9000 (MinIO: uploads and media) land on this PC, so the
+# localhost URLs the backend signs work on the phone unchanged.
+#
+#   ./scripts/run_android_usb.ps1              # first device adb sees
+#   ./scripts/run_android_usb.ps1 -Device R58M # a specific one (adb devices)
+
+param([string]$Device)
+
+$adbArgs = @()
+if ($Device) { $adbArgs = @('-s', $Device) }
+
+foreach ($port in 8080, 9000) {
+    & adb @adbArgs reverse "tcp:$port" "tcp:$port"
+    if ($LASTEXITCODE -ne 0) { throw "adb reverse tcp:$port failed - is the phone connected with USB debugging on?" }
+}
+
+$flutterArgs = @('run', '--dart-define=API_BASE_URL=http://localhost:8080/api/v1')
+if ($Device) { $flutterArgs += @('-d', $Device) }
+& flutter @flutterArgs

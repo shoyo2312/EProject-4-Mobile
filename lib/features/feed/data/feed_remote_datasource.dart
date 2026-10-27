@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:tiktok_mobile/core/network/api_client.dart';
 import 'package:tiktok_mobile/core/network/api_response.dart';
+import 'package:tiktok_mobile/core/network/media_url.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 
@@ -114,7 +115,8 @@ class FeedRemoteDatasource {
     ));
 
     await _uploadDio.post<void>(
-      ticket.uploadUrl,
+      // Local dev signs for localhost:9000, which the emulator cannot reach.
+      reachableFromDevice(ticket.uploadUrl),
       data: form,
       cancelToken: cancelToken,
       onSendProgress: onProgress,

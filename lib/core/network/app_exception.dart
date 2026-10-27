@@ -9,9 +9,14 @@ sealed class AppException implements Exception {
   String toString() => message;
 
   factory AppException.fromDioException(DioException e) {
+    // The request reached the server but no answer came back in time: the
+    // connection is fine, the backend is slow. Saying "no internet" here sends
+    // people checking their Wi-Fi for nothing.
+    if (e.type == DioExceptionType.receiveTimeout) {
+      return const NetworkException('The server is taking too long to respond');
+    }
     if (e.type == DioExceptionType.connectionTimeout ||
         e.type == DioExceptionType.sendTimeout ||
-        e.type == DioExceptionType.receiveTimeout ||
         e.type == DioExceptionType.connectionError) {
       return const NetworkException();
     }
@@ -39,7 +44,7 @@ sealed class AppException implements Exception {
 }
 
 final class NetworkException extends AppException {
-  const NetworkException() : super('No internet connection');
+  const NetworkException([super.message = 'No internet connection']);
 }
 
 final class ServerException extends AppException {
