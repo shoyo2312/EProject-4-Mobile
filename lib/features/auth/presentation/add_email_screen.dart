@@ -34,13 +34,17 @@ class _AddEmailScreenState extends ConsumerState<AddEmailScreen> {
   }
 
   Future<void> _submit() async {
+    final turnstileToken = await ref.read(turnstileVerifierProvider).solve(context);
+    if (turnstileToken == null || !mounted) return;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
       final email = _emailController.text.trim();
-      await ref.read(authRepositoryProvider).addEmail(email);
+      await ref
+          .read(authRepositoryProvider)
+          .addEmail(email, turnstileToken: turnstileToken);
       // The address is claimed but unverified; the OTP flow is the same one
       // email sign-ups use.
       if (mounted) context.go('/verify-email', extra: email);

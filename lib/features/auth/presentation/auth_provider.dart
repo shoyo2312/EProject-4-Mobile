@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:tiktok_mobile/core/constants/env.dart';
 import 'package:tiktok_mobile/core/network/api_client.dart';
+import 'package:tiktok_mobile/core/widgets/turnstile_sheet.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/network/secure_token_storage.dart';
 import 'package:tiktok_mobile/features/auth/data/auth_remote_datasource.dart';
@@ -19,6 +21,17 @@ ApiClient apiClient(Ref ref) =>
 
 @Riverpod(keepAlive: true)
 SocialSignIn socialSignIn(Ref ref) => SocialSignIn();
+
+/// Turnstile challenge for every call that mails a code. Mock mode never
+/// reaches auth-service, so it gets a fixed token instead of a WebView.
+///
+/// A plain Provider (no codegen) on purpose: it has no dependencies, and the
+/// current riverpod_generator crashes on the installed Dart SDK.
+final turnstileVerifierProvider = Provider<TurnstileVerifier>(
+  (ref) => Env.useMockData
+      ? const FakeTurnstileVerifier()
+      : const WebViewTurnstileVerifier(),
+);
 
 @Riverpod(keepAlive: true)
 AuthRepository authRepository(Ref ref) => AuthRepository(

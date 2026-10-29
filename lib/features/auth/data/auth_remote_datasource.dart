@@ -13,10 +13,16 @@ class AuthRemoteDatasource {
     required String email,
     required String password,
     required String username,
+    required String turnstileToken,
   }) async {
     final response = await _apiClient.post<Map<String, dynamic>>(
       '/auth/register',
-      data: {'username': username, 'email': email, 'password': password},
+      data: {
+        'username': username,
+        'email': email,
+        'password': password,
+        'turnstileToken': turnstileToken,
+      },
     );
     return _unwrap(response.data!, UserModel.fromJson);
   }
@@ -65,8 +71,32 @@ class AuthRemoteDatasource {
   /// Binds an address to an account created through a provider. Requires the
   /// access token from the social login, and only starts the claim — the
   /// address is not usable until the OTP that follows is verified.
-  Future<void> addEmail(String email) {
-    return _apiClient.post<void>('/auth/email', data: {'email': email});
+  ///
+  /// Returns the resend ticket for `/resend-verification` to this address.
+  Future<String?> addEmail(String email, {required String turnstileToken}) {
+    return _sendCode('/auth/email', email, turnstileToken: turnstileToken);
+  }
+
+  /// Every call that mails a code carries a Turnstile token, or the
+  /// `resendTicket` an earlier send to the same address in the same flow
+  /// returned (auth doc §3). Returns the ticket to keep for the next resend;
+  /// it can be null, and then the next send needs Turnstile again.
+  Future<String?> _sendCode(
+    String path,
+    String email, {
+    String? turnstileToken,
+    String? resendTicket,
+  }) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      path,
+      data: {
+        'email': email,
+        'turnstileToken': ?turnstileToken,
+        'resendTicket': ?resendTicket,
+      },
+    );
+    final data = response.data?['data'];
+    return data is Map<String, dynamic> ? data['resendTicket'] as String? : null;
   }
 
   Future<TokenResponse> refresh(String refreshToken) async {
@@ -96,17 +126,29 @@ class AuthRemoteDatasource {
     );
   }
 
-  Future<void> resendVerification(String email) {
-    return _apiClient.post<void>(
+  Future<String?> resendVerification(
+    String email, {
+    String? turnstileToken,
+    String? resendTicket,
+  }) {
+    return _sendCode(
       '/auth/resend-verification',
-      data: {'email': email},
+      email,
+      turnstileToken: turnstileToken,
+      resendTicket: resendTicket,
     );
   }
 
-  Future<void> forgotPassword(String email) {
-    return _apiClient.post<void>(
+  Future<String?> forgotPassword(
+    String email, {
+    String? turnstileToken,
+    String? resendTicket,
+  }) {
+    return _sendCode(
       '/auth/forgot-password',
-      data: {'email': email},
+      email,
+      turnstileToken: turnstileToken,
+      resendTicket: resendTicket,
     );
   }
 

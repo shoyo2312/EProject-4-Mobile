@@ -30,13 +30,17 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   }
 
   Future<void> _submit() async {
+    final turnstileToken = await ref.read(turnstileVerifierProvider).solve(context);
+    if (turnstileToken == null || !mounted) return;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final email = _emailController.text;
-      await ref.read(authRepositoryProvider).forgotPassword(email);
+      final email = _emailController.text.trim();
+      await ref
+          .read(authRepositoryProvider)
+          .forgotPassword(email, turnstileToken: turnstileToken);
       if (mounted) context.go('/reset-password', extra: email);
     } on AppException catch (e) {
       setState(() => _error = e.message);

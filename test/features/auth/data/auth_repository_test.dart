@@ -186,12 +186,14 @@ void main() {
           email: 'jane@test.com',
           password: 'pw',
           username: 'jane',
+          turnstileToken: 'ts-token',
         )).thenAnswer((_) async => user);
 
     final result = await repository.register(
       email: 'jane@test.com',
       password: 'pw',
       username: 'jane',
+      turnstileToken: 'ts-token',
     );
 
     expect(result, user);

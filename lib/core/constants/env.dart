@@ -21,6 +21,23 @@ class Env {
   /// instead of the backend. Off by default, release builds included.
   static const bool useMockData = bool.fromEnvironment('USE_MOCK');
 
+  /// Cloudflare Turnstile **site key** — the same public value the web app has
+  /// in `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, paired with auth-service's
+  /// `TURNSTILE_SECRET_KEY`. Every call that mails a code (register,
+  /// resend-verification, forgot-password, add email) needs a token from it.
+  /// Empty means the challenge cannot run and those calls will fail with 403.
+  static const String turnstileSiteKey = String.fromEnvironment(
+    'TURNSTILE_SITE_KEY',
+  );
+
+  /// The page origin the Turnstile widget is loaded under. Cloudflare checks
+  /// this hostname against the widget's allowed hostnames, so it must be in
+  /// that list (Cloudflare dashboard → Turnstile → widget → Hostnames).
+  static const String turnstileBaseUrl = String.fromEnvironment(
+    'TURNSTILE_BASE_URL',
+    defaultValue: 'http://localhost',
+  );
+
   /// The **Web** OAuth client ID, not the Android or iOS one. Google puts the
   /// web client ID in the ID token's `aud` claim no matter which platform asked
   /// for it, and that is what auth-service checks against `GOOGLE_CLIENT_IDS`.

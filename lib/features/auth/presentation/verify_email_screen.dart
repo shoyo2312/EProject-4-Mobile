@@ -20,6 +20,8 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
   bool _loading = false;
   String? _error;
   String? _info;
+  String? _resendTicket;
+  String? _resendTicketEmail;
 
   @override
   void dispose() {
@@ -48,16 +50,47 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
   }
 
   Future<void> _resend() async {
+    final email = _emailController.text.trim();
+    // A ticket from the previous resend to this same address skips Turnstile
+    // (auth doc §3). It lives 15 minutes; once the server rejects it, fall
+    // back to a fresh challenge.
+    var ticket = _resendTicketEmail == email ? _resendTicket : null;
+    String? turnstileToken;
+    if (ticket == null) {
+      turnstileToken = await ref.read(turnstileVerifierProvider).solve(context);
+      if (turnstileToken == null || !mounted) return;
+    }
     setState(() {
       _loading = true;
       _error = null;
       _info = null;
     });
+    final repository = ref.read(authRepositoryProvider);
     try {
-      await ref.read(authRepositoryProvider).resendVerification(_emailController.text);
-      setState(() => _info = 'Verification code sent.');
+      String? next;
+      try {
+        next = await repository.resendVerification(
+          email,
+          turnstileToken: turnstileToken,
+          resendTicket: ticket,
+        );
+      } on ServerException catch (e) {
+        if (ticket == null || e.code != 'TURNSTILE_VERIFICATION_FAILED') rethrow;
+        ticket = null;
+        _resendTicket = null;
+        if (!mounted) return;
+        turnstileToken = await ref.read(turnstileVerifierProvider).solve(context);
+        if (turnstileToken == null) return;
+        next = await repository.resendVerification(
+          email,
+          turnstileToken: turnstileToken,
+        );
+      }
+      _resendTicket = next;
+      _resendTicketEmail = email;
+      if (mounted) setState(() => _info = 'Verification code sent.');
     } on AppException catch (e) {
-      setState(() => _error = e.message);
+      if (mounted) setState(() => _error = e.message);
     } finally {
       if (mounted) setState(() => _loading = false);
     }

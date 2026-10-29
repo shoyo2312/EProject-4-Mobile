@@ -16,6 +16,7 @@ foreach ($port in 8080, 9000) {
     if ($LASTEXITCODE -ne 0) { throw "adb reverse tcp:$port failed - is the phone connected with USB debugging on?" }
 }
 
-$flutterArgs = @('run', '--dart-define=API_BASE_URL=http://localhost:8080/api/v1')
+# dart_defines.json carries TURNSTILE_SITE_KEY (shared by the team, public value).
+$flutterArgs = @('run', '--dart-define-from-file=dart_defines.json', '--dart-define=API_BASE_URL=http://localhost:8080/api/v1')
 if ($Device) { $flutterArgs += @('-d', $Device) }
 & flutter @flutterArgs

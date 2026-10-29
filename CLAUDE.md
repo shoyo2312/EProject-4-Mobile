@@ -112,6 +112,13 @@ flutter test integration_test/auth_flow_test.dart \
 
 Không truyền `API_BASE_URL` thì `Env.apiBaseUrl` tự chọn: emulator Android → `10.0.2.2`, nơi khác → `localhost`. Máy thật phải truyền IP LAN.
 
+**Turnstile:** mọi lời gọi gửi OTP (`register`, `resend-verification`, `forgot-password`, `email`) cần token Cloudflare Turnstile, nên chạy với backend thật phải truyền site key (cùng giá trị `NEXT_PUBLIC_TURNSTILE_SITE_KEY` của web):
+```bash
+flutter run --dart-define-from-file=dart_defines.json   # file đã commit, chứa TURNSTILE_SITE_KEY
+```
+`scripts/run_android_usb.ps1` đã tự truyền file này.
+Widget chạy trong WebView với origin `TURNSTILE_BASE_URL` (mặc định `http://localhost`) — hostname đó phải nằm trong danh sách Hostnames của widget trên Cloudflare, không thì lỗi `110200`. Screen lấy token qua `turnstileVerifierProvider` (`core/widgets/turnstile_sheet.dart`); test override bằng `FakeTurnstileVerifier`. `resendTicket` server trả về được giữ ở màn verify-email để lần gửi lại tiếp theo không phải giải Turnstile nữa.
+
 ## 6. Key Rules — KHÔNG được vi phạm
 - [ ] KHÔNG hard-code base URL / secret trong code — dùng `Env` + `--dart-define`
 - [ ] KHÔNG lưu token ngoài `flutter_secure_storage`; KHÔNG log token, mật khẩu, OTP

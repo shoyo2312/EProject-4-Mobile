@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:tiktok_mobile/core/network/api_client.dart';
+import 'package:tiktok_mobile/core/widgets/turnstile_sheet.dart';
 import 'package:tiktok_mobile/features/auth/data/auth_repository.dart';
 import 'package:tiktok_mobile/features/auth/data/user_model.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
@@ -23,6 +24,7 @@ void main() {
           email: 'jane@test.com',
           password: 'secret12',
           username: 'jane',
+          turnstileToken: 'ts-token',
         )).thenAnswer((_) async => UserModel(
           id: '1',
           username: 'jane',
@@ -51,6 +53,8 @@ void main() {
         overrides: [
           authRepositoryProvider.overrideWithValue(authRepository),
           tokenStorageProvider.overrideWithValue(tokenStorage),
+          turnstileVerifierProvider
+              .overrideWithValue(const FakeTurnstileVerifier('ts-token')),
         ],
         child: MaterialApp.router(routerConfig: router),
       ),
@@ -68,7 +72,41 @@ void main() {
           email: 'jane@test.com',
           password: 'secret12',
           username: 'jane',
+          turnstileToken: 'ts-token',
         )).called(1);
     expect(find.text('otp screen'), findsOneWidget);
+  });
+
+  testWidgets('closing the Turnstile challenge does not register',
+      (tester) async {
+    final authRepository = MockAuthRepository();
+    final tokenStorage = MockTokenStorage();
+    when(() => tokenStorage.readAccessToken()).thenAnswer((_) async => null);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(authRepository),
+          tokenStorageProvider.overrideWithValue(tokenStorage),
+          turnstileVerifierProvider
+              .overrideWithValue(const FakeTurnstileVerifier(null)),
+        ],
+        child: const MaterialApp(home: RegisterScreen()),
+      ),
+    );
+
+    await tester.enterText(find.byKey(const Key('register_username_field')), 'jane');
+    await tester.enterText(find.byKey(const Key('register_email_field')), 'jane@test.com');
+    await tester.enterText(find.byKey(const Key('register_password_field')), 'secret12');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('register_submit_button')));
+    await tester.pumpAndSettle();
+
+    verifyNever(() => authRepository.register(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+          username: any(named: 'username'),
+          turnstileToken: any(named: 'turnstileToken'),
+        ));
   });
 }

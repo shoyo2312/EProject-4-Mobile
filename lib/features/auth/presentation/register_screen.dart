@@ -33,6 +33,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   // false and /login would answer 403 until the OTP is confirmed. Send the
   // user straight to the OTP screen instead (auth doc 3.1).
   Future<void> _submit() async {
+    // auth-service mails a code on register, so it wants a Turnstile token
+    // first; closing the challenge just cancels the submit.
+    final turnstileToken = await ref.read(turnstileVerifierProvider).solve(context);
+    if (turnstileToken == null || !mounted) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -43,6 +47,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             email: email,
             password: _passwordController.text,
             username: _usernameController.text.trim(),
+            turnstileToken: turnstileToken,
           );
       if (mounted) context.go('/verify-email', extra: email);
     } on AppException catch (e) {

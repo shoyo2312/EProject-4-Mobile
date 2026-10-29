@@ -27,16 +27,20 @@ class AuthRepository {
   // NOT usable yet: emailVerified is false, so logging in here would always
   // fail with 403 EMAIL_NOT_VERIFIED. The flow is register -> OTP screen ->
   // verify-email -> login (auth doc 3.1).
+  // /register sends a code, so it needs a Turnstile token and returns no
+  // resend ticket — the first resend from the OTP screen solves Turnstile again.
   Future<UserModel> register({
     required String email,
     required String password,
     required String username,
+    required String turnstileToken,
   }) async {
     try {
       return await _remoteDatasource.register(
         email: email,
         password: password,
         username: username,
+        turnstileToken: turnstileToken,
       );
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
@@ -129,9 +133,11 @@ class AuthRepository {
   /// Claims an address for an account that has none. Only starts the claim; the
   /// address stays unverified until the OTP that follows is confirmed through
   /// the existing verify-email flow.
-  Future<void> addEmail(String email) async {
+  ///
+  /// Returns the resend ticket for [resendVerification] to this address.
+  Future<String?> addEmail(String email, {required String turnstileToken}) async {
     try {
-      await _remoteDatasource.addEmail(email);
+      return await _remoteDatasource.addEmail(email, turnstileToken: turnstileToken);
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }
@@ -153,17 +159,35 @@ class AuthRepository {
     }
   }
 
-  Future<void> resendVerification(String email) async {
+  /// Pass either a fresh [turnstileToken] or the [resendTicket] the previous
+  /// send returned. Returns the ticket to keep for the next resend.
+  Future<String?> resendVerification(
+    String email, {
+    String? turnstileToken,
+    String? resendTicket,
+  }) async {
     try {
-      await _remoteDatasource.resendVerification(email);
+      return await _remoteDatasource.resendVerification(
+        email,
+        turnstileToken: turnstileToken,
+        resendTicket: resendTicket,
+      );
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }
   }
 
-  Future<void> forgotPassword(String email) async {
+  Future<String?> forgotPassword(
+    String email, {
+    String? turnstileToken,
+    String? resendTicket,
+  }) async {
     try {
-      await _remoteDatasource.forgotPassword(email);
+      return await _remoteDatasource.forgotPassword(
+        email,
+        turnstileToken: turnstileToken,
+        resendTicket: resendTicket,
+      );
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }
