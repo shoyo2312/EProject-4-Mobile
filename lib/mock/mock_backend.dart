@@ -62,7 +62,8 @@ List<Override> mockOverrides() => [
       chatRepositoryProvider.overrideWith(
         (ref) => _MockChatRepository(
           ChatRemoteDatasource(ref.watch(apiClientProvider)),
-          ChatSocket(ref.watch(tokenStorageProvider)),
+          // Never asked for a token: every stream is overridden below.
+          ChatSocket(() async => null),
         ),
       ),
       notificationRepositoryProvider.overrideWith(
@@ -1124,4 +1125,7 @@ class _MockChatRepository extends ChatRepository {
   @override
   Stream<MessageModel> liveMessages(String conversationId) =>
       const Stream.empty();
+
+  @override
+  Stream<ChatInboxEvent> inboxEvents() => const Stream.empty();
 }

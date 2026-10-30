@@ -13,13 +13,22 @@ import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
 part 'chat_provider.g.dart';
 
+/// The one chat socket. Opens on the first live stream and closes with the
+/// last, so a signed-out app holds nothing open.
+@Riverpod(keepAlive: true)
+ChatSocket chatSocket(Ref ref) {
+  final socket = ChatSocket(ref.watch(apiClientProvider).validAccessToken);
+  ref.onDispose(socket.dispose);
+  return socket;
+}
+
 @Riverpod(keepAlive: true)
 ChatRepository chatRepository(Ref ref) => ChatRepository(
       ChatRemoteDatasource(ref.watch(apiClientProvider)),
-      ChatSocket(ref.watch(tokenStorageProvider)),
+      ref.watch(chatSocketProvider),
     );
 
-/// The thread list, most recently active first.
+/// The thread list, most recently active first, kept current over the socket.
 ///
 /// Signed out there is nothing to list — every endpoint here needs a token —
 /// so a guest gets an empty list rather than a 401 behind the screen.
@@ -29,7 +38,26 @@ class Conversations extends _$Conversations {
   FutureOr<List<ConversationModel>> build() async {
     final me = await ref.watch(authStateProvider.future);
     if (me == null) return [];
-    final rows = await ref.read(chatRepositoryProvider).listConversations();
+    final repository = ref.read(chatRepositoryProvider);
+
+    // Listening before the fetch, so a message sent while the list loads is
+    // not lost between the two.
+    final live = repository.inboxEvents().listen((event) {
+      switch (event.type) {
+        case ChatEventType.message:
+          _arrived(event.message!, me.id);
+        case ChatEventType.conversation:
+        case ChatEventType.conversationRemoved:
+          // A request accepted, a thread deleted or a preview recalled: the
+          // server's view of the row is what to show, so ask for it.
+          ref.invalidateSelf();
+        case ChatEventType.other:
+          break;
+      }
+    });
+    ref.onDispose(live.cancel);
+
+    final rows = await repository.listConversations();
     // Resolve every name and avatar in one request instead of one per row.
     try {
       await ref
@@ -39,6 +67,42 @@ class Conversations extends _$Conversations {
       // A row with a placeholder avatar still reads fine.
     }
     return rows;
+  }
+
+  /// A message in one of [me]'s threads: that row takes the message as its
+  /// preview and moves to the top. A thread the list does not have yet —
+  /// somebody writing for the first time — is fetched with the whole list,
+  /// since a message alone does not say who the other participant is.
+  void _arrived(MessageModel message, String me) {
+    final rows = state.valueOrNull;
+    if (rows == null) return;
+    final index = rows.indexWhere((c) => c.id == message.conversationId);
+    if (index < 0) {
+      ref.invalidateSelf();
+      return;
+    }
+    // An open thread marks itself read as messages land in it.
+    final onScreen = ref.exists(threadProvider(message.conversationId));
+    final row = rows[index];
+    final updated = row.copyWith(
+      lastMessageContent: message.content,
+      lastMessageSenderId: message.senderId,
+      lastMessageAt: message.sentAt,
+      hasUnread: message.senderId != me && !onScreen,
+    );
+    state = AsyncData([
+      updated,
+      for (final c in rows)
+        if (c.id != message.conversationId) c,
+    ]);
+  }
+
+  /// The caller's own message, once the server has it. chat-service does not
+  /// send a text message back to its sender's queue, so the list is moved
+  /// from here instead.
+  void sent(MessageModel message) {
+    final me = ref.read(authStateProvider).valueOrNull?.id;
+    if (me != null) _arrived(message, me);
   }
 
   /// Opens (or reuses) the thread with [participantId] and returns its id.
@@ -94,6 +158,16 @@ class Thread extends _$Thread {
     final current = state.value;
     if (current == null || current.any((m) => m.id == message.id)) return;
     state = AsyncData([message, ...current]);
+
+    // Seen as it lands: otherwise the thread comes back unread the next time
+    // the list is fetched, for a message that was read on arrival.
+    final me = ref.read(authStateProvider).valueOrNull?.id;
+    if (me != null && message.senderId != me) {
+      ref
+          .read(chatRepositoryProvider)
+          .markRead(conversationId)
+          .catchError((Object _) {});
+    }
   }
 
   /// Older messages, one page at a time. A failed page keeps what is on screen
@@ -121,6 +195,20 @@ class Thread extends _$Thread {
     final message =
         await ref.read(chatRepositoryProvider).sendMessage(conversationId, content);
     _receive(message);
-    ref.invalidate(conversationsProvider);
+    if (ref.exists(conversationsProvider)) {
+      ref.read(conversationsProvider.notifier).sent(message);
+    }
   }
 }
+
+/// Threads with something the user has not read — the dot on the Inbox tab
+/// and its Messages shortcut. Watching it keeps the conversation list, and so
+/// the inbox socket, alive while the app is up.
+@riverpod
+int unreadConversations(Ref ref) =>
+    ref
+        .watch(conversationsProvider)
+        .valueOrNull
+        ?.where((c) => c.hasUnread)
+        .length ??
+    0;

@@ -42,8 +42,9 @@ MessageModel message(String id, {String sender = '2002'}) => MessageModel(
       sentAt: DateTime(2026, 9, 1),
     );
 
-ConversationModel conversation({bool hasUnread = false}) => ConversationModel(
-      id: 'c1',
+ConversationModel conversation({String id = 'c1', bool hasUnread = false}) =>
+    ConversationModel(
+      id: id,
       participantIds: const ['1001', '2002'],
       lastMessageContent: 'hi',
       createdAt: DateTime(2026, 8, 1),
@@ -61,6 +62,8 @@ void main() {
         .thenAnswer((_) async => <String, UserProfileModel>{});
     when(() => repository.markRead(any())).thenAnswer((_) async {});
     when(() => repository.liveMessages(any()))
+        .thenAnswer((_) => const Stream.empty());
+    when(() => repository.inboxEvents())
         .thenAnswer((_) => const Stream.empty());
   });
 
@@ -178,5 +181,157 @@ void main() {
     await notifier.loadMore();
     verify(() => repository.listMessages('c1',
         cursor: 'cur', size: any(named: 'size'))).called(1);
+  });
+
+  group('the conversation list over the socket', () {
+    late StreamController<ChatInboxEvent> inbox;
+
+    setUp(() {
+      inbox = StreamController<ChatInboxEvent>.broadcast();
+      addTearDown(inbox.close);
+      when(() => repository.inboxEvents()).thenAnswer((_) => inbox.stream);
+    });
+
+    ChatInboxEvent arrived(MessageModel m) => ChatInboxEvent(
+          type: ChatEventType.message,
+          conversationId: m.conversationId,
+          message: m,
+        );
+
+    MessageModel inThread(String conversationId, String id,
+            {String sender = '2002'}) =>
+        MessageModel(
+          id: id,
+          conversationId: conversationId,
+          senderId: sender,
+          content: 'message $id',
+          sentAt: DateTime(2026, 9, 2),
+        );
+
+    Future<ProviderContainer> listening() async {
+      final container = containerFor();
+      container.listen(conversationsProvider, (_, _) {});
+      await container.read(conversationsProvider.future);
+      return container;
+    }
+
+    test('a new message moves its thread to the top, unread', () async {
+      when(() => repository.listConversations()).thenAnswer(
+          (_) async => [conversation(id: 'c1'), conversation(id: 'c2')]);
+      final container = await listening();
+
+      inbox.add(arrived(inThread('c2', 'm5')));
+      await Future<void>.delayed(Duration.zero);
+
+      final rows = container.read(conversationsProvider).value!;
+      expect(rows.map((c) => c.id), ['c2', 'c1']);
+      expect(rows.first.lastMessageContent, 'message m5');
+      expect(rows.first.hasUnread, isTrue);
+      expect(container.read(unreadConversationsProvider), 1);
+      // Updated in place, not refetched.
+      verify(() => repository.listConversations()).called(1);
+    });
+
+    test('the caller\'s own message does not mark the thread unread',
+        () async {
+      when(() => repository.listConversations())
+          .thenAnswer((_) async => [conversation(hasUnread: true)]);
+      final container = await listening();
+
+      // chat-service sends nothing back to the sender's queue for text, so
+      // the thread hands the list its own send.
+      container
+          .read(conversationsProvider.notifier)
+          .sent(inThread('c1', 'm6', sender: '1001'));
+
+      expect(container.read(conversationsProvider).value!.single.hasUnread,
+          isFalse);
+    });
+
+    test('a message in a thread that is open stays read', () async {
+      when(() => repository.listConversations())
+          .thenAnswer((_) async => [conversation()]);
+      when(() => repository.listMessages('c1', size: any(named: 'size')))
+          .thenAnswer((_) async =>
+              const MessagePage(items: [], hasMore: false));
+      final container = await listening();
+      container.listen(threadProvider('c1'), (_, _) {});
+      await container.read(threadProvider('c1').future);
+
+      inbox.add(arrived(inThread('c1', 'm7')));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(container.read(conversationsProvider).value!.single.hasUnread,
+          isFalse);
+    });
+
+    test('a thread that changed on the server is fetched again', () async {
+      when(() => repository.listConversations())
+          .thenAnswer((_) async => [conversation()]);
+      final container = await listening();
+
+      inbox.add(const ChatInboxEvent(
+          type: ChatEventType.conversation, conversationId: 'c1'));
+      await Future<void>.delayed(Duration.zero);
+      await container.read(conversationsProvider.future);
+
+      verify(() => repository.listConversations()).called(2);
+    });
+
+    test('typing and receipts leave the list alone', () async {
+      when(() => repository.listConversations())
+          .thenAnswer((_) async => [conversation()]);
+      final container = await listening();
+
+      inbox.add(const ChatInboxEvent(
+          type: ChatEventType.other, conversationId: 'c1'));
+      await Future<void>.delayed(Duration.zero);
+      await container.read(conversationsProvider.future);
+
+      verify(() => repository.listConversations()).called(1);
+    });
+
+    test('a thread the list has never seen is fetched', () async {
+      var calls = 0;
+      when(() => repository.listConversations()).thenAnswer((_) async {
+        calls++;
+        return [
+          conversation(id: 'c1'),
+          if (calls > 1) conversation(id: 'c3', hasUnread: true),
+        ];
+      });
+      final container = await listening();
+
+      // Somebody writing for the first time: the message alone does not say
+      // who they are, so the whole list comes back from the server.
+      inbox.add(arrived(inThread('c3', 'm1')));
+      await Future<void>.delayed(Duration.zero);
+      await container.read(conversationsProvider.future);
+
+      expect(container.read(conversationsProvider).value!.map((c) => c.id),
+          containsAll(['c1', 'c3']));
+    });
+  });
+
+  test('a message from the other person in an open thread is marked read',
+      () async {
+    final socket = StreamController<MessageModel>.broadcast();
+    addTearDown(socket.close);
+    when(() => repository.liveMessages('c1'))
+        .thenAnswer((_) => socket.stream);
+    when(() => repository.listMessages('c1', size: any(named: 'size')))
+        .thenAnswer((_) async => const MessagePage(items: [], hasMore: false));
+
+    final container = containerFor();
+    container.listen(threadProvider('c1'), (_, _) {});
+    await container.read(threadProvider('c1').future);
+    clearInteractions(repository);
+
+    socket.add(message('m3'));
+    socket.add(message('m4', sender: '1001'));
+    await Future<void>.delayed(Duration.zero);
+
+    // Once, for the other person's message; the caller's own needs nothing.
+    verify(() => repository.markRead('c1')).called(1);
   });
 }

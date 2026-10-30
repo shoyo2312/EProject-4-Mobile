@@ -8,6 +8,7 @@ import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/error_view.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
+import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
 import 'package:tiktok_mobile/features/notification/data/notification_model.dart';
 import 'package:tiktok_mobile/features/notification/presentation/notification_provider.dart';
 
@@ -86,10 +87,29 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                 key: const Key('inbox_open_messages'),
                 behavior: HitTestBehavior.opaque,
                 onTap: () => context.push('/messages'),
-                child: Icon(
-                  Icons.send_outlined,
-                  size: 18,
-                  color: NowaColors.text.withValues(alpha: 0.7),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Icon(
+                      Icons.send_outlined,
+                      size: 18,
+                      color: NowaColors.text.withValues(alpha: 0.7),
+                    ),
+                    if (ref.watch(unreadConversationsProvider) > 0)
+                      Positioned(
+                        key: const Key('inbox_messages_unread'),
+                        right: -3,
+                        top: -3,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: NowaColors.accent,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               const Spacer(),

@@ -189,6 +189,63 @@ void main() {
       false,
     );
   });
+
+  group('jwtExpiry', () {
+    String jwt(Map<String, dynamic> claims) =>
+        'h.${base64Url.encode(utf8.encode(jsonEncode(claims))).replaceAll('=', '')}.s';
+
+    test('reads exp as seconds since the epoch', () {
+      expect(ApiClient.jwtExpiry(jwt({'exp': 1700000000})),
+          DateTime.fromMillisecondsSinceEpoch(1700000000 * 1000));
+    });
+
+    test('anything unreadable is null, which means refresh', () {
+      expect(ApiClient.jwtExpiry('not-a-jwt'), isNull);
+      expect(ApiClient.jwtExpiry('a.!!!.c'), isNull);
+      expect(ApiClient.jwtExpiry(jwt({'sub': '1'})), isNull);
+    });
+
+    int secondsFromNow(Duration d) =>
+        DateTime.now().add(d).millisecondsSinceEpoch ~/ 1000;
+
+    test('validAccessToken hands back a token that is still good', () async {
+      final token = jwt({'exp': secondsFromNow(const Duration(minutes: 10))});
+      when(() => tokenStorage.readAccessToken()).thenAnswer((_) async => token);
+
+      expect(await apiClient.validAccessToken(), token);
+      verifyNever(() => tokenStorage.readRefreshToken());
+    });
+
+    test('validAccessToken refreshes a token about to expire', () async {
+      // Ten seconds left: under the margin, so a socket opened with it would
+      // be closed almost at once.
+      final token = jwt({'exp': secondsFromNow(const Duration(seconds: 10))});
+      when(() => tokenStorage.readAccessToken()).thenAnswer((_) async => token);
+      when(() => tokenStorage.readRefreshToken())
+          .thenAnswer((_) async => 'refresh-token');
+      when(() => tokenStorage.saveTokens(
+            accessToken: any(named: 'accessToken'),
+            refreshToken: any(named: 'refreshToken'),
+          )).thenAnswer((_) async {});
+      apiClient.dio.httpClientAdapter = _ScriptedAdapter({
+        '/auth/refresh': [
+          () => _jsonResponse(200, {
+                'success': true,
+                'data': {'accessToken': 'new-token', 'refreshToken': 'r2'},
+                'timestamp': '2026-08-01T10:00:00Z',
+              }),
+        ],
+      });
+
+      expect(await apiClient.validAccessToken(), 'new-token');
+    });
+
+    test('validAccessToken is null when signed out', () async {
+      when(() => tokenStorage.readAccessToken()).thenAnswer((_) async => null);
+
+      expect(await apiClient.validAccessToken(), isNull);
+    });
+  });
 }
 
 ResponseBody _jsonResponse(int statusCode, Map<String, dynamic> body) {
@@ -251,4 +308,5 @@ class _ScriptedAdapter implements HttpClientAdapter {
 
   @override
   void close({bool force = false}) {}
+
 }

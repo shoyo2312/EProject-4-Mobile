@@ -16,7 +16,7 @@ class ChatRemoteDatasource {
     final response =
         await _apiClient.get<Map<String, dynamic>>('/conversations');
     return (response.data!['data'] as List)
-        .map((e) => ConversationModel.fromJson(e as Map<String, dynamic>))
+        .map((e) => conversationFromServer(e as Map<String, dynamic>))
         .toList();
   }
 
@@ -51,7 +51,7 @@ class ChatRemoteDatasource {
     final body = response.data!['data'] as Map<String, dynamic>;
     return MessagePage(
       items: (body['items'] as List)
-          .map((e) => MessageModel.fromJson(e as Map<String, dynamic>))
+          .map((e) => messageFromServer(e as Map<String, dynamic>))
           .toList(),
       hasMore: body['hasMore'] as bool,
       nextCursor: body['nextCursor'] as String?,
@@ -71,7 +71,7 @@ class ChatRemoteDatasource {
     );
     return ApiResponse<MessageModel>.fromJson(
       response.data!,
-      (json) => MessageModel.fromJson(json as Map<String, dynamic>),
+      (json) => messageFromServer(json as Map<String, dynamic>),
     ).data!;
   }
 
@@ -83,7 +83,7 @@ class ChatRemoteDatasource {
   ConversationModel _unwrapConversation(Map<String, dynamic> body) {
     return ApiResponse<ConversationModel>.fromJson(
       body,
-      (json) => ConversationModel.fromJson(json as Map<String, dynamic>),
+      (json) => conversationFromServer(json as Map<String, dynamic>),
     ).data!;
   }
 }

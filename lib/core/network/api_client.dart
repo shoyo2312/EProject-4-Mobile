@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:tiktok_mobile/core/constants/env.dart';
@@ -104,6 +106,48 @@ class ApiClient {
     }
   }
 
+  /// An access token that will still be accepted for at least [margin], for a
+  /// caller that cannot ride the 401 interceptor above — a WebSocket handshake
+  /// carries the token in its URL, and a refused one just closes the socket.
+  /// Refreshes when the stored token is expired or about to be, sharing the
+  /// in-flight refresh with any concurrent 401. Null when signed out or the
+  /// session cannot be renewed; the REST path is what clears it in that case.
+  Future<String?> validAccessToken({
+    Duration margin = const Duration(seconds: 30),
+  }) async {
+    final token = await tokenStorage.readAccessToken();
+    if (token == null) return null;
+    final expiresAt = jwtExpiry(token);
+    if (expiresAt != null &&
+        expiresAt.isAfter(DateTime.now().add(margin))) {
+      return token;
+    }
+    try {
+      return await (_refreshing ??= _refreshAccessToken());
+    } finally {
+      _refreshing = null;
+    }
+  }
+
+  /// The `exp` claim of a JWT, or null when it cannot be read — which callers
+  /// treat as "refresh it", since a token we cannot date is not one to trust
+  /// a handshake to.
+  @visibleForTesting
+  static DateTime? jwtExpiry(String token) {
+    final parts = token.split('.');
+    if (parts.length != 3) return null;
+    try {
+      final payload = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+      );
+      final exp = payload is Map ? payload['exp'] : null;
+      if (exp is! num) return null;
+      return DateTime.fromMillisecondsSinceEpoch(exp.toInt() * 1000);
+    } on FormatException {
+      return null;
+    }
+  }
+
   // Calls /auth/refresh directly (not via AuthRemoteDatasource) to avoid a
   // core -> features import; only the access/refresh token strings matter
   // here, not the full UserModel/TokenResponse shape.
@@ -120,8 +164,8 @@ class ApiClient {
         (json) => json as Map<String, dynamic>,
       );
       final body = envelope.data!;
-      // expiresInMillis is deliberately not kept: nothing refreshes ahead of
-      // time, the 401 path below is what renews a session.
+      // expiresInMillis is deliberately not kept: the token's own `exp` is
+      // what validAccessToken reads, and for REST the 401 path renews it.
       await tokenStorage.saveTokens(
         accessToken: body['accessToken'] as String,
         refreshToken: body['refreshToken'] as String,

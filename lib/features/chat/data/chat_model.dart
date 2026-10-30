@@ -56,6 +56,95 @@ class MessageModel with _$MessageModel {
       _$MessageModelFromJson(json);
 }
 
+/// What a message or a conversation preview shows when the server sends no
+/// text: a sticker, a shared video, or a message its sender took back. The
+/// web client can send all three; this app only sends text, but has to read
+/// what arrives.
+String? _placeholderText({
+  required Object? type,
+  required bool recalled,
+}) {
+  if (recalled) return 'Message unsent';
+  return switch (type) {
+    'STICKER' => 'Sticker',
+    'VIDEO' => 'Shared a video',
+    _ => null,
+  };
+}
+
+/// A server message as [MessageModel] reads it. `content` is null on a
+/// sticker, a recalled message and a video with no note; the model keeps a
+/// non-null `content`, so those are given the text to show instead.
+MessageModel messageFromServer(Map<String, dynamic> json) {
+  final recalled = json['recalledAt'] != null;
+  final content = recalled ? null : json['content'] as String?;
+  if (content != null && content.isNotEmpty) {
+    return MessageModel.fromJson(json);
+  }
+  return MessageModel.fromJson({
+    ...json,
+    'content':
+        _placeholderText(type: json['type'], recalled: recalled) ?? '',
+  });
+}
+
+/// A server conversation as [ConversationModel] reads it, with the preview
+/// filled in the same way as [messageFromServer].
+ConversationModel conversationFromServer(Map<String, dynamic> json) {
+  final recalled = json['lastMessageRecalled'] == true;
+  final content = recalled ? null : json['lastMessageContent'] as String?;
+  if (content != null && content.isNotEmpty) {
+    return ConversationModel.fromJson(json);
+  }
+  return ConversationModel.fromJson({
+    ...json,
+    'lastMessageContent':
+        _placeholderText(type: json['lastMessageType'], recalled: recalled),
+  });
+}
+
+/// The kinds of `/user/queue/chat` frame this app acts on. The server sends
+/// more (typing, receipts, reactions); those arrive as [other] and are
+/// ignored.
+enum ChatEventType { message, conversation, conversationRemoved, other }
+
+/// One frame from the user's own chat queue. It reaches the user whatever
+/// screen is open, which is what keeps the thread list current.
+class ChatInboxEvent {
+  const ChatInboxEvent({
+    required this.type,
+    required this.conversationId,
+    this.message,
+  });
+
+  /// Reads a `ChatEvent` from chat-service. Null for a frame without a
+  /// conversation, which nothing here could place.
+  static ChatInboxEvent? fromServer(Map<String, dynamic> json) {
+    final conversationId = json['conversationId'] as String?;
+    if (conversationId == null) return null;
+    final message = json['message'];
+    final type = switch (json['type']) {
+      'MESSAGE' when message is Map<String, dynamic> => ChatEventType.message,
+      'CONVERSATION' => ChatEventType.conversation,
+      'CONVERSATION_REMOVED' => ChatEventType.conversationRemoved,
+      _ => ChatEventType.other,
+    };
+    return ChatInboxEvent(
+      type: type,
+      conversationId: conversationId,
+      message: type == ChatEventType.message
+          ? messageFromServer(message as Map<String, dynamic>)
+          : null,
+    );
+  }
+
+  final ChatEventType type;
+  final String conversationId;
+
+  /// Set on [ChatEventType.message] only.
+  final MessageModel? message;
+}
+
 /// One page of a thread, newest first — the order the server sorts in, which
 /// is also the order a chat is scrolled through (bottom to top).
 class MessagePage {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/widgets/nav_bar.dart';
+import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
 import 'package:tiktok_mobile/features/create/presentation/create_screen.dart';
 import 'package:tiktok_mobile/features/discover/presentation/discover_screen.dart';
 import 'package:tiktok_mobile/features/feed/presentation/feed_screen.dart';
@@ -65,11 +66,14 @@ class _HomeShellState extends ConsumerState<HomeShell> {
             bottom: 12 + MediaQuery.of(context).padding.bottom,
             // Its own count request, not the inbox list: the Inbox tab is not
             // built until it is opened, and the badge has to be right before
-            // then. Signed out it answers 0 without a request.
+            // then. Signed out it answers 0 without a request. Unread
+            // conversations count too: that list is live over the socket, so
+            // a new message lights the tab up wherever the user is.
             child: NowaNavBar(
               index: _index,
               onTap: _go,
-              unread: ref.watch(unreadCountProvider).valueOrNull ?? 0,
+              unread: (ref.watch(unreadCountProvider).valueOrNull ?? 0) +
+                  ref.watch(unreadConversationsProvider),
             ),
           ),
         ],

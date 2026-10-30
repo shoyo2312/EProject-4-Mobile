@@ -6,6 +6,26 @@ part of 'chat_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
+String _$chatSocketHash() => r'0000000000000000000000000000000000000001';
+
+/// The one chat socket. Opens on the first live stream and closes with the
+/// last, so a signed-out app holds nothing open.
+///
+/// Copied from [chatSocket].
+@ProviderFor(chatSocket)
+final chatSocketProvider = Provider<ChatSocket>.internal(
+  chatSocket,
+  name: r'chatSocketProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$chatSocketHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef ChatSocketRef = ProviderRef<ChatSocket>;
 String _$chatRepositoryHash() => r'304f2db6d633d3fcccd0e133797cc02e8ceeddca';
 
 /// See also [chatRepository].
@@ -25,7 +45,7 @@ final chatRepositoryProvider = Provider<ChatRepository>.internal(
 typedef ChatRepositoryRef = ProviderRef<ChatRepository>;
 String _$conversationsHash() => r'53f585c9cb7de703f7994d126b7656ba4962a123';
 
-/// The thread list, most recently active first.
+/// The thread list, most recently active first, kept current over the socket.
 ///
 /// Signed out there is nothing to list — every endpoint here needs a token —
 /// so a guest gets an empty list rather than a 401 behind the screen.
@@ -47,6 +67,28 @@ final conversationsProvider =
     );
 
 typedef _$Conversations = AutoDisposeAsyncNotifier<List<ConversationModel>>;
+String _$unreadConversationsHash() =>
+    r'0000000000000000000000000000000000000002';
+
+/// Threads with something the user has not read — the dot on the Inbox tab
+/// and its Messages shortcut. Watching it keeps the conversation list, and so
+/// the inbox socket, alive while the app is up.
+///
+/// Copied from [unreadConversations].
+@ProviderFor(unreadConversations)
+final unreadConversationsProvider = AutoDisposeProvider<int>.internal(
+  unreadConversations,
+  name: r'unreadConversationsProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$unreadConversationsHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef UnreadConversationsRef = AutoDisposeProviderRef<int>;
 String _$threadHash() => r'd06afd6adf44045ae1e5c9834d0c6e0e4a8ced4a';
 
 /// Copied from Dart SDK

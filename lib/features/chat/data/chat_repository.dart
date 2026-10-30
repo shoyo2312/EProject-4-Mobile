@@ -70,4 +70,9 @@ class ChatRepository {
   /// a socket that cannot connect simply produces nothing.
   Stream<MessageModel> liveMessages(String conversationId) =>
       _socket.messages(conversationId);
+
+  /// What the other side does in the caller's threads — new messages, threads
+  /// that changed or went away. What keeps the conversation list and its
+  /// unread dots current.
+  Stream<ChatInboxEvent> inboxEvents() => _socket.inbox();
 }
