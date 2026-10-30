@@ -11,6 +11,7 @@ import 'package:tiktok_mobile/core/widgets/loading_view.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 import 'package:tiktok_mobile/features/feed/presentation/video_viewer_screen.dart';
 import 'package:tiktok_mobile/features/search/presentation/search_provider.dart';
+import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 
 /// Search + hashtag chips + a grid.
 ///
@@ -20,6 +21,10 @@ import 'package:tiktok_mobile/features/search/presentation/search_provider.dart'
 ///
 /// The chips are hashtags, not categories — search-service matches a tag
 /// exactly, so `Cats` finds videos tagged `cats` and nothing tagged `cat`.
+///
+/// Once something is typed, a Videos / Accounts switch appears. Accounts come
+/// from user-service (`GET /users/search`), matched on handle or display name;
+/// the hashtag chips do not apply there and are hidden.
 class DiscoverScreen extends ConsumerStatefulWidget {
   const DiscoverScreen({super.key});
 
@@ -29,9 +34,12 @@ class DiscoverScreen extends ConsumerStatefulWidget {
 
 const _chips = ['All', 'Cats', 'Food', 'Places', 'Build', 'Music'];
 
+enum _Tab { videos, accounts }
+
 class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   final _searchController = TextEditingController();
   String _cat = 'All';
+  _Tab _tab = _Tab.videos;
 
   /// What the provider is keyed on. Only updated once typing pauses: every
   /// distinct value is a new family entry, so keying it on each keystroke
@@ -43,6 +51,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   String get _hashtag => _cat == 'All' ? '' : _cat.toLowerCase();
 
   bool get _searching => _query.isNotEmpty || _hashtag.isNotEmpty;
+
+  /// Accounts need a typed term — a chip alone is a video-only filter.
+  bool get _showingAccounts => _tab == _Tab.accounts && _query.isNotEmpty;
 
   @override
   void dispose() {
@@ -69,20 +80,19 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final results = _searching
-        ? ref.watch(searchResultsProvider(_query, _hashtag))
-        : ref.watch(trendingVideosProvider);
-
     return NotificationListener<ScrollNotification>(
       // Paging exists on the search side only — trending is one fixed-size
       // leaderboard with no page after it.
       onNotification: (notification) {
-        if (_searching &&
-            notification.metrics.extentAfter < 400 &&
+        if (notification.metrics.extentAfter < 400 &&
             notification is ScrollUpdateNotification) {
-          ref
-              .read(searchResultsProvider(_query, _hashtag).notifier)
-              .loadMore();
+          if (_showingAccounts) {
+            ref.read(accountSearchResultsProvider(_query).notifier).loadMore();
+          } else if (_searching) {
+            ref
+                .read(searchResultsProvider(_query, _hashtag).notifier)
+                .loadMore();
+          }
         }
         return false;
       },
@@ -96,7 +106,14 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
         children: [
           _searchField(),
           const SizedBox(height: 16),
-          SingleChildScrollView(
+          if (_query.isNotEmpty) ...[
+            _tabs(),
+            const SizedBox(height: 16),
+          ],
+          if (_showingAccounts)
+            _accountResults()
+          else ...[
+            SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
@@ -112,18 +129,102 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 22),
-          results.when(
-            loading: () => const Padding(
-              padding: EdgeInsets.symmetric(vertical: 48),
-              child: LoadingView(),
-            ),
-            error: (error, _) => ErrorView(message: error.toString()),
-            data: (videos) => _results(videos),
-          ),
+            const SizedBox(height: 22),
+            _videoResults(),
+          ],
         ],
       ),
     );
+  }
+
+  Widget _tabs() {
+    Widget tab(_Tab value, String label) {
+      final active = _tab == value;
+      return Expanded(
+        child: GestureDetector(
+          key: Key('discover_tab_${value.name}'),
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setState(() => _tab = value),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  width: 2,
+                  color: active ? NowaColors.text : Colors.transparent,
+                ),
+              ),
+            ),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: sora(
+                size: 14,
+                color: NowaColors.text.withValues(alpha: active ? 1 : 0.5),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        tab(_Tab.videos, 'Videos'),
+        tab(_Tab.accounts, 'Accounts'),
+      ],
+    );
+  }
+
+  Widget _videoResults() {
+    final results = _searching
+        ? ref.watch(searchResultsProvider(_query, _hashtag))
+        : ref.watch(trendingVideosProvider);
+    return results.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 48),
+        child: LoadingView(),
+      ),
+      error: (error, _) => ErrorView(message: error.toString()),
+      data: (videos) => _results(videos),
+    );
+  }
+
+  Widget _accountResults() {
+    return ref.watch(accountSearchResultsProvider(_query)).when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 48),
+            child: LoadingView(),
+          ),
+          error: (error, _) => ErrorView(
+            message: error.toString(),
+            onRetry: () => ref.invalidate(accountSearchResultsProvider(_query)),
+          ),
+          data: (accounts) {
+            if (accounts.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 48),
+                child: Center(
+                  child: Text(
+                    'No accounts match "$_query"',
+                    style: work(
+                      size: 13,
+                      color: NowaColors.text.withValues(alpha: 0.45),
+                    ),
+                  ),
+                ),
+              );
+            }
+            return ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              itemCount: accounts.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 16),
+              itemBuilder: (_, i) => _AccountRow(account: accounts[i]),
+            );
+          },
+        );
   }
 
   Widget _searchField() {
@@ -158,7 +259,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                 decoration: InputDecoration(
                   isDense: true,
                   border: InputBorder.none,
-                  hintText: 'Search videos and hashtags',
+                  hintText: 'Search videos, hashtags and accounts',
                   hintStyle: work(
                     size: 14,
                     height: 1.2,
@@ -357,6 +458,63 @@ class _Tile extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _AccountRow extends StatelessWidget {
+  const _AccountRow({required this.account});
+
+  final UserProfileModel account;
+
+  @override
+  Widget build(BuildContext context) {
+    final bio = account.bio;
+    return GestureDetector(
+      key: Key('discover_account_${account.userId}'),
+      behavior: HitTestBehavior.opaque,
+      onTap: () => context.push('/profile/${account.userId}'),
+      child: Row(
+        children: [
+          NowaAvatar(url: account.avatarUrl, size: 46, radius: 16, border: false),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  account.displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: sora(size: 14),
+                ),
+                if (bio != null && bio.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    bio,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: work(
+                      size: 12.5,
+                      height: 1.3,
+                      color: NowaColors.text.withValues(alpha: 0.5),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            '${compact(account.followerCount)} followers',
+            style: work(
+              size: 11.5,
+              height: 1,
+              color: NowaColors.text.withValues(alpha: 0.35),
+            ),
+          ),
+        ],
       ),
     );
   }

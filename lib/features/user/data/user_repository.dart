@@ -86,6 +86,18 @@ class UserRepository {
     return result;
   }
 
+  Future<PageResponse<UserProfileModel>> searchUsers(
+    String query, {
+    int page = 0,
+    int size = 20,
+  }) async {
+    try {
+      return await _remoteDatasource.searchUsers(query, page: page, size: size);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
   Future<void> follow(String userId) async {
     try {
       await _remoteDatasource.follow(userId);

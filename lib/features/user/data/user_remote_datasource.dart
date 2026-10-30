@@ -73,6 +73,21 @@ class UserRemoteDatasource {
         .toList();
   }
 
+  /// `GET /users/search` — accounts whose handle or display name contains
+  /// [query], most-followed first. Needs a token. Blocked accounts are left
+  /// out by the server, and a blank [query] is an empty page.
+  Future<PageResponse<UserProfileModel>> searchUsers(
+    String query, {
+    int page = 0,
+    int size = 20,
+  }) async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/users/search',
+      queryParameters: {'q': query, 'page': page, 'size': size},
+    );
+    return _unwrapPage(response.data!);
+  }
+
   Future<void> follow(String userId) {
     return _apiClient.post<void>('/users/$userId/follow');
   }

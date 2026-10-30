@@ -879,6 +879,24 @@ class _MockUserRepository extends UserRepository {
   }) async =>
       _singlePage(page > 0 ? [] : _profiles.values.toList());
 
+  /// Offline account search: display name contains the term, most followed
+  /// first — the same order user-service answers in.
+  @override
+  Future<PageResponse<UserProfileModel>> searchUsers(
+    String query, {
+    int page = 0,
+    int size = 20,
+  }) async {
+    await _latency();
+    final term = query.trim().toLowerCase();
+    if (page > 0 || term.isEmpty) return _singlePage([]);
+    final matches = [
+      for (final p in _profiles.values)
+        if (p.displayName.toLowerCase().contains(term)) p,
+    ]..sort((a, b) => b.followerCount.compareTo(a.followerCount));
+    return _singlePage(matches);
+  }
+
   @override
   Future<PageResponse<UserProfileModel>> getBlocked({int page = 0}) async =>
       _singlePage([]);

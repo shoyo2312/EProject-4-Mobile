@@ -8,11 +8,26 @@ import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 import 'package:tiktok_mobile/features/feed/presentation/feed_provider.dart';
 import 'package:tiktok_mobile/features/search/data/search_remote_datasource.dart';
 import 'package:tiktok_mobile/features/search/data/search_repository.dart';
+import 'package:tiktok_mobile/core/network/page_response.dart';
 import 'package:tiktok_mobile/features/search/presentation/search_provider.dart';
+import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
+import 'package:tiktok_mobile/features/user/data/user_repository.dart';
+import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
 class MockSearchRepository extends Mock implements SearchRepository {}
 
 class MockFeedRepository extends Mock implements FeedRepository {}
+
+class MockUserRepository extends Mock implements UserRepository {}
+
+PageResponse<UserProfileModel> accountPage(List<UserProfileModel> users) =>
+    PageResponse(
+      content: users,
+      size: 24,
+      number: 0,
+      totalElements: users.length,
+      totalPages: 1,
+    );
 
 VideoModel makeVideo(String id, String title) => VideoModel(
       id: id,
@@ -30,10 +45,12 @@ VideoModel makeVideo(String id, String title) => VideoModel(
 void main() {
   late MockSearchRepository searchRepository;
   late MockFeedRepository feedRepository;
+  late MockUserRepository userRepository;
 
   setUp(() {
     searchRepository = MockSearchRepository();
     feedRepository = MockFeedRepository();
+    userRepository = MockUserRepository();
     when(() => feedRepository.fetchTrending(limit: any(named: 'limit')))
         .thenAnswer((_) async => [makeVideo('t1', 'trending clip')]);
   });
@@ -44,6 +61,7 @@ void main() {
         overrides: [
           searchRepositoryProvider.overrideWithValue(searchRepository),
           feedRepositoryProvider.overrideWithValue(feedRepository),
+          userRepositoryProvider.overrideWithValue(userRepository),
         ],
         child: const MaterialApp(home: Scaffold(body: DiscoverScreen())),
       ),
@@ -135,5 +153,84 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('No results for "nope"'), findsOneWidget);
+  });
+
+  testWidgets('the Accounts tab lists matching users from user-service',
+      (tester) async {
+    when(() => searchRepository.searchVideos(
+          query: 'minh',
+          hashtag: null,
+          page: 0,
+          size: any(named: 'size'),
+        )).thenAnswer((_) async => const SearchIdPage(ids: [], last: true));
+    when(() => feedRepository.fetchByIds(<String>[]))
+        .thenAnswer((_) async => <VideoModel>[]);
+    when(() => userRepository.searchUsers(
+          'minh',
+          page: 0,
+          size: any(named: 'size'),
+        )).thenAnswer((_) async => accountPage(const [
+          UserProfileModel(
+            userId: '42',
+            bio: 'code by day',
+            displayName: 'Minh Hùng',
+            followerCount: 1200,
+            followingCount: 3,
+          ),
+        ]));
+
+    await pumpScreen(tester);
+    // No tabs before anything is typed.
+    expect(find.byKey(const Key('discover_tab_accounts')), findsNothing);
+
+    await tester.enterText(
+      find.byKey(const Key('discover_search_field')),
+      'minh',
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    // Videos stay the default; accounts are only asked for once picked.
+    verifyNever(() => userRepository.searchUsers(
+          any(),
+          page: any(named: 'page'),
+          size: any(named: 'size'),
+        ));
+
+    await tester.tap(find.byKey(const Key('discover_tab_accounts')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Minh Hùng'), findsOneWidget);
+    expect(find.text('code by day'), findsOneWidget);
+    expect(find.byKey(const Key('discover_account_42')), findsOneWidget);
+    // The hashtag chips are a video filter and are hidden here.
+    expect(find.text('Cats'), findsNothing);
+  });
+
+  testWidgets('an account search with no match says so', (tester) async {
+    when(() => searchRepository.searchVideos(
+          query: 'zzz',
+          hashtag: null,
+          page: 0,
+          size: any(named: 'size'),
+        )).thenAnswer((_) async => const SearchIdPage(ids: [], last: true));
+    when(() => feedRepository.fetchByIds(<String>[]))
+        .thenAnswer((_) async => <VideoModel>[]);
+    when(() => userRepository.searchUsers(
+          'zzz',
+          page: 0,
+          size: any(named: 'size'),
+        )).thenAnswer((_) async => accountPage(const []));
+
+    await pumpScreen(tester);
+    await tester.enterText(
+      find.byKey(const Key('discover_search_field')),
+      'zzz',
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('discover_tab_accounts')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No accounts match "zzz"'), findsOneWidget);
   });
 }

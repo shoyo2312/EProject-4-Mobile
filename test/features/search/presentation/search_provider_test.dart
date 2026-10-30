@@ -6,11 +6,37 @@ import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 import 'package:tiktok_mobile/features/feed/presentation/feed_provider.dart';
 import 'package:tiktok_mobile/features/search/data/search_remote_datasource.dart';
 import 'package:tiktok_mobile/features/search/data/search_repository.dart';
+import 'package:tiktok_mobile/core/network/page_response.dart';
 import 'package:tiktok_mobile/features/search/presentation/search_provider.dart';
+import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
+import 'package:tiktok_mobile/features/user/data/user_repository.dart';
+import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
 class MockSearchRepository extends Mock implements SearchRepository {}
 
 class MockFeedRepository extends Mock implements FeedRepository {}
+
+class MockUserRepository extends Mock implements UserRepository {}
+
+UserProfileModel makeUser(String id) => UserProfileModel(
+      userId: id,
+      displayName: 'user $id',
+      followerCount: 0,
+      followingCount: 0,
+    );
+
+PageResponse<UserProfileModel> userPage(
+  List<UserProfileModel> users, {
+  required int number,
+  required int totalPages,
+}) =>
+    PageResponse(
+      content: users,
+      size: 24,
+      number: number,
+      totalElements: users.length,
+      totalPages: totalPages,
+    );
 
 VideoModel makeVideo(String id) => VideoModel(
       id: id,
@@ -28,16 +54,60 @@ VideoModel makeVideo(String id) => VideoModel(
 void main() {
   late MockSearchRepository searchRepository;
   late MockFeedRepository feedRepository;
+  late MockUserRepository userRepository;
   late ProviderContainer container;
 
   setUp(() {
     searchRepository = MockSearchRepository();
     feedRepository = MockFeedRepository();
+    userRepository = MockUserRepository();
     container = ProviderContainer(overrides: [
       searchRepositoryProvider.overrideWithValue(searchRepository),
       feedRepositoryProvider.overrideWithValue(feedRepository),
+      userRepositoryProvider.overrideWithValue(userRepository),
     ]);
     addTearDown(container.dispose);
+  });
+
+  group('account search', () {
+    test('an empty query asks user-service nothing', () async {
+      final users = await container.read(accountSearchResultsProvider('').future);
+
+      expect(users, isEmpty);
+      verifyNever(() => userRepository.searchUsers(
+            any(),
+            page: any(named: 'page'),
+            size: any(named: 'size'),
+          ));
+    });
+
+    test('loadMore appends the next page, dropping repeats, then stops',
+        () async {
+      when(() => userRepository.searchUsers('an', page: 0, size: any(named: 'size')))
+          .thenAnswer((_) async => userPage(
+                [makeUser('1'), makeUser('2')],
+                number: 0,
+                totalPages: 2,
+              ));
+      when(() => userRepository.searchUsers('an', page: 1, size: any(named: 'size')))
+          .thenAnswer((_) async => userPage(
+                [makeUser('2'), makeUser('3')],
+                number: 1,
+                totalPages: 2,
+              ));
+
+      await container.read(accountSearchResultsProvider('an').future);
+      final notifier = container.read(accountSearchResultsProvider('an').notifier);
+      await notifier.loadMore();
+      await notifier.loadMore(); // past the last page: no third request
+
+      expect(
+        container.read(accountSearchResultsProvider('an')).value!.map((u) => u.userId),
+        ['1', '2', '3'],
+      );
+      verify(() => userRepository.searchUsers('an', page: 1, size: any(named: 'size')))
+          .called(1);
+    });
   });
 
   test('hydrates search hits through video-service, keeping relevance order',
