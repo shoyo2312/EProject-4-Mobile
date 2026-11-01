@@ -84,6 +84,22 @@ class ChatRepository {
     }
   }
 
+  Future<MessageModel> sendStoryReply({
+    required String storyId,
+    required String content,
+    required String clientRequestId,
+  }) async {
+    try {
+      return await _remoteDatasource.sendStoryReply(
+        storyId: storyId,
+        content: content,
+        clientRequestId: clientRequestId,
+      );
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
   Future<ChatImageModel> uploadImage(
     String conversationId, {
     required List<int> bytes,

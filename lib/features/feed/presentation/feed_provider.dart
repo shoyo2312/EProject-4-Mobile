@@ -194,19 +194,23 @@ class UserVideosNotifier extends _$UserVideosNotifier {
 /// which that string stops being reasonable, not a limit the server imposes.
 const _followedIdLimit = 100;
 
-/// The Following tab: only the accounts the viewer follows, newest first.
+/// Paging shared by the Following and Friends tabs. Both read
+/// `/videos/feed/following`; only the author list differs.
 ///
 /// Two services, one list — user-service knows who is followed, video-service
-/// knows what they posted — so the follow list is read once per session here
+/// knows what they posted — so the author list is read once per session here
 /// rather than on every page.
-@riverpod
-class FollowingFeedNotifier extends _$FollowingFeedNotifier {
+mixin _AuthorFeed on AutoDisposeAsyncNotifier<List<VideoModel>> {
   String? _cursor;
-  List<String> _followedUserIds = const [];
+  List<String> _authorIds = const [];
   final _more = LoadMoreGuard();
 
-  @override
-  FutureOr<List<VideoModel>> build() async {
+  /// `FOLLOWING` or `FRIENDS` — picks the tab's keyword filters server-side.
+  String get _feedKind;
+
+  Future<List<String>> _resolveAuthors(String viewerId);
+
+  Future<List<VideoModel>> _start() async {
     final me = await ref.watch(authStateProvider.future);
     // Signed out there is no follow graph to read, and the tab has nothing to
     // show rather than an error to raise.
@@ -215,13 +219,8 @@ class FollowingFeedNotifier extends _$FollowingFeedNotifier {
       return [];
     }
     _cursor = null;
-    _followedUserIds = (await ref
-            .read(userRepositoryProvider)
-            .getFollowing(me.id, size: _followedIdLimit))
-        .content
-        .map((profile) => profile.userId)
-        .toList();
-    if (_followedUserIds.isEmpty) {
+    _authorIds = await _resolveAuthors(me.id);
+    if (_authorIds.isEmpty) {
       _more.done = true;
       return [];
     }
@@ -230,9 +229,10 @@ class FollowingFeedNotifier extends _$FollowingFeedNotifier {
 
   Future<List<VideoModel>> _loadPage() async {
     final page = await ref.read(feedRepositoryProvider).fetchFollowingFeed(
-          followedUserIds: _followedUserIds,
+          followedUserIds: _authorIds,
           cursor: _cursor,
           size: _pageSize,
+          feed: _feedKind,
         );
     _cursor = page.nextCursor;
     _more.done = page.nextCursor == null;
@@ -263,4 +263,60 @@ class FollowingFeedNotifier extends _$FollowingFeedNotifier {
   Future<void> loadMore() => _more.run(() async {
         state = AsyncData(_appendDistinct(state.value ?? [], await _loadPage()));
       });
+}
+
+/// The Following tab: only the accounts the viewer follows, newest first.
+@riverpod
+class FollowingFeedNotifier extends _$FollowingFeedNotifier with _AuthorFeed {
+  @override
+  String get _feedKind => 'FOLLOWING';
+
+  @override
+  FutureOr<List<VideoModel>> build() => _start();
+
+  @override
+  Future<List<String>> _resolveAuthors(String viewerId) async => (await ref
+          .read(userRepositoryProvider)
+          .getFollowing(viewerId, size: _followedIdLimit))
+      .content
+      .map((profile) => profile.userId)
+      .toList();
+}
+
+/// How many followers the Friends tab reads to find who follows back. Wider
+/// than [_followedIdLimit]: a popular account's followers far outnumber the
+/// people it follows, and a mutual missed here is a friend missing from the tab.
+const _followerScanLimit = 500;
+
+/// The Friends tab: mutual follows — accounts the viewer follows that follow
+/// back. user-service has no friends listing, so it is the intersection of the
+/// viewer's following and followers, the same way the web computes it.
+@riverpod
+class FriendsFeedNotifier extends _$FriendsFeedNotifier with _AuthorFeed {
+  @override
+  String get _feedKind => 'FRIENDS';
+
+  @override
+  FutureOr<List<VideoModel>> build() => _start();
+
+  @override
+  Future<List<String>> _resolveAuthors(String viewerId) async {
+    final users = ref.read(userRepositoryProvider);
+    final following = (await users.getFollowing(viewerId, size: _followedIdLimit))
+        .content
+        .map((profile) => profile.userId)
+        .toList();
+    if (following.isEmpty) return const [];
+
+    final followers = <String>{};
+    for (var page = 0; followers.length < _followerScanLimit; page++) {
+      final result = await users.getFollowers(viewerId, page: page, size: 50);
+      followers.addAll(result.content.map((profile) => profile.userId));
+      if (result.last || result.content.isEmpty) break;
+    }
+    return [
+      for (final id in following)
+        if (followers.contains(id)) id,
+    ];
+  }
 }

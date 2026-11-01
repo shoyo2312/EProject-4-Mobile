@@ -57,12 +57,14 @@ class FeedRepository {
     required List<String> followedUserIds,
     String? cursor,
     int size = 20,
+    String feed = 'FOLLOWING',
   }) async {
     try {
       return await _remoteDatasource.fetchFollowingFeed(
         followedUserIds: followedUserIds,
         cursor: cursor,
         size: size,
+        feed: feed,
       );
     } on DioException catch (e) {
       throw AppException.fromDioException(e);

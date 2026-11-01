@@ -195,6 +195,10 @@ class ApiClient {
     return dio.patch<T>(path, data: data);
   }
 
+  Future<Response<T>> put<T>(String path, {Object? data}) {
+    return dio.put<T>(path, data: data);
+  }
+
   Future<Response<T>> delete<T>(String path) {
     return dio.delete<T>(path);
   }

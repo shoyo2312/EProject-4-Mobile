@@ -32,6 +32,10 @@ import 'package:tiktok_mobile/features/notification/presentation/notification_pr
 import 'package:tiktok_mobile/features/search/data/search_remote_datasource.dart';
 import 'package:tiktok_mobile/features/search/data/search_repository.dart';
 import 'package:tiktok_mobile/features/search/presentation/search_provider.dart';
+import 'package:tiktok_mobile/features/story/data/story_model.dart';
+import 'package:tiktok_mobile/features/story/data/story_remote_datasource.dart';
+import 'package:tiktok_mobile/features/story/data/story_repository.dart';
+import 'package:tiktok_mobile/features/story/presentation/story_provider.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/data/user_remote_datasource.dart';
 import 'package:tiktok_mobile/features/user/data/user_repository.dart';
@@ -75,6 +79,11 @@ List<Override> mockOverrides() => [
       searchRepositoryProvider.overrideWith(
         (ref) => _MockSearchRepository(
           SearchRemoteDatasource(ref.watch(apiClientProvider)),
+        ),
+      ),
+      storyRepositoryProvider.overrideWith(
+        (ref) => _MockStoryRepository(
+          StoryRemoteDatasource(ref.watch(apiClientProvider)),
         ),
       ),
     ];
@@ -660,6 +669,7 @@ class _MockFeedRepository extends FeedRepository {
     required List<String> followedUserIds,
     String? cursor,
     int size = 20,
+    String feed = 'FOLLOWING',
   }) async {
     await _latency();
     final followed = followedUserIds.toSet();
@@ -869,6 +879,7 @@ class _MockUserRepository extends UserRepository {
   Future<PageResponse<UserProfileModel>> getFollowers(
     String userId, {
     int page = 0,
+    int size = 20,
   }) async =>
       _singlePage(page > 0 ? [] : _profiles.values.toList());
 
@@ -1139,6 +1150,25 @@ class _MockChatRepository extends ChatRepository {
   }
 
   @override
+  Future<MessageModel> sendStoryReply({
+    required String storyId,
+    required String content,
+    required String clientRequestId,
+  }) async {
+    await _latency();
+    final message = MessageModel(
+      id: 'm${_messages.length + 1}',
+      conversationId: _conversationId,
+      senderId: _meId,
+      content: content,
+      sentAt: DateTime.now(),
+      type: MessageType.storyReply,
+    );
+    _messages.insert(0, message);
+    return message;
+  }
+
+  @override
   Future<void> markRead(String conversationId) async {}
 
   @override
@@ -1197,4 +1227,180 @@ class _MockChatRepository extends ChatRepository {
 
   @override
   void rememberImage(String imageId, Uint8List bytes) {}
+}
+
+/// Stories kept in memory. A posted story goes live at once — there is no
+/// moderation offline — and plays from the file on the device.
+class _MockStoryRepository extends StoryRepository {
+  _MockStoryRepository(super.remoteDatasource);
+
+  static StoryModel _story(
+    String id,
+    String userId,
+    String url, {
+    StoryMediaType type = StoryMediaType.image,
+    String? caption,
+    required Duration age,
+  }) {
+    final created = DateTime.now().subtract(age);
+    return StoryModel(
+      id: id,
+      userId: userId,
+      mediaUrl: url,
+      mediaType: type,
+      caption: caption,
+      visibility: StoryVisibility.public,
+      createdAt: created,
+      expiresAt: created.add(const Duration(hours: 24)),
+    );
+  }
+
+  final _stories = <StoryModel>[
+    _story('s1', '2002', 'https://picsum.photos/id/1011/1080/1920',
+        caption: 'sáng nay ở Đà Lạt ☁️', age: const Duration(hours: 5)),
+    _story('s2', '2002', 'https://picsum.photos/id/1015/1080/1920',
+        age: const Duration(hours: 2)),
+    _story('s3', '3003',
+        'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+        type: StoryMediaType.video,
+        caption: 'cuối tuần 🔥',
+        age: const Duration(hours: 1)),
+    _story('s4', '4004', 'https://picsum.photos/id/40/1080/1920',
+        caption: 'mèo nhà ai đây', age: const Duration(minutes: 30)),
+  ];
+  final _reactions = <String, StoryReaction>{};
+  final _viewed = <String>{};
+
+  StoryModel _forMe(StoryModel s) => s.userId == _meId
+      ? s.copyWith(
+          status: s.status ?? StoryStatus.active,
+          // Matches the two rows [viewers] answers with.
+          viewCount: 2,
+          reactionCounts: const {StoryReaction.love: 1},
+        )
+      : s.copyWith(viewedByMe: _viewed.contains(s.id), myReaction: _reactions[s.id]);
+
+  @override
+  Future<StoryModel> uploadAndCreate({
+    required File file,
+    required String contentType,
+    String? caption,
+    required StoryVisibility visibility,
+    void Function(int sent, int total)? onProgress,
+    CancelToken? cancelToken,
+  }) async {
+    final size = await file.length();
+    for (var sent = 0; sent <= size; sent += (size ~/ 5).clamp(1, size + 1)) {
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      onProgress?.call(sent, size);
+    }
+    onProgress?.call(size, size);
+    final created = DateTime.now();
+    final story = StoryModel(
+      id: 'mine${_stories.length + 1}',
+      userId: _meId,
+      mediaUrl: Uri.file(file.path).toString(),
+      mediaType: isVideoContentType(contentType)
+          ? StoryMediaType.video
+          : StoryMediaType.image,
+      caption: caption,
+      visibility: visibility,
+      status: StoryStatus.active,
+      viewCount: 0,
+      createdAt: created,
+      expiresAt: created.add(const Duration(hours: 24)),
+    );
+    _stories.add(story);
+    return story;
+  }
+
+  @override
+  Future<List<StoryGroup>> feed(List<String> followedUserIds) async {
+    await _latency();
+    final byUser = <String, List<StoryModel>>{};
+    for (final s in _stories) {
+      byUser.putIfAbsent(s.userId, () => []).add(_forMe(s));
+    }
+    final groups = [
+      for (final e in byUser.entries)
+        StoryGroup(
+          userId: e.key,
+          stories: e.value,
+          hasUnseen: e.key != _meId && e.value.any((s) => !s.viewedByMe),
+        ),
+    ];
+    // Own first, then unseen, as the real service orders them.
+    groups.sort((a, b) {
+      if (a.userId == _meId) return -1;
+      if (b.userId == _meId) return 1;
+      return (b.hasUnseen ? 1 : 0) - (a.hasUnseen ? 1 : 0);
+    });
+    return groups;
+  }
+
+  @override
+  Future<List<StoryRing>> rings(List<String> userIds) async {
+    final groups = await feed(const []);
+    return [
+      for (final g in groups)
+        if (userIds.contains(g.userId))
+          StoryRing(
+            userId: g.userId,
+            hasUnseen: g.userId == _meId || g.hasUnseen,
+          ),
+    ];
+  }
+
+  @override
+  Future<List<StoryModel>> userStories(String userId) async {
+    await _latency();
+    return [
+      for (final s in _stories)
+        if (s.userId == userId) _forMe(s),
+    ];
+  }
+
+  @override
+  Future<void> recordView(String storyId) async => _viewed.add(storyId);
+
+  @override
+  Future<List<StoryViewer>> viewers(String storyId, {DateTime? before}) async {
+    await _latency();
+    if (before != null) return const [];
+    return [
+      StoryViewer(
+        viewerId: '2002',
+        viewedAt: DateTime.now().subtract(const Duration(minutes: 3)),
+        reaction: StoryReaction.love,
+      ),
+      StoryViewer(
+        viewerId: '3003',
+        viewedAt: DateTime.now().subtract(const Duration(minutes: 9)),
+      ),
+    ];
+  }
+
+  @override
+  Future<void> setReaction(String storyId, StoryReaction reaction) async {
+    _viewed.add(storyId);
+    _reactions[storyId] = reaction;
+  }
+
+  @override
+  Future<void> clearReaction(String storyId) async =>
+      _reactions.remove(storyId);
+
+  @override
+  Future<StoryModel> updateVisibility(
+    String storyId,
+    StoryVisibility visibility,
+  ) async {
+    final index = _stories.indexWhere((s) => s.id == storyId);
+    _stories[index] = _stories[index].copyWith(visibility: visibility);
+    return _forMe(_stories[index]);
+  }
+
+  @override
+  Future<void> delete(String storyId) async =>
+      _stories.removeWhere((s) => s.id == storyId);
 }

@@ -35,5 +35,6 @@ const _$NotificationKindEnumMap = {
   NotificationKind.comment: 'COMMENT',
   NotificationKind.share: 'SHARE',
   NotificationKind.newFollower: 'NEW_FOLLOWER',
+  NotificationKind.story: 'STORY',
   NotificationKind.system: 'SYSTEM',
 };

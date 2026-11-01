@@ -117,9 +117,10 @@ class UserRepository {
   Future<PageResponse<UserProfileModel>> getFollowers(
     String userId, {
     int page = 0,
+    int size = 20,
   }) async {
     try {
-      return await _remoteDatasource.getFollowers(userId, page: page);
+      return await _remoteDatasource.getFollowers(userId, page: page, size: size);
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }

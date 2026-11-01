@@ -175,10 +175,14 @@ class FeedRemoteDatasource {
   /// Naming an account the caller does not follow is not a way in: the
   /// visibility filter behind this is the public one, so it can only ever
   /// return what `/videos/users/{id}` would already hand out.
+  ///
+  /// [feed] is `FOLLOWING` or `FRIENDS`: the Friends tab reads this endpoint
+  /// too, and the server picks that tab's keyword filters by it.
   Future<VideoPage> fetchFollowingFeed({
     required List<String> followedUserIds,
     String? cursor,
     int size = 20,
+    String feed = 'FOLLOWING',
   }) async {
     final response = await _apiClient.get<Map<String, dynamic>>(
       '/videos/feed/following',
@@ -186,6 +190,7 @@ class FeedRemoteDatasource {
         'followedUserIds': followedUserIds.join(','),
         'cursor': ?cursor,
         'size': size,
+        'feed': feed,
       },
     );
     final body = response.data!['data'] as Map<String, dynamic>;

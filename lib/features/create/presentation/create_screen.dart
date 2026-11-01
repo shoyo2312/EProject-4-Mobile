@@ -8,6 +8,8 @@ import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/features/create/presentation/video_preview_screen.dart';
 import 'package:tiktok_mobile/features/create/presentation/upload_provider.dart';
+import 'package:tiktok_mobile/features/story/presentation/story_flow.dart';
+import 'package:tiktok_mobile/features/story/presentation/story_media_picker.dart';
 
 /// The camera screen from the design, wired to video-service's three-step
 /// publish: ticket, PUT to storage, create the record (video doc 3.1/3.2).
@@ -40,6 +42,22 @@ class CreateScreen extends ConsumerStatefulWidget {
 
 class _CreateScreenState extends ConsumerState<CreateScreen> {
   String _len = '60s';
+
+  /// 'Post' publishes a video to the profile; 'Story' shares a photo or a
+  /// clip that disappears 24 hours after it is approved.
+  String _mode = 'Post';
+  bool get _storyMode => _mode == 'Story';
+
+  /// In story mode the shutter takes a photo, holding it records a clip, and
+  /// the gallery tile takes either. Back to the feed once it is shared.
+  Future<void> _story(StoryMediaSource source) async {
+    final posted = await startStoryFlow(
+      context,
+      source: source,
+      picker: widget.picker,
+    );
+    if (posted && mounted) widget.onClose();
+  }
 
   late final ImagePicker _picker = widget.picker ?? ImagePicker();
 
@@ -217,7 +235,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  for (final l in ['15s', '60s', '3m'])
+                  for (final l in _storyMode ? const <String>[] : ['15s', '60s', '3m'])
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: GestureDetector(
@@ -253,7 +271,9 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 children: [
                   GestureDetector(
                     key: const Key('create_gallery_button'),
-                    onTap: () => _pick(ImageSource.gallery),
+                    onTap: () => _storyMode
+                        ? _story(StoryMediaSource.gallery)
+                        : _pick(ImageSource.gallery),
                     child: Container(
                       width: 46,
                       height: 46,
@@ -272,7 +292,12 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                   const SizedBox(width: 34),
                   GestureDetector(
                     key: const Key('create_record_button'),
-                    onTap: () => _pick(ImageSource.camera),
+                    onTap: () => _storyMode
+                        ? _story(StoryMediaSource.photo)
+                        : _pick(ImageSource.camera),
+                    onLongPress: _storyMode
+                        ? () => _story(StoryMediaSource.video)
+                        : null,
                     child: Container(
                       width: 82,
                       height: 82,
@@ -311,8 +336,47 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
-              _UploadStatus(state: upload, clipLength: _len),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (final m in const ['Post', 'Story'])
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: GestureDetector(
+                        key: Key('create_mode_${m.toLowerCase()}'),
+                        onTap: () => setState(() => _mode = m),
+                        child: Text(
+                          m,
+                          style: sora(
+                            size: 13.5,
+                            color: m == _mode
+                                ? Colors.white
+                                : Colors.white.withValues(alpha: 0.5),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (_storyMode)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    'Tap for a photo · hold to record (up to 60s) · or pick '
+                    'from the gallery. Stories disappear after 24 hours.',
+                    key: const Key('create_story_hint'),
+                    textAlign: TextAlign.center,
+                    style: sora(
+                      size: 12,
+                      weight: FontWeight.w500,
+                      color: Colors.white.withValues(alpha: 0.6),
+                    ),
+                  ),
+                )
+              else
+                _UploadStatus(state: upload, clipLength: _len),
             ],
           ),
         ),

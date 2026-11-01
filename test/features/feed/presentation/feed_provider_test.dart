@@ -349,4 +349,65 @@ void main() {
           ));
     });
   });
+
+  group('friends feed', () {
+    late MockUserRepository userRepository;
+
+    ProviderContainer signedInWith(MockUserRepository repo) => ProviderContainer(
+          overrides: [
+            authStateProvider.overrideWith(_SignedInAuthState.new),
+            feedRepositoryProvider.overrideWithValue(feedRepository),
+            userRepositoryProvider.overrideWithValue(repo),
+            likeStatusOverride(),
+          ],
+        );
+
+    setUp(() {
+      userRepository = MockUserRepository();
+      when(() => userRepository.getProfiles(any()))
+          .thenAnswer((_) async => <String, UserProfileModel>{});
+    });
+
+    test('only mutual follows are passed to video-service, as FRIENDS', () async {
+      when(() => userRepository.getFollowing('1',
+              page: any(named: 'page'), size: any(named: 'size')))
+          .thenAnswer((_) async => profilePage(['7', '8', '9']));
+      when(() => userRepository.getFollowers('1',
+              page: any(named: 'page'), size: any(named: 'size')))
+          .thenAnswer((_) async => profilePage(['9', '7', '42']));
+      when(() => feedRepository.fetchFollowingFeed(
+            followedUserIds: ['7', '9'],
+            cursor: null,
+            size: any(named: 'size'),
+            feed: 'FRIENDS',
+          )).thenAnswer((_) async => feedPage(['v1']));
+      final friends = signedInWith(userRepository);
+      addTearDown(friends.dispose);
+
+      final result = await friends.read(friendsFeedNotifierProvider.future);
+
+      expect(result.map((v) => v.id), ['v1']);
+    });
+
+    test('nobody follows back asks video-service nothing at all', () async {
+      when(() => userRepository.getFollowing('1',
+              page: any(named: 'page'), size: any(named: 'size')))
+          .thenAnswer((_) async => profilePage(['7']));
+      when(() => userRepository.getFollowers('1',
+              page: any(named: 'page'), size: any(named: 'size')))
+          .thenAnswer((_) async => profilePage(['42']));
+      final friends = signedInWith(userRepository);
+      addTearDown(friends.dispose);
+
+      final result = await friends.read(friendsFeedNotifierProvider.future);
+
+      expect(result, isEmpty);
+      verifyNever(() => feedRepository.fetchFollowingFeed(
+            followedUserIds: any(named: 'followedUserIds'),
+            cursor: any(named: 'cursor'),
+            size: any(named: 'size'),
+            feed: any(named: 'feed'),
+          ));
+    });
+  });
 }

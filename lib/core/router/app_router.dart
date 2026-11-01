@@ -14,6 +14,9 @@ import 'package:tiktok_mobile/features/auth/presentation/verify_email_screen.dar
 import 'package:tiktok_mobile/features/chat/presentation/chat_thread_screen.dart';
 import 'package:tiktok_mobile/features/chat/presentation/messages_screen.dart';
 import 'package:tiktok_mobile/features/shell/presentation/home_shell.dart';
+import 'package:tiktok_mobile/features/story/presentation/story_composer_screen.dart';
+import 'package:tiktok_mobile/features/story/presentation/story_provider.dart';
+import 'package:tiktok_mobile/features/story/presentation/story_viewer_screen.dart';
 import 'package:tiktok_mobile/features/user/presentation/edit_profile_screen.dart';
 import 'package:tiktok_mobile/features/user/presentation/profile_screen.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_list_screen.dart';
@@ -90,6 +93,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // The five tabs (feed, discover, create, inbox, you) live behind one
       // route — the nav bar switches an IndexedStack, it does not navigate.
       GoRoute(path: '/feed', builder: (_, _) => const HomeShell()),
+      // Both carry an object, not ids in the path: the composer needs the
+      // picked file, the viewer the groups already loaded. Without one (an
+      // app restart, a stray deep link) there is nothing to show.
+      GoRoute(
+        path: '/stories/new',
+        redirect: (_, state) => state.extra is StoryDraft ? null : '/feed',
+        builder: (_, state) =>
+            StoryComposerScreen(draft: state.extra! as StoryDraft),
+      ),
+      GoRoute(
+        path: '/stories/view',
+        redirect: (_, state) =>
+            state.extra is StoryViewerArgs ? null : '/feed',
+        builder: (_, state) =>
+            StoryViewerScreen(args: state.extra! as StoryViewerArgs),
+      ),
       GoRoute(path: '/messages', builder: (_, _) => const MessagesScreen()),
       GoRoute(
         path: '/messages/:conversationId',

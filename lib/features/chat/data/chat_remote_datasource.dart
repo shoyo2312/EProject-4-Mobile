@@ -103,6 +103,29 @@ class ChatRemoteDatasource {
         'clientRequestId': clientRequestId,
       });
 
+  /// A reply to somebody's story, delivered to their direct messages. The
+  /// server finds (or opens) the thread itself, so the conversation id comes
+  /// back on the message. `STORY_NOT_AVAILABLE` when the story is gone or the
+  /// caller may no longer see it.
+  Future<MessageModel> sendStoryReply({
+    required String storyId,
+    required String content,
+    required String clientRequestId,
+  }) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/conversations/story-replies',
+      data: {
+        'storyId': storyId,
+        'content': content,
+        'clientRequestId': clientRequestId,
+      },
+    );
+    return ApiResponse<MessageModel>.fromJson(
+      response.data!,
+      (json) => messageFromServer(json as Map<String, dynamic>),
+    ).data!;
+  }
+
   /// Step one of sending a picture: the bytes go up on their own and come
   /// back as an id. The server reads the type from the bytes — JPEG, PNG and
   /// GIF only, 5 MB — and refuses anything else with `IMAGE_*` codes. An

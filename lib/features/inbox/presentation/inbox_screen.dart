@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +13,9 @@ import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
 import 'package:tiktok_mobile/features/notification/data/notification_model.dart';
 import 'package:tiktok_mobile/features/notification/presentation/notification_provider.dart';
+import 'package:tiktok_mobile/features/story/presentation/story_flow.dart';
+import 'package:tiktok_mobile/features/story/presentation/story_provider.dart';
+import 'package:tiktok_mobile/features/story/presentation/story_tray.dart';
 
 /// The activity list, from notification-service.
 ///
@@ -55,6 +60,11 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     if (notification.type == NotificationKind.newFollower &&
         notification.referenceId != null) {
       context.push('/profile/${notification.referenceId}');
+    } else if (notification.type == NotificationKind.story &&
+        notification.referenceId != null) {
+      // The owner's stories, fetched fresh: the one announced may have
+      // expired, been deleted, or been joined by newer ones.
+      unawaited(openUserStories(context, ref, notification.referenceId!));
     }
     try {
       await ref.read(inboxProvider.notifier).markRead(notification.id);
@@ -69,7 +79,10 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     final signedIn = ref.watch(authStateProvider).valueOrNull != null;
 
     return RefreshIndicator(
-      onRefresh: () async => ref.invalidate(inboxProvider),
+      onRefresh: () async {
+        ref.invalidate(inboxProvider);
+        ref.invalidate(storyTrayProvider);
+      },
       child: ListView(
         padding: EdgeInsets.fromLTRB(
           16,
@@ -126,6 +139,10 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
             ],
           ),
           const SizedBox(height: 14),
+          if (signedIn) ...[
+            const StoryTrayRow(),
+            const SizedBox(height: 10),
+          ],
           Row(
             children: [
               for (final label in _filters.keys)
@@ -213,6 +230,7 @@ const _badges = {
   NotificationKind.comment: '💬',
   NotificationKind.share: '↗',
   NotificationKind.newFollower: '+',
+  NotificationKind.story: '◎',
   NotificationKind.system: '★',
 };
 

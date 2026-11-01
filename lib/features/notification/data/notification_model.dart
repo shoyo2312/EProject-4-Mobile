@@ -15,6 +15,11 @@ enum NotificationKind {
   share,
   @JsonValue('NEW_FOLLOWER')
   newFollower,
+
+  /// Someone you follow posted a story. [NotificationModel.referenceId] is
+  /// the story owner's id, not the story's.
+  @JsonValue('STORY')
+  story,
   @JsonValue('SYSTEM')
   system,
 }

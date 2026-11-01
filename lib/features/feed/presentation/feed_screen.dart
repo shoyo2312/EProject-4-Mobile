@@ -47,17 +47,32 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     super.dispose();
   }
 
-  bool get _isFollowingTab => _tab == 'Following';
-
   void _onPageChanged(int index, List<VideoModel> videos) {
     setState(() => _activeIndex = index);
     if (index < videos.length - 2) return;
-    if (_isFollowingTab) {
-      ref.read(followingFeedNotifierProvider.notifier).loadMore();
-    } else {
-      ref.read(feedNotifierProvider.notifier).loadMore();
+    switch (_tab) {
+      case 'Following':
+        ref.read(followingFeedNotifierProvider.notifier).loadMore();
+      case 'Friends':
+        ref.read(friendsFeedNotifierProvider.notifier).loadMore();
+      default:
+        ref.read(feedNotifierProvider.notifier).loadMore();
     }
   }
+
+  ProviderListenable<AsyncValue<List<VideoModel>>> get _feedProvider =>
+      switch (_tab) {
+        'Following' => followingFeedNotifierProvider,
+        'Friends' => friendsFeedNotifierProvider,
+        _ => feedNotifierProvider,
+      };
+
+  String get _emptyMessage => switch (_tab) {
+        'Following' => 'Nothing from the people you follow yet',
+        'Friends' => 'Nothing from your friends yet — friends are people '
+            'you follow who follow you back',
+        _ => 'No videos yet',
+      };
 
   /// Both feeds share one PageView, so the position has to go back to the top
   /// with the data — otherwise a switch lands on page 12 of a list that may
@@ -73,20 +88,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Friends means mutual follows, and no service answers that question —
-    // user-service exposes followers and following, never the intersection.
-    if (_tab == 'Friends') {
-      return Stack(
-        children: [
-          const ErrorView(message: 'Friends is not available yet'),
-          _topBar(context),
-        ],
-      );
-    }
-
-    final feedState = _isFollowingTab
-        ? ref.watch(followingFeedNotifierProvider)
-        : ref.watch(feedNotifierProvider);
+    final feedState = ref.watch(_feedProvider);
 
     return Stack(
       children: [
@@ -94,17 +96,15 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
           loading: () => const LoadingView(),
           error: (error, _) => ErrorView(
             message: error.toString(),
-            onRetry: () => ref.invalidate(_isFollowingTab
-                ? followingFeedNotifierProvider
-                : feedNotifierProvider),
+            onRetry: () => ref.invalidate(switch (_tab) {
+              'Following' => followingFeedNotifierProvider,
+              'Friends' => friendsFeedNotifierProvider,
+              _ => feedNotifierProvider,
+            }),
           ),
           data: (videos) {
             if (videos.isEmpty) {
-              return ErrorView(
-                message: _isFollowingTab
-                    ? 'Nothing from the people you follow yet'
-                    : 'No videos yet',
-              );
+              return ErrorView(message: _emptyMessage);
             }
             return PageView.builder(
               controller: _pageController,
@@ -142,8 +142,8 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
       );
 }
 
-/// LIVE badge, source chips, search. "For You" and "Following" are separate
-/// endpoints; "Friends" is neither, and says so.
+/// LIVE badge, source chips, search. "For You" has its own endpoint;
+/// "Following" and "Friends" share one, with different author lists.
 class _TopBar extends StatelessWidget {
   const _TopBar({required this.tab, required this.onTab, this.onSearch});
 

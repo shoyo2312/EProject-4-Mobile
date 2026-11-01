@@ -223,13 +223,9 @@ class _UserVideosNotifierProviderElement
 }
 
 String _$followingFeedNotifierHash() =>
-    r'82a70382cfa53f93fb8cdf3133e350abe649b501';
+    r'55d860aef92fe0b265fb5434df17dda0430c6c36';
 
 /// The Following tab: only the accounts the viewer follows, newest first.
-///
-/// Two services, one list — user-service knows who is followed, video-service
-/// knows what they posted — so the follow list is read once per session here
-/// rather than on every page.
 ///
 /// Copied from [FollowingFeedNotifier].
 @ProviderFor(FollowingFeedNotifier)
@@ -248,5 +244,29 @@ final followingFeedNotifierProvider =
     );
 
 typedef _$FollowingFeedNotifier = AutoDisposeAsyncNotifier<List<VideoModel>>;
+String _$friendsFeedNotifierHash() =>
+    r'b08bf6b7f12a9e23ebf9de848219e80dd803785f';
+
+/// The Friends tab: mutual follows — accounts the viewer follows that follow
+/// back. user-service has no friends listing, so it is the intersection of the
+/// viewer's following and followers, the same way the web computes it.
+///
+/// Copied from [FriendsFeedNotifier].
+@ProviderFor(FriendsFeedNotifier)
+final friendsFeedNotifierProvider =
+    AutoDisposeAsyncNotifierProvider<
+      FriendsFeedNotifier,
+      List<VideoModel>
+    >.internal(
+      FriendsFeedNotifier.new,
+      name: r'friendsFeedNotifierProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$friendsFeedNotifierHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$FriendsFeedNotifier = AutoDisposeAsyncNotifier<List<VideoModel>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

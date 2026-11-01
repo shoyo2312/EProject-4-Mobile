@@ -12,6 +12,8 @@ import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 import 'package:tiktok_mobile/features/feed/presentation/video_viewer_screen.dart';
 import 'package:tiktok_mobile/features/feed/presentation/feed_provider.dart';
 import 'package:tiktok_mobile/features/interaction/presentation/interaction_provider.dart';
+import 'package:tiktok_mobile/features/story/presentation/story_flow.dart';
+import 'package:tiktok_mobile/features/story/presentation/story_ring.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
@@ -302,19 +304,59 @@ class _ProfileContentState extends State<_ProfileContent> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Container(
-                      width: 88,
-                      height: 88,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: NowaColors.bg, width: 2),
-                      ),
-                      child: RemoteImage(
-                        url: profile.avatarUrl,
-                        radius: 28,
-                        band: 6,
-                        label: 'pfp',
-                      ),
+                    // A ring when there is a story to watch; on your own
+                    // profile, tapping an avatar with none starts one.
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        StoryRingAvatar(
+                          userId: profile.userId,
+                          radius: 30,
+                          onTapNoStory: widget.isOwnProfile
+                              ? () => startStoryFlow(context)
+                              : null,
+                          child: Container(
+                            width: 88,
+                            height: 88,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(30),
+                              border: Border.all(color: NowaColors.bg, width: 2),
+                            ),
+                            child: RemoteImage(
+                              url: profile.avatarUrl,
+                              radius: 28,
+                              band: 6,
+                              label: 'pfp',
+                            ),
+                          ),
+                        ),
+                        if (widget.isOwnProfile)
+                          Positioned(
+                            right: -2,
+                            bottom: -2,
+                            child: GestureDetector(
+                              key: const Key('profile_add_story'),
+                              onTap: () => startStoryFlow(context),
+                              child: Container(
+                                width: 26,
+                                height: 26,
+                                decoration: BoxDecoration(
+                                  color: NowaColors.accent,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: NowaColors.bg,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.add,
+                                  size: 15,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(width: 14),
                     Expanded(
