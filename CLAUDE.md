@@ -65,7 +65,7 @@ features/{feature}/
 ### Models
 - `@freezed` + `factory _X.fromJson` — KHÔNG viết class DTO thủ công
 - Enum từ server: `@JsonValue('PUBLISHED')` + luôn có nhánh `unknown` để giá trị mới không làm crash parse (xem `VideoStatus`)
-- Sau khi sửa model/provider PHẢI chạy `dart run build_runner build --delete-conflicting-outputs`. KHÔNG sửa tay file `.g.dart` / `.freezed.dart`
+- Sau khi sửa model/provider PHẢI chạy `fvm dart run build_runner build --delete-conflicting-outputs` (qua FVM — xem mục Commands). KHÔNG sửa tay file `.g.dart` / `.freezed.dart`
 
 ### Networking
 - Mọi request đi qua `ApiClient.dio`; base URL lấy từ `Env.apiBaseUrl`, KHÔNG hard-code host
@@ -96,9 +96,11 @@ features/{feature}/
 
 ## 5. Common Commands
 ```bash
-flutter pub get                                            # Cài dependency
-dart run build_runner build --delete-conflicting-outputs   # Sinh freezed/json/riverpod
-dart run build_runner watch  --delete-conflicting-outputs  # Sinh liên tục khi dev
+fvm flutter pub get                                        # Cài dependency
+# Flutter được ghim bằng FVM (.fvmrc → 3.38.10). build_runner (analyzer 7.x) crash trên SDK mới hơn,
+# nên mọi lệnh flutter/dart chạy qua `fvm`. Windows: bật Developer Mode (symlink cho plugin).
+fvm dart run build_runner build --delete-conflicting-outputs   # Sinh freezed/json/riverpod
+fvm dart run build_runner watch  --delete-conflicting-outputs  # Sinh liên tục khi dev
 
 flutter run --dart-define=USE_MOCK=true                    # Chạy không cần backend
 flutter run                                                # Backend thật; emulator Android tự dùng 10.0.2.2

@@ -61,3 +61,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# FVM: the pinned SDK lives in .fvm/ (machine-local); .fvmrc is the shared pin
+.fvm/

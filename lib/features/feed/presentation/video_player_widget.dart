@@ -87,7 +87,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final onScreen = TickerMode.valuesOf(context).enabled;
+    final onScreen = TickerMode.of(context);
     if (onScreen != _onScreen) {
       _onScreen = onScreen;
       _syncPlayback();

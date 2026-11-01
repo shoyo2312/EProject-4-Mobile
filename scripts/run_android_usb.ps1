@@ -19,4 +19,12 @@ foreach ($port in 8080, 9000) {
 # dart_defines.json carries TURNSTILE_SITE_KEY (shared by the team, public value).
 $flutterArgs = @('run', '--dart-define-from-file=dart_defines.json', '--dart-define=API_BASE_URL=http://localhost:8080/api/v1')
 if ($Device) { $flutterArgs += @('-d', $Device) }
-& flutter @flutterArgs
+# .fvmrc pins the team's Flutter version; use it when FVM is installed, so the
+# app is built with the same SDK that resolved pubspec.lock.
+$fvm = Get-Command fvm -ErrorAction SilentlyContinue
+if (-not $fvm -and (Test-Path "$env:LOCALAPPDATA\Pub\Cache\bin\fvm.bat")) { $fvm = "$env:LOCALAPPDATA\Pub\Cache\bin\fvm.bat" }
+if ((Test-Path "$PSScriptRoot\..\.fvmrc") -and $fvm) {
+    & $fvm flutter @flutterArgs
+} else {
+    & flutter @flutterArgs
+}
