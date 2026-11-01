@@ -1,3 +1,7 @@
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
+import 'package:tiktok_mobile/core/constants/env.dart';
 import 'package:tiktok_mobile/core/network/api_client.dart';
 import 'package:tiktok_mobile/core/network/api_response.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_model.dart';
@@ -68,6 +72,94 @@ class ChatRemoteDatasource {
     final response = await _apiClient.post<Map<String, dynamic>>(
       '/conversations/$conversationId/messages',
       data: {'content': content},
+    );
+    return ApiResponse<MessageModel>.fromJson(
+      response.data!,
+      (json) => messageFromServer(json as Map<String, dynamic>),
+    ).data!;
+  }
+
+  /// The sticker catalog. Every pack the server offers; a sticker that is no
+  /// longer offered still renders in old messages, from the message itself.
+  Future<List<StickerPack>> listStickerPacks() async {
+    final response =
+        await _apiClient.get<Map<String, dynamic>>('/conversations/stickers');
+    return (response.data!['data'] as List)
+        .map((e) => StickerPack.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// A sticker is its own message, with no text. [clientRequestId] makes a
+  /// retry after a lost response answer with the first message instead of
+  /// posting a second one.
+  Future<MessageModel> sendSticker(
+    String conversationId,
+    String stickerId, {
+    required String clientRequestId,
+  }) =>
+      _send(conversationId, {
+        'type': 'STICKER',
+        'stickerId': stickerId,
+        'clientRequestId': clientRequestId,
+      });
+
+  /// Step one of sending a picture: the bytes go up on their own and come
+  /// back as an id. The server reads the type from the bytes — JPEG, PNG and
+  /// GIF only, 5 MB — and refuses anything else with `IMAGE_*` codes. An
+  /// upload no message claims expires after an hour.
+  Future<ChatImageModel> uploadImage(
+    String conversationId, {
+    required List<int> bytes,
+    required String filename,
+    void Function(int sent, int total)? onProgress,
+  }) async {
+    final response = await _apiClient.dio.post<Map<String, dynamic>>(
+      '/conversations/$conversationId/images',
+      data: FormData.fromMap({
+        'file': MultipartFile.fromBytes(bytes, filename: filename),
+      }),
+      onSendProgress: onProgress,
+    );
+    return ApiResponse<ChatImageModel>.fromJson(
+      response.data!,
+      (json) => ChatImageModel.fromJson(json as Map<String, dynamic>),
+    ).data!;
+  }
+
+  /// Step two: an IMAGE message claims the upload by id. Only its uploader can
+  /// claim it, only in this conversation, only once.
+  Future<MessageModel> sendImage(
+    String conversationId,
+    String imageId, {
+    String? caption,
+    required String clientRequestId,
+  }) =>
+      _send(conversationId, {
+        'type': 'IMAGE',
+        'imageId': imageId,
+        if (caption != null && caption.isNotEmpty) 'content': caption,
+        'clientRequestId': clientRequestId,
+      });
+
+  /// A chat picture's bytes. [url] is the path the server put in the message
+  /// (`/api/v1/conversations/...`), which answers only with the viewer's
+  /// token — so it goes through the API client, and a 401 refreshes like any
+  /// other call.
+  Future<Uint8List> downloadImage(String url) async {
+    final response = await _apiClient.dio.getUri<List<int>>(
+      Uri.parse(Env.apiBaseUrl).replace(path: url),
+      options: Options(responseType: ResponseType.bytes),
+    );
+    return Uint8List.fromList(response.data!);
+  }
+
+  Future<MessageModel> _send(
+    String conversationId,
+    Map<String, dynamic> body,
+  ) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/conversations/$conversationId/messages',
+      data: body,
     );
     return ApiResponse<MessageModel>.fromJson(
       response.data!,

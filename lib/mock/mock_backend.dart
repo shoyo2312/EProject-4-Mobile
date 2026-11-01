@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
@@ -1146,4 +1147,54 @@ class _MockChatRepository extends ChatRepository {
 
   @override
   Stream<ChatInboxEvent> inboxEvents() => const Stream.empty();
+
+  // Offline there is no sticker bucket to draw from, so the picker is empty
+  // and pictures stay on the device: the upload is remembered in memory and
+  // the message draws from it.
+  final _uploads = <String, Uint8List>{};
+
+  @override
+  Future<List<StickerPack>> listStickerPacks() async => const [];
+
+  @override
+  Future<ChatImageModel> uploadImage(
+    String conversationId, {
+    required List<int> bytes,
+    required String filename,
+    void Function(int sent, int total)? onProgress,
+  }) async {
+    await _latency();
+    onProgress?.call(bytes.length, bytes.length);
+    final id = 'img${_uploads.length + 1}';
+    _uploads[id] = Uint8List.fromList(bytes);
+    return ChatImageModel(imageId: id, url: '/mock/$id');
+  }
+
+  @override
+  Future<MessageModel> sendImage(
+    String conversationId,
+    String imageId, {
+    String? caption,
+    required String clientRequestId,
+  }) async {
+    await _latency();
+    final message = MessageModel(
+      id: 'm${_messages.length + 1}',
+      conversationId: conversationId,
+      senderId: _meId,
+      content: caption ?? '',
+      sentAt: DateTime.now(),
+      type: MessageType.image,
+      image: ChatImageModel(imageId: imageId, url: '/mock/$imageId'),
+    );
+    _messages.insert(0, message);
+    return message;
+  }
+
+  @override
+  Future<Uint8List> imageBytes(ChatImageModel image) async =>
+      _uploads[image.imageId] ?? Uint8List(0);
+
+  @override
+  void rememberImage(String imageId, Uint8List bytes) {}
 }

@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -85,7 +87,7 @@ class Conversations extends _$Conversations {
     final onScreen = ref.exists(threadProvider(message.conversationId));
     final row = rows[index];
     final updated = row.copyWith(
-      lastMessageContent: message.content,
+      lastMessageContent: message.previewText,
       lastMessageSenderId: message.senderId,
       lastMessageAt: message.sentAt,
       hasUnread: message.senderId != me && !onScreen,
@@ -194,10 +196,184 @@ class Thread extends _$Thread {
   Future<void> send(String content) async {
     final message =
         await ref.read(chatRepositoryProvider).sendMessage(conversationId, content);
+    delivered(message);
+  }
+
+  /// A sticker is a message of its own; the draft in the composer is left as
+  /// it was.
+  Future<void> sendSticker(StickerModel sticker) async {
+    final message = await ref.read(chatRepositoryProvider).sendSticker(
+          conversationId,
+          sticker.stickerId,
+          clientRequestId: newClientRequestId(),
+        );
+    delivered(message);
+  }
+
+  /// The caller's own message, as the server stored it: into the thread, and
+  /// to the top of the conversation list.
+  void delivered(MessageModel message) {
     _receive(message);
     if (ref.exists(conversationsProvider)) {
       ref.read(conversationsProvider.notifier).sent(message);
     }
+  }
+}
+
+/// An id the server uses to recognise a retried send: the same id answers
+/// with the first message instead of posting a second one.
+String newClientRequestId() {
+  final random = Random.secure();
+  return List.generate(16, (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'))
+      .join();
+}
+
+/// The sticker catalog, fetched once per session — it changes with a server
+/// release, not while the app is open.
+@Riverpod(keepAlive: true)
+Future<List<StickerPack>> stickerPacks(Ref ref) =>
+    ref.watch(chatRepositoryProvider).listStickerPacks();
+
+/// A chat picture's bytes, fetched with the viewer's token.
+@riverpod
+Future<Uint8List> chatImageBytes(Ref ref, ChatImageModel image) =>
+    ref.watch(chatRepositoryProvider).imageBytes(image);
+
+/// A picture on its way out: shown in the thread at once, with its progress,
+/// and kept with its bytes if it fails so it can be sent again.
+class OutgoingImage {
+  const OutgoingImage({
+    required this.localId,
+    required this.bytes,
+    required this.filename,
+    this.caption,
+    this.progress = 0,
+    this.error,
+  });
+
+  /// Doubles as the clientRequestId: a retry after a lost response returns
+  /// the message the first attempt made.
+  final String localId;
+  final Uint8List bytes;
+  final String filename;
+  final String? caption;
+
+  /// 0..1 while the bytes go up.
+  final double progress;
+
+  /// Set when the send failed; the row offers Retry and Remove.
+  final String? error;
+
+  bool get failed => error != null;
+
+  OutgoingImage copyWith({double? progress, String? error, bool clearError = false}) =>
+      OutgoingImage(
+        localId: localId,
+        bytes: bytes,
+        filename: filename,
+        caption: caption,
+        progress: progress ?? this.progress,
+        error: clearError ? null : (error ?? this.error),
+      );
+}
+
+/// Pictures being sent into one thread, oldest first. Kept alive while one is
+/// in flight, so leaving the thread does not cancel it.
+@riverpod
+class OutgoingImages extends _$OutgoingImages {
+  @override
+  List<OutgoingImage> build(String conversationId) => const [];
+
+  /// The server's own limits, checked before spending the upload: it reads
+  /// the type from the bytes and takes JPEG, PNG and GIF up to 5 MB.
+  static const maxBytes = 5 * 1024 * 1024;
+
+  static String? problemWith(Uint8List bytes) {
+    if (bytes.length > maxBytes) return 'Photos can be up to 5 MB';
+    bool startsWith(List<int> magic) =>
+        bytes.length >= magic.length &&
+        Iterable.generate(magic.length).every((i) => bytes[i] == magic[i]);
+    final known = startsWith([0xFF, 0xD8, 0xFF]) || // JPEG
+        startsWith([0x89, 0x50, 0x4E, 0x47]) || // PNG
+        startsWith([0x47, 0x49, 0x46, 0x38]); // GIF
+    return known ? null : 'Only JPEG, PNG and GIF photos can be sent';
+  }
+
+  Future<void> send(Uint8List bytes, {required String filename, String? caption}) {
+    final item = OutgoingImage(
+      localId: newClientRequestId(),
+      bytes: bytes,
+      filename: filename,
+      caption: caption,
+    );
+    state = [...state, item];
+    return _run(item.localId);
+  }
+
+  Future<void> retry(String localId) {
+    _update(localId, (i) => i.copyWith(progress: 0, clearError: true));
+    return _run(localId);
+  }
+
+  void remove(String localId) {
+    state = [for (final i in state) if (i.localId != localId) i];
+  }
+
+  Future<void> _run(String localId) async {
+    final item = state.where((i) => i.localId == localId).firstOrNull;
+    if (item == null) return;
+    final keepAlive = ref.keepAlive();
+    final repository = ref.read(chatRepositoryProvider);
+    try {
+      final problem = problemWith(item.bytes);
+      if (problem != null) throw UnknownException(problem);
+      final uploaded = await repository.uploadImage(
+        conversationId,
+        bytes: item.bytes,
+        filename: item.filename,
+        onProgress: (sent, total) {
+          if (total > 0) _update(localId, (i) => i.copyWith(progress: sent / total));
+        },
+      );
+      repository.rememberImage(uploaded.imageId, item.bytes);
+      final message = await repository.sendImage(
+        conversationId,
+        uploaded.imageId,
+        caption: item.caption,
+        clientRequestId: localId,
+      );
+      remove(localId);
+      if (ref.exists(threadProvider(conversationId))) {
+        ref.read(threadProvider(conversationId).notifier).delivered(message);
+      } else if (ref.exists(conversationsProvider)) {
+        ref.read(conversationsProvider.notifier).sent(message);
+      }
+    } on AppException catch (e) {
+      _update(localId, (i) => i.copyWith(error: _imageError(e)));
+    } finally {
+      keepAlive.close();
+    }
+  }
+
+  void _update(String localId, OutgoingImage Function(OutgoingImage) change) {
+    state = [for (final i in state) if (i.localId == localId) change(i) else i];
+  }
+
+  /// The server's refusal in words; its codes are stable, its messages are
+  /// not meant for people.
+  static String _imageError(AppException e) {
+    final code = e is ServerException ? e.code : null;
+    return switch (code) {
+      'IMAGE_TOO_LARGE' => 'Photos can be up to 5 MB',
+      'IMAGE_UNSUPPORTED_TYPE' => 'Only JPEG, PNG and GIF photos can be sent',
+      'IMAGE_DIMENSIONS' => 'This photo is too large to send',
+      'IMAGE_CORRUPT' => 'This photo could not be read',
+      'MESSAGING_BLOCKED' => 'You can\'t message this account',
+      'MESSAGE_REQUEST_NOT_ACCEPTED' ||
+      'MESSAGE_REQUEST_LIMIT_REACHED' =>
+        'You can send photos once they accept your message request',
+      _ => e.message,
+    };
   }
 }
 

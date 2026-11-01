@@ -40,8 +40,79 @@ class ConversationModel with _$ConversationModel {
           orElse: () => participantIds.first);
 }
 
+/// What a message is. Older messages carry no type and are text.
+enum MessageType {
+  @JsonValue('TEXT')
+  text,
+  @JsonValue('STICKER')
+  sticker,
+
+  /// A video from the app shared into the chat, not an uploaded file.
+  @JsonValue('VIDEO')
+  video,
+  @JsonValue('STORY_REPLY')
+  storyReply,
+  @JsonValue('IMAGE')
+  image,
+
+  /// A type this build does not know yet: drawn as its text, never a crash.
+  unknown,
+}
+
+/// One sticker from chat-service's catalog. [url] is public — the bucket's
+/// `stickers/` prefix is readable by anyone — so it loads like any image.
+@freezed
+class StickerModel with _$StickerModel {
+  const factory StickerModel({
+    required String stickerId,
+    required String name,
+    required String url,
+    @Default(0) int width,
+    @Default(0) int height,
+  }) = _StickerModel;
+
+  factory StickerModel.fromJson(Map<String, dynamic> json) =>
+      _$StickerModelFromJson(json);
+}
+
+@freezed
+class StickerPack with _$StickerPack {
+  const factory StickerPack({
+    required String packId,
+    required String name,
+    @Default([]) List<StickerModel> stickers,
+  }) = _StickerPack;
+
+  factory StickerPack.fromJson(Map<String, dynamic> json) =>
+      _$StickerPackFromJson(json);
+}
+
+/// A picture sent in a chat. Unlike a sticker it is private: [url] is a path
+/// under the gateway that answers only with the viewer's token, so it is
+/// fetched through the API client, never handed to an image widget as-is.
+/// [width] and [height] are the display size (EXIF rotation applied), so the
+/// space can be reserved before the bytes arrive.
+@freezed
+class ChatImageModel with _$ChatImageModel {
+  const factory ChatImageModel({
+    required String imageId,
+    required String url,
+    String? mime,
+    @Default(0) int width,
+    @Default(0) int height,
+    @Default(0) int size,
+  }) = _ChatImageModel;
+
+  factory ChatImageModel.fromJson(Map<String, dynamic> json) =>
+      _$ChatImageModelFromJson(json);
+}
+
 /// One message. The same shape arrives two ways — as the answer to a send, and
 /// over the socket when the other side sends one.
+///
+/// [content] is always the text to show: a caption on a picture (possibly
+/// empty), or a stand-in for a message with no text of its own — see
+/// [messageFromServer].
 @freezed
 class MessageModel with _$MessageModel {
   const factory MessageModel({
@@ -50,20 +121,31 @@ class MessageModel with _$MessageModel {
     @JsonKey(fromJson: _idFromJson) required String senderId,
     required String content,
     required DateTime sentAt,
+    @JsonKey(unknownEnumValue: MessageType.unknown)
+    @Default(MessageType.text)
+    MessageType type,
+    StickerModel? sticker,
+    ChatImageModel? image,
+    DateTime? recalledAt,
   }) = _MessageModel;
 
   factory MessageModel.fromJson(Map<String, dynamic> json) =>
       _$MessageModelFromJson(json);
+
+  const MessageModel._();
+
+  bool get recalled => recalledAt != null;
+
+  /// What the conversation list shows for this message. A picture's caption
+  /// stays out of it, the same rule the server applies to its own preview.
+  String get previewText =>
+      type == MessageType.image && !recalled ? 'Photo' : content;
 }
 
-/// What a message or a conversation preview shows when the server sends no
-/// text: a sticker, a shared video, or a message its sender took back. The
-/// web client can send all three; this app only sends text, but has to read
-/// what arrives.
-String? _placeholderText({
-  required Object? type,
-  required bool recalled,
-}) {
+/// What a message shows when the server sends no text: a sticker, a shared
+/// video, or a message its sender took back. A picture's missing caption is
+/// just empty — the picture is the message.
+String? _messagePlaceholder({required Object? type, required bool recalled}) {
   if (recalled) return 'Message unsent';
   return switch (type) {
     'STICKER' => 'Sticker',
@@ -72,9 +154,17 @@ String? _placeholderText({
   };
 }
 
+/// The same for a conversation preview, which never carries a picture's
+/// caption — the server leaves it out so a recall cannot leave it behind.
+String? _previewPlaceholder({required Object? type, required bool recalled}) {
+  if (type == 'IMAGE' && !recalled) return 'Photo';
+  return _messagePlaceholder(type: type, recalled: recalled);
+}
+
 /// A server message as [MessageModel] reads it. `content` is null on a
-/// sticker, a recalled message and a video with no note; the model keeps a
-/// non-null `content`, so those are given the text to show instead.
+/// sticker, a picture without a caption, a recalled message and a video with
+/// no note; the model keeps a non-null `content`, so those are given the text
+/// to show instead.
 MessageModel messageFromServer(Map<String, dynamic> json) {
   final recalled = json['recalledAt'] != null;
   final content = recalled ? null : json['content'] as String?;
@@ -84,7 +174,7 @@ MessageModel messageFromServer(Map<String, dynamic> json) {
   return MessageModel.fromJson({
     ...json,
     'content':
-        _placeholderText(type: json['type'], recalled: recalled) ?? '',
+        _messagePlaceholder(type: json['type'], recalled: recalled) ?? '',
   });
 }
 
@@ -99,7 +189,7 @@ ConversationModel conversationFromServer(Map<String, dynamic> json) {
   return ConversationModel.fromJson({
     ...json,
     'lastMessageContent':
-        _placeholderText(type: json['lastMessageType'], recalled: recalled),
+        _previewPlaceholder(type: json['lastMessageType'], recalled: recalled),
   });
 }
 

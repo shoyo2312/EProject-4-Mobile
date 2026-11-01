@@ -32,6 +32,63 @@ Map<String, dynamic> _$$ConversationModelImplToJson(
   'hasUnread': instance.hasUnread,
 };
 
+_$StickerModelImpl _$$StickerModelImplFromJson(Map<String, dynamic> json) =>
+    _$StickerModelImpl(
+      stickerId: json['stickerId'] as String,
+      name: json['name'] as String,
+      url: json['url'] as String,
+      width: (json['width'] as num?)?.toInt() ?? 0,
+      height: (json['height'] as num?)?.toInt() ?? 0,
+    );
+
+Map<String, dynamic> _$$StickerModelImplToJson(_$StickerModelImpl instance) =>
+    <String, dynamic>{
+      'stickerId': instance.stickerId,
+      'name': instance.name,
+      'url': instance.url,
+      'width': instance.width,
+      'height': instance.height,
+    };
+
+_$StickerPackImpl _$$StickerPackImplFromJson(Map<String, dynamic> json) =>
+    _$StickerPackImpl(
+      packId: json['packId'] as String,
+      name: json['name'] as String,
+      stickers:
+          (json['stickers'] as List<dynamic>?)
+              ?.map((e) => StickerModel.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+    );
+
+Map<String, dynamic> _$$StickerPackImplToJson(_$StickerPackImpl instance) =>
+    <String, dynamic>{
+      'packId': instance.packId,
+      'name': instance.name,
+      'stickers': instance.stickers,
+    };
+
+_$ChatImageModelImpl _$$ChatImageModelImplFromJson(Map<String, dynamic> json) =>
+    _$ChatImageModelImpl(
+      imageId: json['imageId'] as String,
+      url: json['url'] as String,
+      mime: json['mime'] as String?,
+      width: (json['width'] as num?)?.toInt() ?? 0,
+      height: (json['height'] as num?)?.toInt() ?? 0,
+      size: (json['size'] as num?)?.toInt() ?? 0,
+    );
+
+Map<String, dynamic> _$$ChatImageModelImplToJson(
+  _$ChatImageModelImpl instance,
+) => <String, dynamic>{
+  'imageId': instance.imageId,
+  'url': instance.url,
+  'mime': instance.mime,
+  'width': instance.width,
+  'height': instance.height,
+  'size': instance.size,
+};
+
 _$MessageModelImpl _$$MessageModelImplFromJson(Map<String, dynamic> json) =>
     _$MessageModelImpl(
       id: json['id'] as String,
@@ -39,6 +96,22 @@ _$MessageModelImpl _$$MessageModelImplFromJson(Map<String, dynamic> json) =>
       senderId: _idFromJson(json['senderId']),
       content: json['content'] as String,
       sentAt: DateTime.parse(json['sentAt'] as String),
+      type:
+          $enumDecodeNullable(
+            _$MessageTypeEnumMap,
+            json['type'],
+            unknownValue: MessageType.unknown,
+          ) ??
+          MessageType.text,
+      sticker: json['sticker'] == null
+          ? null
+          : StickerModel.fromJson(json['sticker'] as Map<String, dynamic>),
+      image: json['image'] == null
+          ? null
+          : ChatImageModel.fromJson(json['image'] as Map<String, dynamic>),
+      recalledAt: json['recalledAt'] == null
+          ? null
+          : DateTime.parse(json['recalledAt'] as String),
     );
 
 Map<String, dynamic> _$$MessageModelImplToJson(_$MessageModelImpl instance) =>
@@ -48,4 +121,17 @@ Map<String, dynamic> _$$MessageModelImplToJson(_$MessageModelImpl instance) =>
       'senderId': instance.senderId,
       'content': instance.content,
       'sentAt': instance.sentAt.toIso8601String(),
+      'type': _$MessageTypeEnumMap[instance.type]!,
+      'sticker': instance.sticker,
+      'image': instance.image,
+      'recalledAt': instance.recalledAt?.toIso8601String(),
     };
+
+const _$MessageTypeEnumMap = {
+  MessageType.text: 'TEXT',
+  MessageType.sticker: 'STICKER',
+  MessageType.video: 'VIDEO',
+  MessageType.storyReply: 'STORY_REPLY',
+  MessageType.image: 'IMAGE',
+  MessageType.unknown: 'unknown',
+};

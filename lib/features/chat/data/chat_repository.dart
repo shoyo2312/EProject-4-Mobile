@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_model.dart';
@@ -56,6 +58,92 @@ class ChatRepository {
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }
+  }
+
+  Future<List<StickerPack>> listStickerPacks() async {
+    try {
+      return await _remoteDatasource.listStickerPacks();
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<MessageModel> sendSticker(
+    String conversationId,
+    String stickerId, {
+    required String clientRequestId,
+  }) async {
+    try {
+      return await _remoteDatasource.sendSticker(
+        conversationId,
+        stickerId,
+        clientRequestId: clientRequestId,
+      );
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<ChatImageModel> uploadImage(
+    String conversationId, {
+    required List<int> bytes,
+    required String filename,
+    void Function(int sent, int total)? onProgress,
+  }) async {
+    try {
+      return await _remoteDatasource.uploadImage(
+        conversationId,
+        bytes: bytes,
+        filename: filename,
+        onProgress: onProgress,
+      );
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<MessageModel> sendImage(
+    String conversationId,
+    String imageId, {
+    String? caption,
+    required String clientRequestId,
+  }) async {
+    try {
+      return await _remoteDatasource.sendImage(
+        conversationId,
+        imageId,
+        caption: caption,
+        clientRequestId: clientRequestId,
+      );
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  /// Recently drawn pictures, so scrolling back up a thread does not fetch
+  /// them again (the server answers `no-store`). Bounded: a picture is up to
+  /// 5 MB, and a long thread could otherwise hold all of them.
+  final _images = <String, Uint8List>{};
+  static const _imageCacheSize = 24;
+
+  Future<Uint8List> imageBytes(ChatImageModel image) async {
+    final cached = _images.remove(image.imageId);
+    if (cached != null) return _images[image.imageId] = cached;
+    try {
+      final bytes = await _remoteDatasource.downloadImage(image.url);
+      _images[image.imageId] = bytes;
+      if (_images.length > _imageCacheSize) _images.remove(_images.keys.first);
+      return bytes;
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  /// Something the caller just sent, so their own picture draws from memory
+  /// instead of being downloaded right back.
+  void rememberImage(String imageId, Uint8List bytes) {
+    _images[imageId] = bytes;
+    if (_images.length > _imageCacheSize) _images.remove(_images.keys.first);
   }
 
   Future<void> markRead(String conversationId) async {
