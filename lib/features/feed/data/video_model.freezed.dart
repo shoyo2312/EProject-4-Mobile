@@ -42,9 +42,12 @@ mixin _$VideoModel {
   // just happened — a value to sync against on reload, not an immediate
   // result (video doc 5).
   int get viewCount => throw _privateConstructorUsedError;
-  int get likeCount => throw _privateConstructorUsedError;
-  int get commentCount =>
-      throw _privateConstructorUsedError; // Shares have no counter on VideoResponse, so this stays 0 and the rail
+  int get likeCount =>
+      throw _privateConstructorUsedError; // Null from the server while comments are off — the video's own switch or
+  // the owner's account setting (video doc 3.2) — and the total is not shown
+  // then, so 0 stands in.
+  @JsonKey(fromJson: _countOrZero)
+  int get commentCount => throw _privateConstructorUsedError; // Shares have no counter on VideoResponse, so this stays 0 and the rail
   // falls back to a plain label. Saves have no counter anywhere — a save is
   // private — so there is no field for them at all.
   int get shareCount => throw _privateConstructorUsedError;
@@ -81,7 +84,7 @@ abstract class $VideoModelCopyWith<$Res> {
     bool commentsDisabled,
     int viewCount,
     int likeCount,
-    int commentCount,
+    @JsonKey(fromJson: _countOrZero) int commentCount,
     int shareCount,
     DateTime createdAt,
   });
@@ -209,7 +212,7 @@ abstract class _$$VideoModelImplCopyWith<$Res>
     bool commentsDisabled,
     int viewCount,
     int likeCount,
-    int commentCount,
+    @JsonKey(fromJson: _countOrZero) int commentCount,
     int shareCount,
     DateTime createdAt,
   });
@@ -329,7 +332,7 @@ class _$VideoModelImpl implements _VideoModel {
     this.commentsDisabled = false,
     required this.viewCount,
     required this.likeCount,
-    required this.commentCount,
+    @JsonKey(fromJson: _countOrZero) required this.commentCount,
     this.shareCount = 0,
     required this.createdAt,
   });
@@ -372,7 +375,11 @@ class _$VideoModelImpl implements _VideoModel {
   final int viewCount;
   @override
   final int likeCount;
+  // Null from the server while comments are off — the video's own switch or
+  // the owner's account setting (video doc 3.2) — and the total is not shown
+  // then, so 0 stands in.
   @override
+  @JsonKey(fromJson: _countOrZero)
   final int commentCount;
   // Shares have no counter on VideoResponse, so this stays 0 and the rail
   // falls back to a plain label. Saves have no counter anywhere — a save is
@@ -471,7 +478,7 @@ abstract class _VideoModel implements VideoModel {
     final bool commentsDisabled,
     required final int viewCount,
     required final int likeCount,
-    required final int commentCount,
+    @JsonKey(fromJson: _countOrZero) required final int commentCount,
     final int shareCount,
     required final DateTime createdAt,
   }) = _$VideoModelImpl;
@@ -510,8 +517,11 @@ abstract class _VideoModel implements VideoModel {
   @override
   int get viewCount;
   @override
-  int get likeCount;
+  int get likeCount; // Null from the server while comments are off — the video's own switch or
+  // the owner's account setting (video doc 3.2) — and the total is not shown
+  // then, so 0 stands in.
   @override
+  @JsonKey(fromJson: _countOrZero)
   int get commentCount; // Shares have no counter on VideoResponse, so this stays 0 and the rail
   // falls back to a plain label. Saves have no counter anywhere — a save is
   // private — so there is no field for them at all.

@@ -117,6 +117,41 @@ void main() {
     verifyNever(() => repository.getVideo(any()));
   });
 
+  test('comments switched off at upload reach the repository', () async {
+    when(() => repository.uploadAndPublish(
+          file: any(named: 'file'),
+          contentType: any(named: 'contentType'),
+          title: any(named: 'title'),
+          description: any(named: 'description'),
+          visibility: any(named: 'visibility'),
+          tags: any(named: 'tags'),
+          commentsDisabled: any(named: 'commentsDisabled'),
+          onProgress: any(named: 'onProgress'),
+          cancelToken: any(named: 'cancelToken'),
+        )).thenAnswer((_) async => video(VideoStatus.published));
+    when(() => repository.getVideo('v1'))
+        .thenAnswer((_) async => video(VideoStatus.published));
+
+    await notifier().start(
+      file: FakeFile(),
+      title: 'clip',
+      visibility: VideoVisibility.public,
+      commentsDisabled: true,
+    );
+
+    verify(() => repository.uploadAndPublish(
+          file: any(named: 'file'),
+          contentType: any(named: 'contentType'),
+          title: any(named: 'title'),
+          description: any(named: 'description'),
+          visibility: any(named: 'visibility'),
+          tags: any(named: 'tags'),
+          commentsDisabled: true,
+          onProgress: any(named: 'onProgress'),
+          cancelToken: any(named: 'cancelToken'),
+        )).called(1);
+  });
+
   test('an unsupported file never reaches the network', () async {
     await notifier().start(
       file: _AviFile(),

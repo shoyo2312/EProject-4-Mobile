@@ -37,6 +37,9 @@ class _PostDetailsScreenState extends ConsumerState<PostDetailsScreen> {
   final _tags = TextEditingController();
   var _visibility = VideoVisibility.public;
 
+  /// The "Allow comments" switch. On by default, as on every video before it.
+  var _allowComments = true;
+
   /// Set when Post is tapped, so the phase listener only acts on this
   /// screen's own upload and not on one left over from an earlier post.
   var _submitted = false;
@@ -65,6 +68,7 @@ class _PostDetailsScreenState extends ConsumerState<PostDetailsScreen> {
               : _description.text.trim(),
           visibility: _visibility,
           tags: _tagList,
+          commentsDisabled: !_allowComments,
         ));
   }
 
@@ -194,6 +198,13 @@ class _PostDetailsScreenState extends ConsumerState<PostDetailsScreen> {
                         onTap: () => setState(() => _visibility = v.$1),
                       ),
                     ),
+                  const SizedBox(height: 12),
+                  _AllowCommentsRow(
+                    value: _allowComments,
+                    onChanged: busy
+                        ? null
+                        : (value) => setState(() => _allowComments = value),
+                  ),
                 ],
               ),
               ),
@@ -218,6 +229,47 @@ class _PostDetailsScreenState extends ConsumerState<PostDetailsScreen> {
         ),
       ),
       ),
+    );
+  }
+}
+
+/// "Allow comments", switched off to post with comments closed. The owner
+/// can open them later from the video's menu on their profile.
+class _AllowCommentsRow extends StatelessWidget {
+  const _AllowCommentsRow({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Allow comments', style: sora(size: 13)),
+              const SizedBox(height: 3),
+              Text(
+                value
+                    ? 'Viewers can comment on this video'
+                    : 'Comments are off. You can turn them on later',
+                style: work(
+                  size: 11.5,
+                  color: NowaColors.text.withValues(alpha: 0.5),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Switch(
+          key: const Key('post_allow_comments_switch'),
+          value: value,
+          activeThumbColor: NowaColors.accent,
+          onChanged: onChanged,
+        ),
+      ],
     );
   }
 }

@@ -21,6 +21,7 @@ class FeedRepository {
     String? description,
     required VideoVisibility visibility,
     List<String> tags = const [],
+    bool commentsDisabled = false,
     void Function(int sent, int total)? onProgress,
     CancelToken? cancelToken,
   }) async {
@@ -39,6 +40,7 @@ class FeedRepository {
         rawFileUrl: ticket.fileUrl,
         visibility: visibility,
         tags: tags,
+        commentsDisabled: commentsDisabled,
       );
     } on DioException catch (e) {
       throw AppException.fromDioException(e);

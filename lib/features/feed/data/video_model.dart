@@ -60,7 +60,10 @@ class VideoModel with _$VideoModel {
     // result (video doc 5).
     required int viewCount,
     required int likeCount,
-    required int commentCount,
+    // Null from the server while comments are off — the video's own switch or
+    // the owner's account setting (video doc 3.2) — and the total is not shown
+    // then, so 0 stands in.
+    @JsonKey(fromJson: _countOrZero) required int commentCount,
     // Shares have no counter on VideoResponse, so this stays 0 and the rail
     // falls back to a plain label. Saves have no counter anywhere — a save is
     // private — so there is no field for them at all.
@@ -71,3 +74,5 @@ class VideoModel with _$VideoModel {
   factory VideoModel.fromJson(Map<String, dynamic> json) =>
       _$VideoModelFromJson(json);
 }
+
+int _countOrZero(Object? json) => (json as num?)?.toInt() ?? 0;

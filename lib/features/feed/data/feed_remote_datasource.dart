@@ -133,6 +133,7 @@ class FeedRemoteDatasource {
     required String rawFileUrl,
     required VideoVisibility visibility,
     List<String> tags = const [],
+    bool commentsDisabled = false,
   }) async {
     final response = await _apiClient.post<Map<String, dynamic>>(
       '/videos',
@@ -143,6 +144,9 @@ class FeedRemoteDatasource {
         'rawFileUrl': rawFileUrl,
         'visibility': wireVisibility(visibility),
         if (tags.isNotEmpty) 'tags': tags,
+        // Off from the first second, rather than a PATCH after the create
+        // that leaves the video open meanwhile (video doc 3.2).
+        if (commentsDisabled) 'commentsDisabled': true,
       },
     );
     final envelope = ApiResponse<VideoModel>.fromJson(

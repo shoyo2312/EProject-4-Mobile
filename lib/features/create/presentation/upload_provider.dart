@@ -107,6 +107,7 @@ class UploadNotifier extends _$UploadNotifier {
     String? description,
     required VideoVisibility visibility,
     List<String> tags = const [],
+    bool commentsDisabled = false,
   }) async {
     if (state.busy) return;
 
@@ -131,6 +132,7 @@ class UploadNotifier extends _$UploadNotifier {
             description: description,
             visibility: visibility,
             tags: tags,
+            commentsDisabled: commentsDisabled,
             cancelToken: cancelToken,
             onProgress: (sent, total) {
               if (_disposed || state.phase != UploadPhase.uploading) return;

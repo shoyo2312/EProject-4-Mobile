@@ -28,7 +28,7 @@ _$VideoModelImpl _$$VideoModelImplFromJson(Map<String, dynamic> json) =>
       commentsDisabled: json['commentsDisabled'] as bool? ?? false,
       viewCount: (json['viewCount'] as num).toInt(),
       likeCount: (json['likeCount'] as num).toInt(),
-      commentCount: (json['commentCount'] as num).toInt(),
+      commentCount: _countOrZero(json['commentCount']),
       shareCount: (json['shareCount'] as num?)?.toInt() ?? 0,
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
