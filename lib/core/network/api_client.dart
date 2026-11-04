@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:tiktok_mobile/core/constants/env.dart';
 import 'package:tiktok_mobile/core/network/api_response.dart';
+import 'package:tiktok_mobile/core/network/device_headers.dart';
 
 const _refreshPath = '/auth/refresh';
 const _retriedAfterRefreshKey = 'retriedAfterRefresh';
@@ -19,7 +20,7 @@ abstract class TokenStorage {
 }
 
 class ApiClient {
-  ApiClient({required this.tokenStorage, Dio? dio})
+  ApiClient({required this.tokenStorage, this.deviceHeaders, Dio? dio})
       : dio = dio ??
             Dio(BaseOptions(
               baseUrl: Env.apiBaseUrl,
@@ -33,6 +34,10 @@ class ApiClient {
 
   final Dio dio;
   final TokenStorage tokenStorage;
+
+  /// Which device this is, on every request — /auth/refresh included, since
+  /// that goes through the same interceptor. Null in tests.
+  final DeviceHeaders? deviceHeaders;
 
   /// Debug builds only, and deliberately narrow: method, path, status and the
   /// server's own error code. No headers and no bodies — the Authorization
@@ -55,6 +60,12 @@ class ApiClient {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
+    final device = await deviceHeaders?.headers;
+    if (device != null) {
+      for (final entry in device.entries) {
+        options.headers.putIfAbsent(entry.key, () => entry.value);
+      }
+    }
     final token = await tokenStorage.readAccessToken();
     if (token != null) {
       options.headers['Authorization'] = 'Bearer $token';

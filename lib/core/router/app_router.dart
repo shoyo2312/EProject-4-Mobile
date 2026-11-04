@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:tiktok_mobile/features/auth/presentation/devices_screen.dart';
 import 'package:tiktok_mobile/features/auth/presentation/add_email_screen.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_options_screen.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
@@ -143,6 +144,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           title: 'Blocked users',
           args: UserListArgs(UserListType.blocked),
         ),
+      ),
+      GoRoute(
+        path: '/me/devices',
+        builder: (_, _) => const DevicesScreen(),
       ),
       GoRoute(
         path: '/me/muted',

@@ -1,5 +1,6 @@
 import 'package:tiktok_mobile/core/network/api_client.dart';
 import 'package:tiktok_mobile/core/network/api_response.dart';
+import 'package:tiktok_mobile/features/auth/data/session_model.dart';
 import 'package:tiktok_mobile/features/auth/data/social_login_response.dart';
 import 'package:tiktok_mobile/features/auth/data/token_response.dart';
 import 'package:tiktok_mobile/features/auth/data/user_model.dart';
@@ -161,6 +162,28 @@ class AuthRemoteDatasource {
       '/auth/reset-password',
       data: {'email': email, 'otp': otp, 'newPassword': newPassword},
     );
+  }
+
+  /// Devices signed in to this account, most recently active first.
+  Future<List<SessionModel>> sessions() async {
+    final response = await _apiClient.get<Map<String, dynamic>>('/auth/sessions');
+    final envelope = ApiResponse<List<SessionModel>>.fromJson(
+      response.data!,
+      (json) => (json as List<dynamic>)
+          .map((e) => SessionModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+    return envelope.data ?? const [];
+  }
+
+  /// Signs one device out: its tokens stop working at once.
+  Future<void> signOutSession(String sessionId) {
+    return _apiClient.delete<void>('/auth/sessions/$sessionId');
+  }
+
+  /// Signs out every device except this one.
+  Future<void> signOutOtherSessions() {
+    return _apiClient.delete<void>('/auth/sessions');
   }
 
   T _unwrap<T>(

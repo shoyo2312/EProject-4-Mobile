@@ -155,6 +155,12 @@ class _MyProfileBody extends ConsumerWidget {
             onTap: () => context.push('/me/muted'),
           ),
           _IconAction(
+            buttonKey: const Key('profile_devices_button'),
+            icon: Icons.devices_outlined,
+            tooltip: 'Devices',
+            onTap: () => context.push('/me/devices'),
+          ),
+          _IconAction(
             buttonKey: const Key('profile_logout_button'),
             icon: Icons.logout,
             tooltip: 'Log out',

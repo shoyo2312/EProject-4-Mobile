@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:tiktok_mobile/core/network/api_client.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/features/auth/data/auth_remote_datasource.dart';
+import 'package:tiktok_mobile/features/auth/data/session_model.dart';
 import 'package:tiktok_mobile/features/auth/data/social_login_response.dart';
 import 'package:tiktok_mobile/features/auth/data/social_sign_in.dart';
 import 'package:tiktok_mobile/features/auth/data/user_model.dart';
@@ -228,5 +229,29 @@ class AuthRepository {
     // "Continue with Google" tap silently signs the same account back in —
     // logging out would look broken.
     await _socialSignIn.signOut();
+  }
+
+  Future<List<SessionModel>> sessions() async {
+    try {
+      return await _remoteDatasource.sessions();
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<void> signOutSession(String sessionId) async {
+    try {
+      await _remoteDatasource.signOutSession(sessionId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<void> signOutOtherSessions() async {
+    try {
+      await _remoteDatasource.signOutOtherSessions();
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
   }
 }

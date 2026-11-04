@@ -23,7 +23,7 @@ final tokenStorageProvider = Provider<TokenStorage>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef TokenStorageRef = ProviderRef<TokenStorage>;
-String _$apiClientHash() => r'f2533016aa578ef11457961ee4d142576074788f';
+String _$apiClientHash() => r'8a5fcd595fefb094ac4ae2c7678486d5caf4ef7f';
 
 /// See also [apiClient].
 @ProviderFor(apiClient)

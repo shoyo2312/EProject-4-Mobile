@@ -4,6 +4,7 @@ import 'package:tiktok_mobile/core/constants/env.dart';
 import 'package:tiktok_mobile/core/network/api_client.dart';
 import 'package:tiktok_mobile/core/widgets/turnstile_sheet.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
+import 'package:tiktok_mobile/core/network/device_headers.dart';
 import 'package:tiktok_mobile/core/network/secure_token_storage.dart';
 import 'package:tiktok_mobile/features/auth/data/auth_remote_datasource.dart';
 import 'package:tiktok_mobile/features/auth/data/auth_repository.dart';
@@ -17,7 +18,10 @@ TokenStorage tokenStorage(Ref ref) => SecureTokenStorage();
 
 @Riverpod(keepAlive: true)
 ApiClient apiClient(Ref ref) =>
-    ApiClient(tokenStorage: ref.watch(tokenStorageProvider));
+    ApiClient(
+      tokenStorage: ref.watch(tokenStorageProvider),
+      deviceHeaders: DeviceHeaders(),
+    );
 
 @Riverpod(keepAlive: true)
 SocialSignIn socialSignIn(Ref ref) => SocialSignIn();
