@@ -23,7 +23,28 @@ final commentRepositoryProvider = Provider<CommentRepository>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef CommentRepositoryRef = ProviderRef<CommentRepository>;
-String _$commentNotifierHash() => r'224205346a1a1d8c850b84ee53d27ea488f95404';
+String _$commentStickerPacksHash() =>
+    r'1d4bed77ce449d390c9796181aed8f64149983de';
+
+/// The sticker catalog for the comment composer — chat-service's catalog,
+/// fetched once per session.
+///
+/// Copied from [commentStickerPacks].
+@ProviderFor(commentStickerPacks)
+final commentStickerPacksProvider = FutureProvider<List<StickerPack>>.internal(
+  commentStickerPacks,
+  name: r'commentStickerPacksProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$commentStickerPacksHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef CommentStickerPacksRef = FutureProviderRef<List<StickerPack>>;
+String _$commentNotifierHash() => r'6944a5746ba628570092ab09f7bb433430e932a1';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -53,16 +74,32 @@ abstract class _$CommentNotifier
   FutureOr<List<CommentModel>> build(String videoId);
 }
 
-/// See also [CommentNotifier].
+/// The top-level comments of one video, newest first. Replies live in
+/// [CommentReplies]; this notifier keeps the two in step (a reply posted or
+/// deleted moves its thread's `replyCount` here).
+///
+/// Copied from [CommentNotifier].
 @ProviderFor(CommentNotifier)
 const commentNotifierProvider = CommentNotifierFamily();
 
-/// See also [CommentNotifier].
+/// The top-level comments of one video, newest first. Replies live in
+/// [CommentReplies]; this notifier keeps the two in step (a reply posted or
+/// deleted moves its thread's `replyCount` here).
+///
+/// Copied from [CommentNotifier].
 class CommentNotifierFamily extends Family<AsyncValue<List<CommentModel>>> {
-  /// See also [CommentNotifier].
+  /// The top-level comments of one video, newest first. Replies live in
+  /// [CommentReplies]; this notifier keeps the two in step (a reply posted or
+  /// deleted moves its thread's `replyCount` here).
+  ///
+  /// Copied from [CommentNotifier].
   const CommentNotifierFamily();
 
-  /// See also [CommentNotifier].
+  /// The top-level comments of one video, newest first. Replies live in
+  /// [CommentReplies]; this notifier keeps the two in step (a reply posted or
+  /// deleted moves its thread's `replyCount` here).
+  ///
+  /// Copied from [CommentNotifier].
   CommentNotifierProvider call(String videoId) {
     return CommentNotifierProvider(videoId);
   }
@@ -89,14 +126,22 @@ class CommentNotifierFamily extends Family<AsyncValue<List<CommentModel>>> {
   String? get name => r'commentNotifierProvider';
 }
 
-/// See also [CommentNotifier].
+/// The top-level comments of one video, newest first. Replies live in
+/// [CommentReplies]; this notifier keeps the two in step (a reply posted or
+/// deleted moves its thread's `replyCount` here).
+///
+/// Copied from [CommentNotifier].
 class CommentNotifierProvider
     extends
         AutoDisposeAsyncNotifierProviderImpl<
           CommentNotifier,
           List<CommentModel>
         > {
-  /// See also [CommentNotifier].
+  /// The top-level comments of one video, newest first. Replies live in
+  /// [CommentReplies]; this notifier keeps the two in step (a reply posted or
+  /// deleted moves its thread's `replyCount` here).
+  ///
+  /// Copied from [CommentNotifier].
   CommentNotifierProvider(String videoId)
     : this._internal(
         () => CommentNotifier()..videoId = videoId,
@@ -185,6 +230,165 @@ class _CommentNotifierProviderElement
 
   @override
   String get videoId => (origin as CommentNotifierProvider).videoId;
+}
+
+String _$commentRepliesHash() => r'71dc5970d42409a30319661b85680ff40f72276f';
+
+abstract class _$CommentReplies
+    extends BuildlessAutoDisposeNotifier<Map<String, ReplyThread>> {
+  late final String videoId;
+
+  Map<String, ReplyThread> build(String videoId);
+}
+
+/// The open reply threads of one video, keyed by top-level comment id. A
+/// thread absent from the map is collapsed.
+///
+/// Copied from [CommentReplies].
+@ProviderFor(CommentReplies)
+const commentRepliesProvider = CommentRepliesFamily();
+
+/// The open reply threads of one video, keyed by top-level comment id. A
+/// thread absent from the map is collapsed.
+///
+/// Copied from [CommentReplies].
+class CommentRepliesFamily extends Family<Map<String, ReplyThread>> {
+  /// The open reply threads of one video, keyed by top-level comment id. A
+  /// thread absent from the map is collapsed.
+  ///
+  /// Copied from [CommentReplies].
+  const CommentRepliesFamily();
+
+  /// The open reply threads of one video, keyed by top-level comment id. A
+  /// thread absent from the map is collapsed.
+  ///
+  /// Copied from [CommentReplies].
+  CommentRepliesProvider call(String videoId) {
+    return CommentRepliesProvider(videoId);
+  }
+
+  @override
+  CommentRepliesProvider getProviderOverride(
+    covariant CommentRepliesProvider provider,
+  ) {
+    return call(provider.videoId);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'commentRepliesProvider';
+}
+
+/// The open reply threads of one video, keyed by top-level comment id. A
+/// thread absent from the map is collapsed.
+///
+/// Copied from [CommentReplies].
+class CommentRepliesProvider
+    extends
+        AutoDisposeNotifierProviderImpl<
+          CommentReplies,
+          Map<String, ReplyThread>
+        > {
+  /// The open reply threads of one video, keyed by top-level comment id. A
+  /// thread absent from the map is collapsed.
+  ///
+  /// Copied from [CommentReplies].
+  CommentRepliesProvider(String videoId)
+    : this._internal(
+        () => CommentReplies()..videoId = videoId,
+        from: commentRepliesProvider,
+        name: r'commentRepliesProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$commentRepliesHash,
+        dependencies: CommentRepliesFamily._dependencies,
+        allTransitiveDependencies:
+            CommentRepliesFamily._allTransitiveDependencies,
+        videoId: videoId,
+      );
+
+  CommentRepliesProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.videoId,
+  }) : super.internal();
+
+  final String videoId;
+
+  @override
+  Map<String, ReplyThread> runNotifierBuild(covariant CommentReplies notifier) {
+    return notifier.build(videoId);
+  }
+
+  @override
+  Override overrideWith(CommentReplies Function() create) {
+    return ProviderOverride(
+      origin: this,
+      override: CommentRepliesProvider._internal(
+        () => create()..videoId = videoId,
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        videoId: videoId,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeNotifierProviderElement<CommentReplies, Map<String, ReplyThread>>
+  createElement() {
+    return _CommentRepliesProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is CommentRepliesProvider && other.videoId == videoId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, videoId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin CommentRepliesRef
+    on AutoDisposeNotifierProviderRef<Map<String, ReplyThread>> {
+  /// The parameter `videoId` of this provider.
+  String get videoId;
+}
+
+class _CommentRepliesProviderElement
+    extends
+        AutoDisposeNotifierProviderElement<
+          CommentReplies,
+          Map<String, ReplyThread>
+        >
+    with CommentRepliesRef {
+  _CommentRepliesProviderElement(super.provider);
+
+  @override
+  String get videoId => (origin as CommentRepliesProvider).videoId;
 }
 
 // ignore_for_file: type=lint

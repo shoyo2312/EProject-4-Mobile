@@ -321,6 +321,28 @@ final storyTrayProvider =
     );
 
 typedef _$StoryTray = AsyncNotifier<List<StoryGroup>>;
+String _$storyRingsHash() => r'2f4080190446646578f7f93610966c78eca5f5c0';
+
+/// Rings for many avatars at once — a comment list — read in one call per
+/// 100 new ids rather than one per avatar. An id mapped to null was asked
+/// about and has no ring; an id absent was never asked about.
+///
+/// Emptied when the session changes: what is visible depends on who asks.
+///
+/// Copied from [StoryRings].
+@ProviderFor(StoryRings)
+final storyRingsProvider =
+    NotifierProvider<StoryRings, Map<String, StoryRing?>>.internal(
+      StoryRings.new,
+      name: r'storyRingsProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$storyRingsHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$StoryRings = Notifier<Map<String, StoryRing?>>;
 String _$storyViewersHash() => r'2423e8bc27d8b6b2b508f801bd5cb196a9a25dde';
 
 abstract class _$StoryViewers
@@ -470,7 +492,7 @@ class _StoryViewersProviderElement
   String get storyId => (origin as StoryViewersProvider).storyId;
 }
 
-String _$storyUploadHash() => r'64e7d447668e56392f21a5c1cae81e214b8ca2e1';
+String _$storyUploadHash() => r'2aa9495279dcd34ec2685991e31136c9af68733f';
 
 /// Kept alive so a switch of tab does not cancel an upload mid-file.
 ///

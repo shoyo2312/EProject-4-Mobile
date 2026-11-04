@@ -710,6 +710,7 @@ class _Rail extends StatelessWidget {
           onTap: () => showCommentSheet(
             context,
             videoId: video.id,
+            videoOwnerId: video.userId,
             totalCount: counts?.commentCount ?? video.commentCount,
             commentsDisabled: video.commentsDisabled,
           ),

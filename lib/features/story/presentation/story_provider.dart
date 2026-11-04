@@ -138,6 +138,63 @@ Future<StoryRing?> storyRing(Ref ref, String userId) async {
   return null;
 }
 
+/// `/stories/rings` takes at most 100 ids per call (story doc §5).
+const _ringIdCap = 100;
+
+/// Rings for many avatars at once — a comment list — read in one call per
+/// 100 new ids rather than one per avatar. An id mapped to null was asked
+/// about and has no ring; an id absent was never asked about.
+///
+/// Emptied when the session changes: what is visible depends on who asks.
+@Riverpod(keepAlive: true)
+class StoryRings extends _$StoryRings {
+  final _inFlight = <String>{};
+
+  @override
+  Map<String, StoryRing?> build() {
+    ref.watch(authStateProvider);
+    _inFlight.clear();
+    return const {};
+  }
+
+  /// Asks about every id not yet known. Throws [AppException] when the
+  /// lookup fails; the ids stay unknown so a later call asks again.
+  Future<void> loadMissing(Iterable<String> userIds) async {
+    final missing = {
+      for (final id in userIds)
+        if (!state.containsKey(id) && !_inFlight.contains(id)) id,
+    }.toList();
+    if (missing.isEmpty) return;
+    _inFlight.addAll(missing);
+    try {
+      for (var i = 0; i < missing.length; i += _ringIdCap) {
+        final chunk = missing.sublist(
+          i,
+          i + _ringIdCap > missing.length ? missing.length : i + _ringIdCap,
+        );
+        final rings = await ref.read(storyRepositoryProvider).rings(chunk);
+        final byId = {for (final ring in rings) ring.userId: ring};
+        state = {...state, for (final id in chunk) id: byId[id]};
+      }
+    } finally {
+      _inFlight.removeAll(missing);
+    }
+  }
+
+  /// Asks again about one account it already knows — its stories were just
+  /// watched (the ring goes grey) or posted. Never throws: on a failed
+  /// lookup the avatar shows no ring rather than a stale one.
+  Future<void> refresh(String userId) async {
+    if (!state.containsKey(userId)) return;
+    state = {...state}..remove(userId);
+    try {
+      await loadMissing([userId]);
+    } on AppException {
+      // No ring until the next lookup.
+    }
+  }
+}
+
 /// One account's live stories, oldest first, as a group the viewer can play
 /// — what a profile avatar opens.
 Future<StoryGroup?> loadUserStoryGroup(Ref ref, String userId) async {
@@ -291,6 +348,7 @@ class StoryUpload extends _$StoryUpload {
       ref.invalidate(storyTrayProvider);
       ref.invalidate(storyRingProvider(story.userId));
       ref.invalidate(userStoryGroupProvider(story.userId));
+      unawaited(ref.read(storyRingsProvider.notifier).refresh(story.userId));
     } on AppException catch (e) {
       if (_disposed || cancelToken.isCancelled) return;
       state = StoryUploadState(

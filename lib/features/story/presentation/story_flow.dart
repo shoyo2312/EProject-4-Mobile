@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -71,6 +73,9 @@ Future<void> openUserStories(
     messenger.showSnackBar(SnackBar(content: Text(storyErrorMessage(e))));
   } finally {
     // Watched stories turn the ring grey.
-    if (context.mounted) ref.invalidate(storyRingProvider(userId));
+    if (context.mounted) {
+      ref.invalidate(storyRingProvider(userId));
+      unawaited(ref.read(storyRingsProvider.notifier).refresh(userId));
+    }
   }
 }

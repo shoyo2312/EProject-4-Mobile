@@ -1,4 +1,5 @@
 import 'package:tiktok_mobile/core/network/api_client.dart';
+import 'package:tiktok_mobile/features/chat/data/chat_model.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_model.dart';
 
 /// One page of `GET /interactions/videos/{videoId}/comments`.
@@ -34,12 +35,33 @@ class CommentRemoteDatasource {
 
   final ApiClient _apiClient;
 
-  Future<CommentPage> fetchComments(String videoId, {String? cursor}) async {
+  /// Top-level comments only, newest first (interaction doc 3.5).
+  Future<CommentPage> fetchComments(String videoId, {String? cursor}) =>
+      _page('/interactions/videos/$videoId/comments', cursor: cursor, size: 20);
+
+  /// One thread's replies, oldest first. Needs a token (interaction doc 3.5b).
+  Future<CommentPage> fetchReplies(
+    String videoId,
+    String parentId, {
+    String? cursor,
+    int size = 10,
+  }) =>
+      _page(
+        '/interactions/videos/$videoId/comments/$parentId/replies',
+        cursor: cursor,
+        size: size,
+      );
+
+  Future<CommentPage> _page(
+    String path, {
+    String? cursor,
+    required int size,
+  }) async {
     final response = await _apiClient.get<Map<String, dynamic>>(
-      '/interactions/videos/$videoId/comments',
+      path,
       queryParameters: {
         'cursor': ?cursor,
-        'size': 20,
+        'size': size,
       },
     );
     final body = response.data!['data'] as Map<String, dynamic>;
@@ -55,12 +77,50 @@ class CommentRemoteDatasource {
 
   /// Not deduplicated server-side — send it once per tap and never retry, or
   /// the comment lands twice (interaction doc 3.4).
-  Future<CommentModel> postComment(String videoId, String text) async {
+  ///
+  /// [parentId] makes it a reply to that comment (top-level or a reply — the
+  /// server flattens it onto the thread). [stickerId] attaches a sticker; with
+  /// one, [text] may be empty.
+  Future<CommentModel> postComment(
+    String videoId,
+    String text, {
+    String? parentId,
+    String? stickerId,
+  }) async {
     final response = await _apiClient.post<Map<String, dynamic>>(
       '/interactions/videos/$videoId/comments',
+      data: {
+        if (text.isNotEmpty) 'content': text,
+        // Snowflake ids go up as numbers, the way the server sends them.
+        if (parentId != null) 'parentId': int.tryParse(parentId) ?? parentId,
+        'stickerId': ?stickerId,
+      },
+    );
+    return CommentModel.fromJson(response.data!['data'] as Map<String, dynamic>);
+  }
+
+  /// The author's own comment only. Answers the updated comment, `editedAt`
+  /// set. The new text is screened like a new comment: text the filters would
+  /// hold is refused with `COMMENT_EDIT_NEEDS_REVIEW` and nothing changes.
+  Future<CommentModel> editComment(
+    String videoId,
+    String commentId,
+    String text,
+  ) async {
+    final response = await _apiClient.patch<Map<String, dynamic>>(
+      '/interactions/videos/$videoId/comments/$commentId',
       data: {'content': text},
     );
     return CommentModel.fromJson(response.data!['data'] as Map<String, dynamic>);
+  }
+
+  /// The sticker catalog chat-service serves; comments use the same stickers.
+  Future<List<StickerPack>> listStickerPacks() async {
+    final response =
+        await _apiClient.get<Map<String, dynamic>>('/conversations/stickers');
+    return (response.data!['data'] as List)
+        .map((e) => StickerPack.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   /// Idempotent, like a video like: liking twice leaves the tally alone.
@@ -86,11 +146,41 @@ class CommentRemoteDatasource {
     );
   }
 
-  /// Own comments only; the video owner cannot remove other people's.
-  /// `videoId` is part of the key, not decoration — a mismatched pair answers
-  /// `COMMENT_NOT_FOUND` (interaction doc 3.6).
+  /// The author's own comment, or any comment on a video the caller owns —
+  /// anything else answers `NOT_COMMENT_OWNER`. `videoId` is part of the key,
+  /// not decoration — a mismatched pair answers `COMMENT_NOT_FOUND`
+  /// (interaction doc 3.6).
   Future<void> deleteComment(String videoId, String commentId) {
     return _apiClient
         .delete<void>('/interactions/videos/$videoId/comments/$commentId');
+  }
+
+  /// Admin only (ROLE_ADMIN, else 403). Goes through admin-service so the
+  /// removal is audited with its [reason] and counted as a strike against the
+  /// author; interaction-service deletes the comment when the event arrives.
+  Future<void> removeCommentAsAdmin(
+    String videoId,
+    String commentId,
+    String reason,
+  ) {
+    return _apiClient.post<void>(
+      '/admin/comments/$videoId/$commentId/remove',
+      data: {'reason': reason},
+    );
+  }
+
+  /// Open to any signed-in user. A comment is identified by the
+  /// `videoId:commentId` pair — the comment id alone reaches nothing. Reporting
+  /// the same comment again while the first report is pending answers with that
+  /// report rather than an error.
+  Future<void> reportComment(String videoId, String commentId, String reason) {
+    return _apiClient.post<void>(
+      '/admin/reports',
+      data: {
+        'targetType': 'COMMENT',
+        'targetId': '$videoId:$commentId',
+        'reason': reason,
+      },
+    );
   }
 }

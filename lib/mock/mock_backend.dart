@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
 import 'package:tiktok_mobile/features/auth/data/user_model.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
@@ -36,6 +37,7 @@ import 'package:tiktok_mobile/features/story/data/story_model.dart';
 import 'package:tiktok_mobile/features/story/data/story_remote_datasource.dart';
 import 'package:tiktok_mobile/features/story/data/story_repository.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_provider.dart';
+import 'package:tiktok_mobile/features/user/data/comment_filter_settings.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/data/user_remote_datasource.dart';
 import 'package:tiktok_mobile/features/user/data/user_repository.dart';
@@ -469,8 +471,11 @@ CommentModel _comment(String videoId, int index) {
     text: seed?.text ?? _texts[(index * 7) % _texts.length],
     createdAt: DateTime(2026, 8, 14, 11)
         .subtract(Duration(hours: seed?.hoursAgo ?? index * 3)),
+    replyCount: index == 0 ? _mockReplyCount : 0,
   );
 }
+
+const _mockReplyCount = 2;
 
 /// Cursor is just the offset — 20 comments a page, up to the video's total.
 CommentPage _commentPage(String videoId, String? cursor) {
@@ -725,6 +730,7 @@ class _MockFeedRepository extends FeedRepository {
     String? description,
     required VideoVisibility visibility,
     List<String> tags = const [],
+    bool commentsDisabled = false,
     void Function(int sent, int total)? onProgress,
     CancelToken? cancelToken,
   }) async {
@@ -739,6 +745,7 @@ class _MockFeedRepository extends FeedRepository {
       description: description,
       status: VideoStatus.processing,
       visibility: visibility,
+      commentsDisabled: commentsDisabled,
       viewCount: 0,
       likeCount: 0,
       commentCount: 0,
@@ -750,7 +757,11 @@ class _MockFeedRepository extends FeedRepository {
 
   @override
   Future<VideoModel> getVideo(String videoId) async {
-    final video = _live.firstWhere((v) => v.id == videoId);
+    final video = _live.where((v) => v.id == videoId).firstOrNull;
+    if (video == null) {
+      throw const ServerException(404, 'Video not found',
+          code: 'VIDEO_NOT_FOUND');
+    }
     if (video.status != VideoStatus.processing) return video;
     // Transcoding "finishes" on the first poll.
     final published = video.copyWith(
@@ -814,6 +825,30 @@ class _MockUserRepository extends UserRepository {
   _MockUserRepository(super.remoteDatasource);
 
   UserProfileModel _mine = _profiles[_meId]!;
+
+  CommentFilterSettings _filters = const CommentFilterSettings();
+
+  @override
+  Future<CommentFilterSettings> getCommentFilters() async {
+    await _latency();
+    return _filters;
+  }
+
+  @override
+  Future<CommentFilterSettings> updateCommentFilters(
+    Map<String, dynamic> changes,
+  ) async {
+    await _latency();
+    _filters = _filters.copyWith(
+      filterSpamOffensive: changes['filterSpamOffensive'] as bool? ??
+          _filters.filterSpamOffensive,
+      filterAllComments:
+          changes['filterAllComments'] as bool? ?? _filters.filterAllComments,
+      commentKeywords: changes['commentKeywords'] as List<String>? ??
+          _filters.commentKeywords,
+    );
+    return _filters;
+  }
 
   @override
   Future<UserProfileModel> getMyProfile() async {
@@ -927,17 +962,78 @@ class _MockCommentRepository extends CommentRepository {
     return _commentPage(videoId, cursor);
   }
 
+  /// Two replies under the first comment of every video, enough to open a
+  /// thread offline.
   @override
-  Future<CommentModel> postComment(String videoId, String text) async {
+  Future<CommentPage> fetchReplies(
+    String videoId,
+    String parentId, {
+    String? cursor,
+  }) async {
     await _latency();
+    final items = parentId == '$videoId-c0' && cursor == null
+        ? [
+            for (var i = 0; i < _mockReplyCount; i++)
+              CommentModel(
+                id: '$parentId-r$i',
+                videoId: videoId,
+                userId: '${7200 + i}',
+                text: _texts[(i * 5) % _texts.length],
+                parentId: parentId,
+                createdAt: DateTime(2026, 8, 14, 12 + i),
+              ),
+          ]
+        : <CommentModel>[];
+    return CommentPage(items: items, hasMore: false, nextCursor: null);
+  }
+
+  @override
+  Future<CommentModel> postComment(
+    String videoId,
+    String text, {
+    String? parentId,
+    String? stickerId,
+  }) async {
+    await _latency();
+    // The server flattens a reply to a reply onto its thread.
+    final threadId = parentId?.replaceFirst(RegExp(r'-r\d+$'), '');
     return CommentModel(
       id: '$videoId-new-${DateTime.now().microsecondsSinceEpoch}',
       videoId: videoId,
       userId: _meId,
       text: text,
+      parentId: threadId,
+      sticker: stickerId == null
+          ? null
+          : CommentSticker(
+              stickerId: stickerId,
+              url: 'https://picsum.photos/seed/$stickerId/160',
+              width: 160,
+              height: 160,
+            ),
       createdAt: DateTime.now(),
     );
   }
+
+  @override
+  Future<CommentModel> editComment(
+    String videoId,
+    String commentId,
+    String text,
+  ) async {
+    await _latency();
+    return CommentModel(
+      id: commentId,
+      videoId: videoId,
+      userId: _meId,
+      text: text,
+      createdAt: DateTime.now(),
+      editedAt: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<List<StickerPack>> listStickerPacks() async => const [];
 
   /// The offline catalogue's comments all start at zero likes, so the tally
   /// after one tap is exactly one.
@@ -958,6 +1054,22 @@ class _MockCommentRepository extends CommentRepository {
 
   @override
   Future<void> deleteComment(String videoId, String commentId) => _latency();
+
+  @override
+  Future<void> removeCommentAsAdmin(
+    String videoId,
+    String commentId,
+    String reason,
+  ) =>
+      _latency();
+
+  @override
+  Future<void> reportComment(
+    String videoId,
+    String commentId,
+    String reason,
+  ) =>
+      _latency();
 }
 
 
