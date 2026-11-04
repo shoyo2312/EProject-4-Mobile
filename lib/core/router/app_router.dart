@@ -18,6 +18,7 @@ import 'package:tiktok_mobile/features/shell/presentation/home_shell.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_composer_screen.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_provider.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_viewer_screen.dart';
+import 'package:tiktok_mobile/features/feed/presentation/video_link_screen.dart';
 import 'package:tiktok_mobile/features/user/presentation/comment_filters_screen.dart';
 import 'package:tiktok_mobile/features/user/presentation/edit_profile_screen.dart';
 import 'package:tiktok_mobile/features/user/presentation/profile_screen.dart';
@@ -95,6 +96,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // The five tabs (feed, discover, create, inbox, you) live behind one
       // route — the nav bar switches an IndexedStack, it does not navigate.
       GoRoute(path: '/feed', builder: (_, _) => const HomeShell()),
+      // One video by id; `?comments=1` opens its comment sheet on arrival
+      // (a comment notification).
+      GoRoute(
+        path: '/video/:videoId',
+        builder: (_, state) => VideoLinkScreen(
+          videoId: state.pathParameters['videoId']!,
+          openComments: state.uri.queryParameters['comments'] == '1',
+        ),
+      ),
       // Both carry an object, not ids in the path: the composer needs the
       // picked file, the viewer the groups already loaded. Without one (an
       // app restart, a stray deep link) there is nothing to show.

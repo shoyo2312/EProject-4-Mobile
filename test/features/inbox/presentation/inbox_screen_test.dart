@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:tiktok_mobile/features/auth/data/user_model.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
@@ -124,5 +125,42 @@ void main() {
 
     expect(find.text('Sign in to see your notifications'), findsOneWidget);
     verifyNever(() => repository.list());
+  });
+
+  testWidgets('a comment notification opens its video with comments',
+      (tester) async {
+    when(() => repository.list()).thenAnswer((_) async => [
+          row('n1', type: NotificationKind.comment, title: 'New comment')
+              .copyWith(referenceId: 'v9'),
+        ]);
+    when(() => repository.markRead('n1')).thenAnswer((_) async {});
+    final router = GoRouter(routes: [
+      GoRoute(
+        path: '/',
+        builder: (_, _) => const Scaffold(body: InboxScreen()),
+      ),
+      GoRoute(
+        path: '/video/:videoId',
+        builder: (_, state) => Text(
+          'video ${state.pathParameters['videoId']} '
+          'comments=${state.uri.queryParameters['comments']}',
+        ),
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateProvider.overrideWith(_SignedInAuthState.new),
+          notificationRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('inbox_row_n1')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('video v9 comments=1'), findsOneWidget);
   });
 }

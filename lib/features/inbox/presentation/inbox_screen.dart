@@ -52,10 +52,9 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     }
   }
 
-  /// Tapping a row clears its dot, and takes a follow notification to the
-  /// follower's profile. The other types carry a videoId or a commentId in
-  /// `referenceId` — opaque to the service and not yet produced by anything —
-  /// so there is nothing to open without guessing which one it is.
+  /// Tapping a row clears its dot and opens what it is about: a follower's
+  /// profile, a story owner's stories, or — for a comment or a reply, whose
+  /// `referenceId` is the videoId — that video with its comments open.
   Future<void> _open(NotificationModel notification) async {
     if (notification.type == NotificationKind.newFollower &&
         notification.referenceId != null) {
@@ -65,6 +64,9 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
       // The owner's stories, fetched fresh: the one announced may have
       // expired, been deleted, or been joined by newer ones.
       unawaited(openUserStories(context, ref, notification.referenceId!));
+    } else if (notification.type == NotificationKind.comment &&
+        notification.referenceId != null) {
+      context.push('/video/${notification.referenceId}?comments=1');
     }
     try {
       await ref.read(inboxProvider.notifier).markRead(notification.id);

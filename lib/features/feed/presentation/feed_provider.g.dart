@@ -23,24 +23,7 @@ final feedRepositoryProvider = Provider<FeedRepository>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef FeedRepositoryRef = ProviderRef<FeedRepository>;
-String _$feedNotifierHash() => r'1494ba7e20f2376f9cfad561612e1834aced500d';
-
-/// See also [FeedNotifier].
-@ProviderFor(FeedNotifier)
-final feedNotifierProvider =
-    AutoDisposeAsyncNotifierProvider<FeedNotifier, List<VideoModel>>.internal(
-      FeedNotifier.new,
-      name: r'feedNotifierProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$feedNotifierHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
-
-typedef _$FeedNotifier = AutoDisposeAsyncNotifier<List<VideoModel>>;
-String _$userVideosNotifierHash() =>
-    r'e7067b0dfefcb268b2009222e5bb27fb8deb4d60';
+String _$videoByIdHash() => r'f9b47f40726f7559e510d93a1ec33eef0b7c8d58';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -62,6 +45,158 @@ class _SystemHash {
     return 0x1fffffff & (hash + ((0x00003fff & hash) << 15));
   }
 }
+
+/// One video by id, for a link that names nothing else — a notification
+/// about a comment on it, say.
+///
+/// Copied from [videoById].
+@ProviderFor(videoById)
+const videoByIdProvider = VideoByIdFamily();
+
+/// One video by id, for a link that names nothing else — a notification
+/// about a comment on it, say.
+///
+/// Copied from [videoById].
+class VideoByIdFamily extends Family<AsyncValue<VideoModel>> {
+  /// One video by id, for a link that names nothing else — a notification
+  /// about a comment on it, say.
+  ///
+  /// Copied from [videoById].
+  const VideoByIdFamily();
+
+  /// One video by id, for a link that names nothing else — a notification
+  /// about a comment on it, say.
+  ///
+  /// Copied from [videoById].
+  VideoByIdProvider call(String videoId) {
+    return VideoByIdProvider(videoId);
+  }
+
+  @override
+  VideoByIdProvider getProviderOverride(covariant VideoByIdProvider provider) {
+    return call(provider.videoId);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'videoByIdProvider';
+}
+
+/// One video by id, for a link that names nothing else — a notification
+/// about a comment on it, say.
+///
+/// Copied from [videoById].
+class VideoByIdProvider extends AutoDisposeFutureProvider<VideoModel> {
+  /// One video by id, for a link that names nothing else — a notification
+  /// about a comment on it, say.
+  ///
+  /// Copied from [videoById].
+  VideoByIdProvider(String videoId)
+    : this._internal(
+        (ref) => videoById(ref as VideoByIdRef, videoId),
+        from: videoByIdProvider,
+        name: r'videoByIdProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$videoByIdHash,
+        dependencies: VideoByIdFamily._dependencies,
+        allTransitiveDependencies: VideoByIdFamily._allTransitiveDependencies,
+        videoId: videoId,
+      );
+
+  VideoByIdProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.videoId,
+  }) : super.internal();
+
+  final String videoId;
+
+  @override
+  Override overrideWith(
+    FutureOr<VideoModel> Function(VideoByIdRef provider) create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: VideoByIdProvider._internal(
+        (ref) => create(ref as VideoByIdRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        videoId: videoId,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeFutureProviderElement<VideoModel> createElement() {
+    return _VideoByIdProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is VideoByIdProvider && other.videoId == videoId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, videoId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin VideoByIdRef on AutoDisposeFutureProviderRef<VideoModel> {
+  /// The parameter `videoId` of this provider.
+  String get videoId;
+}
+
+class _VideoByIdProviderElement
+    extends AutoDisposeFutureProviderElement<VideoModel>
+    with VideoByIdRef {
+  _VideoByIdProviderElement(super.provider);
+
+  @override
+  String get videoId => (origin as VideoByIdProvider).videoId;
+}
+
+String _$feedNotifierHash() => r'1494ba7e20f2376f9cfad561612e1834aced500d';
+
+/// See also [FeedNotifier].
+@ProviderFor(FeedNotifier)
+final feedNotifierProvider =
+    AutoDisposeAsyncNotifierProvider<FeedNotifier, List<VideoModel>>.internal(
+      FeedNotifier.new,
+      name: r'feedNotifierProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$feedNotifierHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$FeedNotifier = AutoDisposeAsyncNotifier<List<VideoModel>>;
+String _$userVideosNotifierHash() =>
+    r'e7067b0dfefcb268b2009222e5bb27fb8deb4d60';
 
 abstract class _$UserVideosNotifier
     extends BuildlessAutoDisposeAsyncNotifier<List<VideoModel>> {

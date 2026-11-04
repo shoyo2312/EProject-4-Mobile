@@ -320,3 +320,9 @@ class FriendsFeedNotifier extends _$FriendsFeedNotifier with _AuthorFeed {
     ];
   }
 }
+
+/// One video by id, for a link that names nothing else — a notification
+/// about a comment on it, say.
+@riverpod
+Future<VideoModel> videoById(Ref ref, String videoId) =>
+    ref.read(feedRepositoryProvider).getVideo(videoId);
