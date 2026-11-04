@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
+import 'package:tiktok_mobile/features/create/data/video_edit.dart';
 import 'package:tiktok_mobile/features/create/presentation/upload_provider.dart';
 import 'package:tiktok_mobile/features/feed/data/feed_repository.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
@@ -147,6 +148,44 @@ void main() {
           visibility: any(named: 'visibility'),
           tags: any(named: 'tags'),
           commentsDisabled: true,
+          onProgress: any(named: 'onProgress'),
+          cancelToken: any(named: 'cancelToken'),
+        )).called(1);
+  });
+
+  test("the editor's trim and speed reach the repository", () async {
+    const edit = VideoEdit(segments: [EditSegment(start: 1, end: 4, speed: 0.5)]);
+    when(() => repository.uploadAndPublish(
+          file: any(named: 'file'),
+          contentType: any(named: 'contentType'),
+          title: any(named: 'title'),
+          description: any(named: 'description'),
+          visibility: any(named: 'visibility'),
+          tags: any(named: 'tags'),
+          commentsDisabled: any(named: 'commentsDisabled'),
+          edit: any(named: 'edit'),
+          onProgress: any(named: 'onProgress'),
+          cancelToken: any(named: 'cancelToken'),
+        )).thenAnswer((_) async => video(VideoStatus.published));
+    when(() => repository.getVideo('v1'))
+        .thenAnswer((_) async => video(VideoStatus.published));
+
+    await notifier().start(
+      file: FakeFile(),
+      title: 'clip',
+      visibility: VideoVisibility.public,
+      edit: edit,
+    );
+
+    verify(() => repository.uploadAndPublish(
+          file: any(named: 'file'),
+          contentType: any(named: 'contentType'),
+          title: any(named: 'title'),
+          description: any(named: 'description'),
+          visibility: any(named: 'visibility'),
+          tags: any(named: 'tags'),
+          commentsDisabled: any(named: 'commentsDisabled'),
+          edit: edit,
           onProgress: any(named: 'onProgress'),
           cancelToken: any(named: 'cancelToken'),
         )).called(1);

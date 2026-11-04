@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:tiktok_mobile/core/network/api_client.dart';
+import 'package:tiktok_mobile/features/create/data/video_edit.dart';
 import 'package:tiktok_mobile/features/feed/data/feed_remote_datasource.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 
@@ -81,6 +82,39 @@ void main() {
     expect(created.commentsDisabled, isTrue);
     // The server hides the total while comments are off.
     expect(created.commentCount, 0);
+  });
+
+  test("the editor's trim and speed go out as the edit recipe", () async {
+    await datasource.publish(
+      title: 'clip',
+      rawFileUrl: 's3://video-media/raw/1/clip.mp4',
+      visibility: VideoVisibility.public,
+      edit: const VideoEdit(segments: [
+        EditSegment(start: 1.5, end: 6, speed: 2),
+      ]),
+    );
+
+    // Through JSON, as on the wire: what the server reads is the encoded body.
+    final body = jsonDecode(jsonEncode(adapter.lastRequest?.data))
+        as Map<String, dynamic>;
+    expect(body['edit'], {
+      'segments': [
+        {'start': 1.5, 'end': 6.0, 'speed': 2.0},
+      ],
+    });
+  });
+
+  test('an unedited clip sends no edit at all', () async {
+    await datasource.publish(
+      title: 'clip',
+      rawFileUrl: 's3://video-media/raw/1/clip.mp4',
+      visibility: VideoVisibility.public,
+    );
+
+    expect(
+      (adapter.lastRequest?.data as Map<String, dynamic>).containsKey('edit'),
+      isFalse,
+    );
   });
 
   test('comments on sends no flag at all, as before', () async {

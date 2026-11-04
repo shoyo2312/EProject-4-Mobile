@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
+import 'package:tiktok_mobile/features/create/data/video_edit.dart';
 import 'package:tiktok_mobile/features/feed/data/feed_remote_datasource.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 
@@ -22,6 +23,7 @@ class FeedRepository {
     required VideoVisibility visibility,
     List<String> tags = const [],
     bool commentsDisabled = false,
+    VideoEdit? edit,
     void Function(int sent, int total)? onProgress,
     CancelToken? cancelToken,
   }) async {
@@ -41,6 +43,7 @@ class FeedRepository {
         visibility: visibility,
         tags: tags,
         commentsDisabled: commentsDisabled,
+        edit: edit,
       );
     } on DioException catch (e) {
       throw AppException.fromDioException(e);

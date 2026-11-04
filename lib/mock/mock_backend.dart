@@ -18,6 +18,7 @@ import 'package:tiktok_mobile/features/comment/data/comment_model.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_remote_datasource.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_repository.dart';
 import 'package:tiktok_mobile/features/comment/presentation/comment_provider.dart';
+import 'package:tiktok_mobile/features/create/data/video_edit.dart';
 import 'package:tiktok_mobile/features/feed/data/feed_remote_datasource.dart';
 import 'package:tiktok_mobile/features/feed/data/feed_repository.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
@@ -731,6 +732,7 @@ class _MockFeedRepository extends FeedRepository {
     required VideoVisibility visibility,
     List<String> tags = const [],
     bool commentsDisabled = false,
+    VideoEdit? edit,
     void Function(int sent, int total)? onProgress,
     CancelToken? cancelToken,
   }) async {

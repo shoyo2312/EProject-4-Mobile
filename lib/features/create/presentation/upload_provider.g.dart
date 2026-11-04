@@ -6,7 +6,7 @@ part of 'upload_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$uploadNotifierHash() => r'bacfadef3294c38d013c2b517a8352c667c89083';
+String _$uploadNotifierHash() => r'5512e4fcdfe2de84d8d1dde8867ccd73cdd22699';
 
 /// Kept alive: an upload has to survive the user switching tabs while the
 /// bytes are going up — a dropped notifier would cancel the request mid-file.

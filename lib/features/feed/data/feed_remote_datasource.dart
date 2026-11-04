@@ -5,6 +5,7 @@ import 'package:tiktok_mobile/core/network/api_client.dart';
 import 'package:tiktok_mobile/core/network/api_response.dart';
 import 'package:tiktok_mobile/core/network/media_url.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
+import 'package:tiktok_mobile/features/create/data/video_edit.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 
 /// The string video-service wants on the wire. `unknown` only ever comes back
@@ -134,6 +135,7 @@ class FeedRemoteDatasource {
     required VideoVisibility visibility,
     List<String> tags = const [],
     bool commentsDisabled = false,
+    VideoEdit? edit,
   }) async {
     final response = await _apiClient.post<Map<String, dynamic>>(
       '/videos',
@@ -147,6 +149,14 @@ class FeedRemoteDatasource {
         // Off from the first second, rather than a PATCH after the create
         // that leaves the video open meanwhile (video doc 3.2).
         if (commentsDisabled) 'commentsDisabled': true,
+        // Trim and speed from the editor, which media-worker cuts the stored
+        // video with. Absent means the upload plays as recorded (video doc 3.2).
+        if (edit != null)
+          'edit': {
+            'segments': [
+              for (final segment in edit.segments) segment.toJson(),
+            ],
+          },
       },
     );
     final envelope = ApiResponse<VideoModel>.fromJson(

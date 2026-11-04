@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
+import 'package:tiktok_mobile/features/create/data/video_edit.dart';
 import 'package:tiktok_mobile/features/create/presentation/upload_provider.dart';
 import 'package:tiktok_mobile/features/create/presentation/video_preview_screen.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
@@ -16,16 +17,24 @@ import 'package:video_player/video_player.dart';
 ///
 /// Resolves `true` once the post is up — the caller's cue to leave the camera
 /// and show the profile — and `null` if the poster backed out.
-Future<bool?> showPostDetails(BuildContext context, {required File file}) {
+Future<bool?> showPostDetails(
+  BuildContext context, {
+  required File file,
+  VideoEdit? edit,
+}) {
   return Navigator.of(context).push<bool>(
-    MaterialPageRoute(builder: (_) => PostDetailsScreen(file: file)),
+    MaterialPageRoute(builder: (_) => PostDetailsScreen(file: file, edit: edit)),
   );
 }
 
 class PostDetailsScreen extends ConsumerStatefulWidget {
-  const PostDetailsScreen({super.key, required this.file});
+  const PostDetailsScreen({super.key, required this.file, this.edit});
 
   final File file;
+
+  /// Trim and speed from the editor, sent with the post. Null when the clip
+  /// was not edited.
+  final VideoEdit? edit;
 
   @override
   ConsumerState<PostDetailsScreen> createState() => _PostDetailsScreenState();
@@ -69,6 +78,7 @@ class _PostDetailsScreenState extends ConsumerState<PostDetailsScreen> {
           visibility: _visibility,
           tags: _tagList,
           commentsDisabled: !_allowComments,
+          edit: widget.edit,
         ));
   }
 
@@ -131,7 +141,7 @@ class _PostDetailsScreenState extends ConsumerState<PostDetailsScreen> {
                     children: [
                       GestureDetector(
                         key: const Key('post_thumbnail'),
-                        onTap: () => showVideoReview(context, file: widget.file),
+                        onTap: () => showVideoReview(context, file: widget.file, edit: widget.edit),
                         child: _VideoThumb(file: widget.file),
                       ),
                       const SizedBox(width: 12),
