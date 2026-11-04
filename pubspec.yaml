@@ -82,6 +82,10 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  assets:
+    # Story reactions: Fluent 3D Emoji (MIT), pinned to the commit chat stickers use.
+    - assets/reactions/
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

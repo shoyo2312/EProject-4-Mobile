@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
@@ -10,6 +12,7 @@ import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
 import 'package:tiktok_mobile/features/story/data/story_model.dart';
+import 'package:tiktok_mobile/features/story/presentation/floating_reactions.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_provider.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_viewers_sheet.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
@@ -156,6 +159,7 @@ class _GroupPlayerState extends ConsumerState<_GroupPlayer>
 
   final _reply = TextEditingController();
   final _replyFocus = FocusNode();
+  final _floats = GlobalKey<FloatingReactionsState>();
 
   /// One id per attempt at one text: a retry after a lost response is the
   /// same message, not a second.
@@ -199,12 +203,24 @@ class _GroupPlayerState extends ConsumerState<_GroupPlayer>
     if (_index >= widget.group.stories.length) {
       _index = widget.group.stories.length - 1;
     }
-    if (!oldWidget.active && widget.active) _onShownLater();
+    if (!oldWidget.active && widget.active) {
+      _onShownLater();
+      _replayReactions();
+    }
     _syncPlayback();
+  }
+
+  /// Leaving the viewer before the taps settled still sends them. Here and
+  /// not in dispose: ref is gone by then.
+  @override
+  void deactivate() {
+    if (_reactionPending != null) _flushReaction();
+    super.deactivate();
   }
 
   @override
   void dispose() {
+    _reactionTimer?.cancel();
     _progress.dispose();
     _reply.dispose();
     _replyFocus.dispose();
@@ -241,6 +257,24 @@ class _GroupPlayerState extends ConsumerState<_GroupPlayer>
     _progress.duration = length;
     _ready = true;
     _syncPlayback();
+    _replayReactions();
+  }
+
+  /// The story [_replayReactions] last played, so going back to it or a
+  /// rebuild does not send the same reactions up again.
+  String? _replayedFor;
+
+  /// The owner's own story, on screen and loaded: what everyone gave it
+  /// rises over it, the way a viewer's tap does.
+  void _replayReactions() {
+    if (!widget.active || !_ready || !_isOwn) return;
+    final story = _story;
+    final counts = story.reactionCounts;
+    if (counts == null || counts.isEmpty || _replayedFor == story.id) return;
+    _replayedFor = story.id;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _floats.currentState?.replay(counts);
+    });
   }
 
   void _syncPlayback() {
@@ -398,26 +432,70 @@ class _GroupPlayerState extends ConsumerState<_GroupPlayer>
   // ---- Viewer actions -------------------------------------------------------
 
   /// Tapping the reaction already chosen takes it back.
-  Future<void> _react(StoryReaction reaction) async {
+  ///
+  /// The screen follows every tap at once; the server hears only where the
+  /// taps ended up, [_reactionSettle] after the last one — someone tapping
+  /// away at the bar to watch the emoji fly is one request, not twenty.
+  void _react(StoryReaction reaction) {
     if (ref.read(authStateProvider).valueOrNull == null) {
       context.push('/login');
       return;
     }
     final story = _story;
-    final before = story.myReaction;
-    final next = before == reaction ? null : reaction;
+    if (_reactionPending?.storyId != story.id) _flushReaction();
+    final pending = _reactionPending;
+    // Two taps in one frame both have to see the first: the group may not
+    // have been rebuilt in between, the pending target has.
+    final current = pending != null ? pending.target : story.myReaction;
+    final next = current == reaction ? null : reaction;
+    _reactionPending = (
+      storyId: story.id,
+      confirmed: pending != null ? pending.confirmed : story.myReaction,
+      target: next,
+    );
     _replaceStory(story.copyWith(myReaction: next, viewedByMe: true));
+    _reactionTimer?.cancel();
+    _reactionTimer = Timer(_reactionSettle, _flushReaction);
+  }
+
+  static const _reactionSettle = Duration(milliseconds: 400);
+  Timer? _reactionTimer;
+
+  /// The story with taps not yet sent: what the server holds for it, and
+  /// where the taps have got to. Kept here rather than read back from the
+  /// group, which the parent may not have rebuilt yet when the timer fires.
+  ({String storyId, StoryReaction? confirmed, StoryReaction? target})?
+      _reactionPending;
+
+  /// Sends where the taps ended up, if that is not where they started. A
+  /// refusal puts the bar back to what the server has.
+  Future<void> _flushReaction() async {
+    _reactionTimer?.cancel();
+    _reactionTimer = null;
+    final pending = _reactionPending;
+    _reactionPending = null;
+    if (pending == null) return;
+    StoryModel? find() =>
+        widget.group.stories.where((s) => s.id == pending.storyId).firstOrNull;
+    final target = pending.target;
+    if (target == pending.confirmed) return;
+    final storyId = pending.storyId;
+
+    final repo = ref.read(storyRepositoryProvider);
+    final tray = ref.exists(storyTrayProvider)
+        ? ref.read(storyTrayProvider.notifier)
+        : null;
     try {
-      final repo = ref.read(storyRepositoryProvider);
-      next == null
-          ? await repo.clearReaction(story.id)
-          : await repo.setReaction(story.id, next);
-      if (ref.exists(storyTrayProvider)) {
-        ref.read(storyTrayProvider.notifier).setReaction(story.id, next);
-      }
+      target == null
+          ? await repo.clearReaction(storyId)
+          : await repo.setReaction(storyId, target);
+      tray?.setReaction(storyId, target);
     } on AppException catch (e) {
       if (!mounted) return;
-      _replaceStory(story.copyWith(myReaction: before));
+      final current = find();
+      if (current != null) {
+        _replaceStory(current.copyWith(myReaction: pending.confirmed));
+      }
       _toast(storyErrorMessage(e));
     }
   }
@@ -570,10 +648,15 @@ class _GroupPlayerState extends ConsumerState<_GroupPlayer>
                 const SizedBox(height: 14),
               ],
               if (isOwn)
-                _OwnerFooter(story: story, onViewers: _openViewers)
+                _OwnerFooter(
+                  story: story,
+                  floats: _floats,
+                  onViewers: _openViewers,
+                )
               else if (signedIn)
                 _ViewerFooter(
                   story: story,
+                  floats: _floats,
                   reply: _reply,
                   replyFocus: _replyFocus,
                   sending: _sending,
@@ -796,9 +879,16 @@ class _ProgressBars extends StatelessWidget {
 
 /// Status, views and reactions — only the owner gets these numbers.
 class _OwnerFooter extends StatelessWidget {
-  const _OwnerFooter({required this.story, required this.onViewers});
+  const _OwnerFooter({
+    required this.story,
+    required this.floats,
+    required this.onViewers,
+  });
 
   final StoryModel story;
+
+  /// What the story was given rises out of here when it opens.
+  final GlobalKey<FloatingReactionsState> floats;
   final VoidCallback onViewers;
 
   @override
@@ -811,66 +901,75 @@ class _OwnerFooter extends StatelessWidget {
       _ => null,
     };
     final reactions = story.reactionCounts ?? const {};
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (notice != null) ...[
-          Glass(
-            key: const Key('story_status_notice'),
-            radius: 12,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            child: Row(
-              children: [
-                Icon(
-                  story.status == StoryStatus.rejected
-                      ? Icons.block
-                      : Icons.hourglass_top,
-                  size: 15,
-                  color: story.status == StoryStatus.rejected
-                      ? NowaColors.danger
-                      : NowaColors.supportInk,
-                ),
-                const SizedBox(width: 8),
-                Expanded(child: Text(notice, style: work(size: 12.5))),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-        ],
-        Row(
-          children: [
-            GestureDetector(
-              key: const Key('story_viewers_button'),
-              onTap: onViewers,
-              child: Glass(
-                radius: 14,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                child: Row(
-                  children: [
-                    const Icon(Icons.visibility_outlined, size: 16),
-                    const SizedBox(width: 7),
-                    Text(
-                      '${story.viewCount ?? 0} ${story.viewCount == 1 ? 'view' : 'views'}',
-                      style: sora(size: 12.5),
-                    ),
-                  ],
-                ),
+    return FloatingReactions(
+      key: floats,
+      rise: 340,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (notice != null) ...[
+            Glass(
+              key: const Key('story_status_notice'),
+              radius: 12,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              child: Row(
+                children: [
+                  Icon(
+                    story.status == StoryStatus.rejected
+                        ? Icons.block
+                        : Icons.hourglass_top,
+                    size: 15,
+                    color: story.status == StoryStatus.rejected
+                        ? NowaColors.danger
+                        : NowaColors.supportInk,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(notice, style: work(size: 12.5))),
+                ],
               ),
             ),
-            const SizedBox(width: 10),
-            for (final entry in reactions.entries)
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: Text(
-                  '${entry.key.emoji} ${entry.value}',
-                  style: sora(size: 12.5),
-                ),
-              ),
+            const SizedBox(height: 10),
           ],
-        ),
-      ],
+          Row(
+            children: [
+              GestureDetector(
+                key: const Key('story_viewers_button'),
+                onTap: onViewers,
+                child: Glass(
+                  radius: 14,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.visibility_outlined, size: 16),
+                      const SizedBox(width: 7),
+                      Text(
+                        '${story.viewCount ?? 0} ${story.viewCount == 1 ? 'view' : 'views'}',
+                        style: sora(size: 12.5),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              for (final entry in reactions.entries)
+                Padding(
+                  key: Key('story_reaction_count_${entry.key.name}'),
+                  padding: const EdgeInsets.only(right: 10),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ReactionIcon(reaction: entry.key, size: 20),
+                      const SizedBox(width: 4),
+                      Text('${entry.value}', style: sora(size: 12.5)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -879,6 +978,7 @@ class _OwnerFooter extends StatelessWidget {
 class _ViewerFooter extends StatelessWidget {
   const _ViewerFooter({
     required this.story,
+    required this.floats,
     required this.reply,
     required this.replyFocus,
     required this.sending,
@@ -888,6 +988,7 @@ class _ViewerFooter extends StatelessWidget {
   });
 
   final StoryModel story;
+  final GlobalKey<FloatingReactionsState> floats;
   final TextEditingController reply;
   final FocusNode replyFocus;
   final bool sending;
@@ -903,37 +1004,54 @@ class _ViewerFooter extends StatelessWidget {
     StoryReaction.sad,
   ];
 
+  /// Every tap sends the emoji flying, choosing or taking back alike: it is
+  /// the acknowledgement either way.
+  Widget _reactionButton(StoryReaction reaction) => Builder(
+        builder: (button) => GestureDetector(
+          key: Key('story_reaction_${reaction.name}'),
+          onTap: () {
+            final box = button.findRenderObject() as RenderBox?;
+            if (box != null && box.hasSize) {
+              floats.currentState?.burst(
+                reaction,
+                box.localToGlobal(box.size.center(Offset.zero)),
+              );
+            }
+            HapticFeedback.selectionClick();
+            onReact(reaction);
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            margin: const EdgeInsets.symmetric(horizontal: 5),
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: story.myReaction == reaction
+                  ? NowaColors.accent.withValues(alpha: 0.35)
+                  : Colors.transparent,
+            ),
+            child: AnimatedScale(
+              duration: const Duration(milliseconds: 160),
+              scale: story.myReaction == reaction ? 1.2 : 1,
+              child: ReactionIcon(reaction: reaction, size: 30),
+            ),
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            for (final reaction in _reactions)
-              GestureDetector(
-                key: Key('story_reaction_${reaction.name}'),
-                onTap: () => onReact(reaction),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
-                  margin: const EdgeInsets.symmetric(horizontal: 5),
-                  padding: const EdgeInsets.all(7),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: story.myReaction == reaction
-                        ? NowaColors.accent.withValues(alpha: 0.35)
-                        : Colors.transparent,
-                  ),
-                  child: AnimatedScale(
-                    duration: const Duration(milliseconds: 160),
-                    scale: story.myReaction == reaction ? 1.2 : 1,
-                    child: Text(reaction.emoji,
-                        style: const TextStyle(fontSize: 24)),
-                  ),
-                ),
-              ),
-          ],
+        FloatingReactions(
+          key: floats,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (final reaction in _reactions) _reactionButton(reaction),
+            ],
+          ),
         ),
         const SizedBox(height: 10),
         Glass(

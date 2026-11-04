@@ -72,6 +72,15 @@ extension StoryReactionX on StoryReaction {
         StoryReaction.unknown => '',
       };
 
+  /// The 3D picture drawn for it (Microsoft Fluent Emoji, MIT — see
+  /// assets/reactions/LICENSE-fluentui-emoji.txt), bundled with the app so
+  /// the bar draws at once and offline. Null for a reaction this build does
+  /// not know, which falls back to [emoji].
+  String? get asset => switch (this) {
+        StoryReaction.unknown => null,
+        _ => 'assets/reactions/$name.png',
+      };
+
   String get wire => switch (this) {
         StoryReaction.like => 'LIKE',
         StoryReaction.love => 'LOVE',
