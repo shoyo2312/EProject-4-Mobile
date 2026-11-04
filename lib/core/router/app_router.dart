@@ -18,6 +18,7 @@ import 'package:tiktok_mobile/features/shell/presentation/home_shell.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_composer_screen.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_provider.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_viewer_screen.dart';
+import 'package:tiktok_mobile/features/user/presentation/comment_filters_screen.dart';
 import 'package:tiktok_mobile/features/user/presentation/edit_profile_screen.dart';
 import 'package:tiktok_mobile/features/user/presentation/profile_screen.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_list_screen.dart';
@@ -148,6 +149,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/me/devices',
         builder: (_, _) => const DevicesScreen(),
+      ),
+      GoRoute(
+        path: '/me/comment-filters',
+        builder: (_, _) => const CommentFiltersScreen(),
       ),
       GoRoute(
         path: '/me/muted',

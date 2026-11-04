@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:tiktok_mobile/core/network/api_client.dart';
 import 'package:tiktok_mobile/core/network/api_response.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
+import 'package:tiktok_mobile/features/user/data/comment_filter_settings.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 
 class UserRemoteDatasource {
@@ -156,6 +157,27 @@ class UserRemoteDatasource {
       queryParameters: {'page': page, 'size': size},
     );
     return _unwrapPage(response.data!);
+  }
+
+  /// Never 404: an account that never changed a setting gets the defaults
+  /// (user doc 3.14).
+  Future<CommentFilterSettings> getCommentFilters() async {
+    final response =
+        await _apiClient.get<Map<String, dynamic>>('/users/me/settings');
+    return _unwrap(response.data!, CommentFilterSettings.fromJson);
+  }
+
+  /// Partial update: only the keys in [changes] are touched, and a key sent as
+  /// `null` is a validation error for these fields. `commentKeywords` replaces
+  /// the whole list (user doc 3.15).
+  Future<CommentFilterSettings> updateCommentFilters(
+    Map<String, dynamic> changes,
+  ) async {
+    final response = await _apiClient.patch<Map<String, dynamic>>(
+      '/users/me/settings',
+      data: changes,
+    );
+    return _unwrap(response.data!, CommentFilterSettings.fromJson);
   }
 
   T _unwrap<T>(

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
+import 'package:tiktok_mobile/features/user/data/comment_filter_settings.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/data/user_remote_datasource.dart';
 
@@ -181,6 +182,24 @@ class UserRepository {
   Future<PageResponse<UserProfileModel>> getMuted({int page = 0}) async {
     try {
       return await _remoteDatasource.getMuted(page: page);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<CommentFilterSettings> getCommentFilters() async {
+    try {
+      return await _remoteDatasource.getCommentFilters();
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<CommentFilterSettings> updateCommentFilters(
+    Map<String, dynamic> changes,
+  ) async {
+    try {
+      return await _remoteDatasource.updateCommentFilters(changes);
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }
