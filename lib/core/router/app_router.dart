@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tiktok_mobile/features/auth/presentation/devices_screen.dart';
+import 'package:tiktok_mobile/features/auth/presentation/qr_confirm_screen.dart';
+import 'package:tiktok_mobile/features/auth/presentation/qr_scan_screen.dart';
 import 'package:tiktok_mobile/features/auth/presentation/add_email_screen.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_options_screen.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
@@ -159,6 +161,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/me/devices',
         builder: (_, _) => const DevicesScreen(),
+      ),
+      // Web sign-in by QR. Signed-in only (not in _guestRoutes): approving a
+      // browser is this account's decision.
+      GoRoute(
+        path: '/me/qr-login',
+        builder: (_, _) => const QrScanScreen(),
+      ),
+      GoRoute(
+        path: '/me/qr-login/confirm',
+        // The claimed code travels as an object; a reload without it goes
+        // back to the camera rather than confirming nothing.
+        redirect: (_, state) =>
+            state.extra is QrLoginConfirmArgs ? null : '/me/qr-login',
+        builder: (_, state) =>
+            QrConfirmScreen(args: state.extra! as QrLoginConfirmArgs),
       ),
       GoRoute(
         path: '/me/comment-filters',

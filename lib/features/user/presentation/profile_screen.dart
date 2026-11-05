@@ -155,6 +155,12 @@ class _MyProfileBody extends ConsumerWidget {
             onTap: () => context.push('/me/muted'),
           ),
           _IconAction(
+            buttonKey: const Key('profile_qr_login_button'),
+            icon: Icons.qr_code_scanner,
+            tooltip: 'Log in on web',
+            onTap: () => context.push('/me/qr-login'),
+          ),
+          _IconAction(
             buttonKey: const Key('profile_devices_button'),
             icon: Icons.devices_outlined,
             tooltip: 'Devices',

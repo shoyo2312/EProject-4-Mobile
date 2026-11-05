@@ -1,5 +1,6 @@
 import 'package:tiktok_mobile/core/network/api_client.dart';
 import 'package:tiktok_mobile/core/network/api_response.dart';
+import 'package:tiktok_mobile/features/auth/data/qr_login_scan.dart';
 import 'package:tiktok_mobile/features/auth/data/session_model.dart';
 import 'package:tiktok_mobile/features/auth/data/social_login_response.dart';
 import 'package:tiktok_mobile/features/auth/data/token_response.dart';
@@ -184,6 +185,22 @@ class AuthRemoteDatasource {
   /// Signs out every device except this one.
   Future<void> signOutOtherSessions() {
     return _apiClient.delete<void>('/auth/sessions');
+  }
+
+  /// Claims a web sign-in code for this account (auth doc 3.20) and learns
+  /// which browser it is for.
+  Future<QrLoginScan> scanQrLogin(String qrId) async {
+    final response =
+        await _apiClient.post<Map<String, dynamic>>('/auth/qr/$qrId/scan');
+    return _unwrap(response.data!, QrLoginScan.fromJson);
+  }
+
+  Future<void> approveQrLogin(String qrId) {
+    return _apiClient.post<void>('/auth/qr/$qrId/approve');
+  }
+
+  Future<void> rejectQrLogin(String qrId) {
+    return _apiClient.post<void>('/auth/qr/$qrId/reject');
   }
 
   T _unwrap<T>(

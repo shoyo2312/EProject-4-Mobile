@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:tiktok_mobile/core/network/api_client.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/features/auth/data/auth_remote_datasource.dart';
+import 'package:tiktok_mobile/features/auth/data/qr_login_scan.dart';
 import 'package:tiktok_mobile/features/auth/data/session_model.dart';
 import 'package:tiktok_mobile/features/auth/data/social_login_response.dart';
 import 'package:tiktok_mobile/features/auth/data/social_sign_in.dart';
@@ -250,6 +251,32 @@ class AuthRepository {
   Future<void> signOutOtherSessions() async {
     try {
       await _remoteDatasource.signOutOtherSessions();
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  /// Web sign-in by QR (auth doc 3.20): claim the code, then approve or
+  /// reject it. The browser — not this phone — receives the session.
+  Future<QrLoginScan> scanQrLogin(String qrId) async {
+    try {
+      return await _remoteDatasource.scanQrLogin(qrId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<void> approveQrLogin(String qrId) async {
+    try {
+      await _remoteDatasource.approveQrLogin(qrId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<void> rejectQrLogin(String qrId) async {
+    try {
+      await _remoteDatasource.rejectQrLogin(qrId);
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }
