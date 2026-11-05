@@ -153,9 +153,11 @@ class FeedRemoteDatasource {
         // video with. Absent means the upload plays as recorded (video doc 3.2).
         if (edit != null)
           'edit': {
-            'segments': [
-              for (final segment in edit.segments) segment.toJson(),
-            ],
+            if (edit.segments.isNotEmpty)
+              'segments': [
+                for (final segment in edit.segments) segment.toJson(),
+              ],
+            if (edit.filter != null) 'filter': edit.filter!.toJson(),
           },
       },
     );

@@ -53,6 +53,23 @@ void main() {
     expect(find.text('2x'), findsWidgets);
   });
 
+  testWidgets('the filter tool opens the strip, and the choice names the tool',
+      (tester) async {
+    await pump(tester);
+
+    await tester.tap(find.byKey(const Key('create_tool_filter')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('filter_mono')));
+    await tester.pumpAndSettle();
+
+    // On the tool and under the swatch.
+    expect(find.text('Mono'), findsNWidgets(2));
+
+    await tester.tap(find.byKey(const Key('filter_none')));
+    await tester.pumpAndSettle();
+    expect(find.text('Filter'), findsOneWidget);
+  });
+
   testWidgets('the timer cycles off, 3s, 10s', (tester) async {
     await pump(tester);
     final timer = find.byKey(const Key('create_tool_timer'));

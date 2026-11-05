@@ -96,4 +96,17 @@ void main() {
 
     expect(edit.playedWithin(const Duration(seconds: 10)), const Duration(seconds: 5));
   });
+
+  group('a colour-only edit', () {
+    const edit = VideoEdit(filter: EditFilter(id: 'mono'));
+
+    test('is a change, though it cuts nothing', () {
+      expect(edit.isUnchanged(const Duration(seconds: 10)), isFalse);
+    });
+
+    test('plays the whole clip, at normal speed', () {
+      expect(edit.playedWithin(const Duration(seconds: 10)), const Duration(seconds: 10));
+      expect(edit.playbackAt(const Duration(seconds: 4)), (jumpTo: null, speed: 1.0));
+    });
+  });
 }

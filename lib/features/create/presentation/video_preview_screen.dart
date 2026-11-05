@@ -6,6 +6,7 @@ import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
 import 'package:tiktok_mobile/features/create/data/video_edit.dart';
 import 'package:tiktok_mobile/features/create/presentation/post_details_screen.dart';
+import 'package:tiktok_mobile/features/create/presentation/widgets/filter_picker.dart';
 import 'package:video_player/video_player.dart';
 
 /// Step 2 of the create flow: trim the clip and pick its speed before
@@ -86,6 +87,9 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   var _start = Duration.zero;
   var _end = Duration.zero;
   var _speed = 1.0;
+
+  /// The colour over the whole video, editable in every mode.
+  late EditFilter? _filter = widget.initialEdit?.filter;
 
   /// Several segments from the camera: played as recorded, not editable.
   late final bool _locked = (widget.initialEdit?.segments.length ?? 0) > 1;
@@ -179,10 +183,13 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   void _onSpeed(double speed) => setState(() => _speed = speed);
 
   /// Null when nothing was changed, so an untouched clip is not re-encoded.
+  /// A colour alone sends no segments: the whole clip at normal speed.
   VideoEdit? get _edit {
-    if (_locked) return widget.initialEdit;
-    final edit = _playback;
-    return edit.isUnchanged(_duration) ? null : edit;
+    if (_locked) return widget.initialEdit!.copyWith(filter: _filter);
+    final trim = _playback;
+    final trimmed = !trim.isUnchanged(_duration);
+    if (!trimmed && _filter == null) return null;
+    return VideoEdit(segments: trimmed ? trim.segments : const [], filter: _filter);
   }
 
   /// Playback is paused across the details screen: the clip looping under a
@@ -220,7 +227,10 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
               child: Center(
                 child: AspectRatio(
                   aspectRatio: _controller.value.aspectRatio,
-                  child: VideoPlayer(_controller),
+                  child: FilteredView(
+                    filter: _filter,
+                    child: VideoPlayer(_controller),
+                  ),
                 ),
               ),
             )
@@ -254,6 +264,14 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (widget.collectDetails && _ready) ...[
+                  FilterPicker(
+                    value: _filter,
+                    showIntensity: true,
+                    onChanged: (filter) => setState(() => _filter = filter),
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 if (editing) ...[
                   _SpeedPicker(speed: _speed, onChanged: _onSpeed),
                   const SizedBox(height: 14),
@@ -261,7 +279,7 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
                     duration: _duration,
                     start: _start,
                     end: _end,
-                    played: _edit?.playedDuration ?? _duration,
+                    played: _edit?.playedWithin(_duration) ?? _duration,
                     onChanged: _onTrim,
                   ),
                 ] else if (_ready && _locked)

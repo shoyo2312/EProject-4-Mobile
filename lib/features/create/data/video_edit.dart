@@ -14,7 +14,10 @@ class VideoEdit with _$VideoEdit {
   const VideoEdit._();
 
   const factory VideoEdit({
-    required List<EditSegment> segments,
+    /// Empty is the whole clip at normal speed: an edit that only changes
+    /// the colour.
+    @Default([]) List<EditSegment> segments,
+    EditFilter? filter,
   }) = _VideoEdit;
 
   factory VideoEdit.fromJson(Map<String, dynamic> json) =>
@@ -37,6 +40,8 @@ class VideoEdit with _$VideoEdit {
   /// Whether this would come out the same as the upload itself. Such an edit
   /// is not sent at all: the server would only re-encode for nothing.
   bool isUnchanged(Duration duration) {
+    if (filter != null) return false;
+    if (segments.isEmpty) return true;
     if (segments.length != 1) return false;
     final only = segments.single;
     const slack = 0.05;
@@ -51,6 +56,7 @@ class VideoEdit with _$VideoEdit {
   /// [playedDuration] for a file of [duration], counting a segment that runs
   /// past the end only up to where the file stops — as the server will.
   Duration playedWithin(Duration? duration) {
+    if (segments.isEmpty) return duration ?? Duration.zero;
     final limit = duration == null ? double.infinity : duration.inMilliseconds / 1000;
     var ms = 0.0;
     for (final s in segments) {
@@ -69,6 +75,7 @@ class VideoEdit with _$VideoEdit {
   /// it: a seek lands on the nearest key frame, often a little early, and
   /// treating that as outside would seek again forever.
   ({Duration? jumpTo, double speed}) playbackAt(Duration position) {
+    if (segments.isEmpty) return (jumpTo: null, speed: 1.0);
     final at = position.inMilliseconds / 1000;
     for (final s in segments) {
       if (at >= s.start - _seekSlack && at < s.end) {
@@ -83,6 +90,19 @@ class VideoEdit with _$VideoEdit {
 
   static Duration _duration(double seconds) =>
       Duration(milliseconds: (seconds * 1000).round());
+}
+
+/// A colour filter over the whole video: one of [videoFilters] by id, at
+/// 0–1 intensity.
+@freezed
+class EditFilter with _$EditFilter {
+  const factory EditFilter({
+    required String id,
+    @Default(1.0) double intensity,
+  }) = _EditFilter;
+
+  factory EditFilter.fromJson(Map<String, dynamic> json) =>
+      _$EditFilterFromJson(json);
 }
 
 /// Seconds on the raw upload's own clock, before the speed change.

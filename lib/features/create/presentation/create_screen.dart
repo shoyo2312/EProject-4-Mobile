@@ -10,8 +10,10 @@ import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/features/create/data/recording_session.dart';
 import 'package:tiktok_mobile/features/create/data/video_edit.dart';
+import 'package:tiktok_mobile/features/create/data/video_filters.dart';
 import 'package:tiktok_mobile/features/create/presentation/upload_provider.dart';
 import 'package:tiktok_mobile/features/create/presentation/video_preview_screen.dart';
+import 'package:tiktok_mobile/features/create/presentation/widgets/filter_picker.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_flow.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_media_picker.dart';
 
@@ -89,6 +91,11 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
   var _flash = false;
   var _speed = 1.0;
   var _showSpeeds = false;
+
+  /// The colour previewed on the camera and carried into the editor, where
+  /// it can still be changed. One filter for the whole video.
+  EditFilter? _filter;
+  var _showFilters = false;
   var _timer = 0;
   int? _countdown;
   Timer? _countdownTicker;
@@ -289,6 +296,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
       setState(() {
         _recording = true;
         _showSpeeds = false;
+        _showFilters = false;
       });
       _clipTicker = Timer.periodic(const Duration(milliseconds: 50), (_) {
         if (!mounted) return;
@@ -346,7 +354,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
       _resetRecording();
       return;
     }
-    final edit = _session.toEdit();
+    final cut = _session.toEdit();
+    final edit = _filter == null ? cut : (cut ?? const VideoEdit()).copyWith(filter: _filter);
     _resetRecording();
     _busy = false;
     await _review(File(recorded.path), edit);
@@ -422,7 +431,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
       return;
     }
     if (picked == null || !mounted) return;
-    await _review(File(picked.path), null);
+    await _review(File(picked.path), _filter == null ? null : VideoEdit(filter: _filter));
   }
 
   void _toast(String message) {
@@ -443,7 +452,11 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
     return Stack(
       fit: StackFit.expand,
       children: [
-        _CameraView(camera: _camera, error: _cameraError),
+        _CameraView(
+          camera: _camera,
+          error: _cameraError,
+          filter: _storyMode ? null : _filter,
+        ),
         const IgnorePointer(
           child: DecoratedBox(
             decoration: BoxDecoration(
@@ -548,7 +561,20 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
                     icon: Icons.speed,
                     label: _speed == 1 ? 'Speed' : _speedLabel(_speed),
                     active: _showSpeeds || _speed != 1,
-                    onTap: () => setState(() => _showSpeeds = !_showSpeeds),
+                    onTap: () => setState(() {
+                      _showSpeeds = !_showSpeeds;
+                      _showFilters = false;
+                    }),
+                  ),
+                  _Tool(
+                    key: const Key('create_tool_filter'),
+                    icon: Icons.auto_awesome_outlined,
+                    label: filterById(_filter?.id)?.name ?? 'Filter',
+                    active: _showFilters || _filter != null,
+                    onTap: () => setState(() {
+                      _showFilters = !_showFilters;
+                      _showSpeeds = false;
+                    }),
                   ),
                   _Tool(
                     key: const Key('create_tool_timer'),
@@ -576,6 +602,14 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
           bottom: 44,
           child: Column(
             children: [
+              if (postTools && _showFilters)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                  child: FilterPicker(
+                    value: _filter,
+                    onChanged: (filter) => setState(() => _filter = filter),
+                  ),
+                ),
               if (postTools && _showSpeeds)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(40, 0, 40, 12),
@@ -787,10 +821,14 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
 /// The live camera, filling the screen the way the recording will be framed;
 /// the striped placeholder while it opens or when it cannot.
 class _CameraView extends StatelessWidget {
-  const _CameraView({required this.camera, required this.error});
+  const _CameraView({required this.camera, required this.error, this.filter});
 
   final CameraController? camera;
   final String? error;
+
+  /// Previewed only: the recording itself is uncoloured, and the server
+  /// applies the filter from the edit.
+  final EditFilter? filter;
 
   @override
   Widget build(BuildContext context) {
@@ -807,7 +845,7 @@ class _CameraView extends StatelessWidget {
         child: SizedBox(
           width: size.height,
           height: size.width,
-          child: CameraPreview(camera),
+          child: FilteredView(filter: filter, child: CameraPreview(camera)),
         ),
       ),
     );

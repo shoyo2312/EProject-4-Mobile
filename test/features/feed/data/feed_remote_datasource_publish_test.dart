@@ -104,6 +104,21 @@ void main() {
     });
   });
 
+  test('a colour-only edit sends the filter and no segments', () async {
+    await datasource.publish(
+      title: 'clip',
+      rawFileUrl: 's3://video-media/raw/1/clip.mp4',
+      visibility: VideoVisibility.public,
+      edit: const VideoEdit(filter: EditFilter(id: 'warm', intensity: 0.6)),
+    );
+
+    final body = jsonDecode(jsonEncode(adapter.lastRequest?.data))
+        as Map<String, dynamic>;
+    expect(body['edit'], {
+      'filter': {'id': 'warm', 'intensity': 0.6},
+    });
+  });
+
   test('an unedited clip sends no edit at all', () async {
     await datasource.publish(
       title: 'clip',
