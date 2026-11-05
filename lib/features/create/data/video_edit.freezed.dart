@@ -33,6 +33,9 @@ mixin _$VideoEdit {
   @JsonKey(includeFromJson: false, includeToJson: false)
   List<OverlayLayer> get overlays => throw _privateConstructorUsedError;
 
+  /// A song from the catalogue under the video.
+  EditMusic? get music => throw _privateConstructorUsedError;
+
   /// Serializes this VideoEdit to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -53,9 +56,11 @@ abstract class $VideoEditCopyWith<$Res> {
     EditFilter? filter,
     @JsonKey(includeFromJson: false, includeToJson: false)
     List<OverlayLayer> overlays,
+    EditMusic? music,
   });
 
   $EditFilterCopyWith<$Res>? get filter;
+  $EditMusicCopyWith<$Res>? get music;
 }
 
 /// @nodoc
@@ -76,6 +81,7 @@ class _$VideoEditCopyWithImpl<$Res, $Val extends VideoEdit>
     Object? segments = null,
     Object? filter = freezed,
     Object? overlays = null,
+    Object? music = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -91,6 +97,10 @@ class _$VideoEditCopyWithImpl<$Res, $Val extends VideoEdit>
                 ? _value.overlays
                 : overlays // ignore: cast_nullable_to_non_nullable
                       as List<OverlayLayer>,
+            music: freezed == music
+                ? _value.music
+                : music // ignore: cast_nullable_to_non_nullable
+                      as EditMusic?,
           )
           as $Val,
     );
@@ -109,6 +119,20 @@ class _$VideoEditCopyWithImpl<$Res, $Val extends VideoEdit>
       return _then(_value.copyWith(filter: value) as $Val);
     });
   }
+
+  /// Create a copy of VideoEdit
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $EditMusicCopyWith<$Res>? get music {
+    if (_value.music == null) {
+      return null;
+    }
+
+    return $EditMusicCopyWith<$Res>(_value.music!, (value) {
+      return _then(_value.copyWith(music: value) as $Val);
+    });
+  }
 }
 
 /// @nodoc
@@ -125,10 +149,13 @@ abstract class _$$VideoEditImplCopyWith<$Res>
     EditFilter? filter,
     @JsonKey(includeFromJson: false, includeToJson: false)
     List<OverlayLayer> overlays,
+    EditMusic? music,
   });
 
   @override
   $EditFilterCopyWith<$Res>? get filter;
+  @override
+  $EditMusicCopyWith<$Res>? get music;
 }
 
 /// @nodoc
@@ -148,6 +175,7 @@ class __$$VideoEditImplCopyWithImpl<$Res>
     Object? segments = null,
     Object? filter = freezed,
     Object? overlays = null,
+    Object? music = freezed,
   }) {
     return _then(
       _$VideoEditImpl(
@@ -163,6 +191,10 @@ class __$$VideoEditImplCopyWithImpl<$Res>
             ? _value._overlays
             : overlays // ignore: cast_nullable_to_non_nullable
                   as List<OverlayLayer>,
+        music: freezed == music
+            ? _value.music
+            : music // ignore: cast_nullable_to_non_nullable
+                  as EditMusic?,
       ),
     );
   }
@@ -176,6 +208,7 @@ class _$VideoEditImpl extends _VideoEdit {
     this.filter,
     @JsonKey(includeFromJson: false, includeToJson: false)
     final List<OverlayLayer> overlays = const [],
+    this.music,
   }) : _segments = segments,
        _overlays = overlays,
        super._();
@@ -218,9 +251,13 @@ class _$VideoEditImpl extends _VideoEdit {
     return EqualUnmodifiableListView(_overlays);
   }
 
+  /// A song from the catalogue under the video.
+  @override
+  final EditMusic? music;
+
   @override
   String toString() {
-    return 'VideoEdit(segments: $segments, filter: $filter, overlays: $overlays)';
+    return 'VideoEdit(segments: $segments, filter: $filter, overlays: $overlays, music: $music)';
   }
 
   @override
@@ -230,7 +267,8 @@ class _$VideoEditImpl extends _VideoEdit {
             other is _$VideoEditImpl &&
             const DeepCollectionEquality().equals(other._segments, _segments) &&
             (identical(other.filter, filter) || other.filter == filter) &&
-            const DeepCollectionEquality().equals(other._overlays, _overlays));
+            const DeepCollectionEquality().equals(other._overlays, _overlays) &&
+            (identical(other.music, music) || other.music == music));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -240,6 +278,7 @@ class _$VideoEditImpl extends _VideoEdit {
     const DeepCollectionEquality().hash(_segments),
     filter,
     const DeepCollectionEquality().hash(_overlays),
+    music,
   );
 
   /// Create a copy of VideoEdit
@@ -262,6 +301,7 @@ abstract class _VideoEdit extends VideoEdit {
     final EditFilter? filter,
     @JsonKey(includeFromJson: false, includeToJson: false)
     final List<OverlayLayer> overlays,
+    final EditMusic? music,
   }) = _$VideoEditImpl;
   const _VideoEdit._() : super._();
 
@@ -282,6 +322,10 @@ abstract class _VideoEdit extends VideoEdit {
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   List<OverlayLayer> get overlays;
+
+  /// A song from the catalogue under the video.
+  @override
+  EditMusic? get music;
 
   /// Create a copy of VideoEdit
   /// with the given fields replaced by the non-null parameter values.
@@ -543,6 +587,302 @@ abstract class _OverlayLayer implements OverlayLayer {
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$OverlayLayerImplCopyWith<_$OverlayLayerImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+EditMusic _$EditMusicFromJson(Map<String, dynamic> json) {
+  return _EditMusic.fromJson(json);
+}
+
+/// @nodoc
+mixin _$EditMusic {
+  String get trackId => throw _privateConstructorUsedError;
+
+  /// Seconds into the song the video's first frame plays against.
+  double get start => throw _privateConstructorUsedError;
+
+  /// 0–1, the song's level.
+  double get volume => throw _privateConstructorUsedError;
+
+  /// 0–1, the video's own sound; 0 replaces it with the song.
+  double get originalVolume => throw _privateConstructorUsedError;
+
+  /// The song as the picker showed it, for the preview and the credit on
+  /// this device. Not sent: the server looks the id up itself.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  MusicTrack? get track => throw _privateConstructorUsedError;
+
+  /// Serializes this EditMusic to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of EditMusic
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $EditMusicCopyWith<EditMusic> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $EditMusicCopyWith<$Res> {
+  factory $EditMusicCopyWith(EditMusic value, $Res Function(EditMusic) then) =
+      _$EditMusicCopyWithImpl<$Res, EditMusic>;
+  @useResult
+  $Res call({
+    String trackId,
+    double start,
+    double volume,
+    double originalVolume,
+    @JsonKey(includeFromJson: false, includeToJson: false) MusicTrack? track,
+  });
+
+  $MusicTrackCopyWith<$Res>? get track;
+}
+
+/// @nodoc
+class _$EditMusicCopyWithImpl<$Res, $Val extends EditMusic>
+    implements $EditMusicCopyWith<$Res> {
+  _$EditMusicCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of EditMusic
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? trackId = null,
+    Object? start = null,
+    Object? volume = null,
+    Object? originalVolume = null,
+    Object? track = freezed,
+  }) {
+    return _then(
+      _value.copyWith(
+            trackId: null == trackId
+                ? _value.trackId
+                : trackId // ignore: cast_nullable_to_non_nullable
+                      as String,
+            start: null == start
+                ? _value.start
+                : start // ignore: cast_nullable_to_non_nullable
+                      as double,
+            volume: null == volume
+                ? _value.volume
+                : volume // ignore: cast_nullable_to_non_nullable
+                      as double,
+            originalVolume: null == originalVolume
+                ? _value.originalVolume
+                : originalVolume // ignore: cast_nullable_to_non_nullable
+                      as double,
+            track: freezed == track
+                ? _value.track
+                : track // ignore: cast_nullable_to_non_nullable
+                      as MusicTrack?,
+          )
+          as $Val,
+    );
+  }
+
+  /// Create a copy of EditMusic
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $MusicTrackCopyWith<$Res>? get track {
+    if (_value.track == null) {
+      return null;
+    }
+
+    return $MusicTrackCopyWith<$Res>(_value.track!, (value) {
+      return _then(_value.copyWith(track: value) as $Val);
+    });
+  }
+}
+
+/// @nodoc
+abstract class _$$EditMusicImplCopyWith<$Res>
+    implements $EditMusicCopyWith<$Res> {
+  factory _$$EditMusicImplCopyWith(
+    _$EditMusicImpl value,
+    $Res Function(_$EditMusicImpl) then,
+  ) = __$$EditMusicImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    String trackId,
+    double start,
+    double volume,
+    double originalVolume,
+    @JsonKey(includeFromJson: false, includeToJson: false) MusicTrack? track,
+  });
+
+  @override
+  $MusicTrackCopyWith<$Res>? get track;
+}
+
+/// @nodoc
+class __$$EditMusicImplCopyWithImpl<$Res>
+    extends _$EditMusicCopyWithImpl<$Res, _$EditMusicImpl>
+    implements _$$EditMusicImplCopyWith<$Res> {
+  __$$EditMusicImplCopyWithImpl(
+    _$EditMusicImpl _value,
+    $Res Function(_$EditMusicImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of EditMusic
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? trackId = null,
+    Object? start = null,
+    Object? volume = null,
+    Object? originalVolume = null,
+    Object? track = freezed,
+  }) {
+    return _then(
+      _$EditMusicImpl(
+        trackId: null == trackId
+            ? _value.trackId
+            : trackId // ignore: cast_nullable_to_non_nullable
+                  as String,
+        start: null == start
+            ? _value.start
+            : start // ignore: cast_nullable_to_non_nullable
+                  as double,
+        volume: null == volume
+            ? _value.volume
+            : volume // ignore: cast_nullable_to_non_nullable
+                  as double,
+        originalVolume: null == originalVolume
+            ? _value.originalVolume
+            : originalVolume // ignore: cast_nullable_to_non_nullable
+                  as double,
+        track: freezed == track
+            ? _value.track
+            : track // ignore: cast_nullable_to_non_nullable
+                  as MusicTrack?,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$EditMusicImpl implements _EditMusic {
+  const _$EditMusicImpl({
+    required this.trackId,
+    this.start = 0.0,
+    this.volume = 1.0,
+    this.originalVolume = 1.0,
+    @JsonKey(includeFromJson: false, includeToJson: false) this.track,
+  });
+
+  factory _$EditMusicImpl.fromJson(Map<String, dynamic> json) =>
+      _$$EditMusicImplFromJson(json);
+
+  @override
+  final String trackId;
+
+  /// Seconds into the song the video's first frame plays against.
+  @override
+  @JsonKey()
+  final double start;
+
+  /// 0–1, the song's level.
+  @override
+  @JsonKey()
+  final double volume;
+
+  /// 0–1, the video's own sound; 0 replaces it with the song.
+  @override
+  @JsonKey()
+  final double originalVolume;
+
+  /// The song as the picker showed it, for the preview and the credit on
+  /// this device. Not sent: the server looks the id up itself.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  final MusicTrack? track;
+
+  @override
+  String toString() {
+    return 'EditMusic(trackId: $trackId, start: $start, volume: $volume, originalVolume: $originalVolume, track: $track)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$EditMusicImpl &&
+            (identical(other.trackId, trackId) || other.trackId == trackId) &&
+            (identical(other.start, start) || other.start == start) &&
+            (identical(other.volume, volume) || other.volume == volume) &&
+            (identical(other.originalVolume, originalVolume) ||
+                other.originalVolume == originalVolume) &&
+            (identical(other.track, track) || other.track == track));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, trackId, start, volume, originalVolume, track);
+
+  /// Create a copy of EditMusic
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$EditMusicImplCopyWith<_$EditMusicImpl> get copyWith =>
+      __$$EditMusicImplCopyWithImpl<_$EditMusicImpl>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$EditMusicImplToJson(this);
+  }
+}
+
+abstract class _EditMusic implements EditMusic {
+  const factory _EditMusic({
+    required final String trackId,
+    final double start,
+    final double volume,
+    final double originalVolume,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    final MusicTrack? track,
+  }) = _$EditMusicImpl;
+
+  factory _EditMusic.fromJson(Map<String, dynamic> json) =
+      _$EditMusicImpl.fromJson;
+
+  @override
+  String get trackId;
+
+  /// Seconds into the song the video's first frame plays against.
+  @override
+  double get start;
+
+  /// 0–1, the song's level.
+  @override
+  double get volume;
+
+  /// 0–1, the video's own sound; 0 replaces it with the song.
+  @override
+  double get originalVolume;
+
+  /// The song as the picker showed it, for the preview and the credit on
+  /// this device. Not sent: the server looks the id up itself.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  MusicTrack? get track;
+
+  /// Create a copy of EditMusic
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$EditMusicImplCopyWith<_$EditMusicImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
 

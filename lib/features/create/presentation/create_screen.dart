@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +16,7 @@ import 'package:tiktok_mobile/features/create/data/video_filters.dart';
 import 'package:tiktok_mobile/features/create/presentation/upload_provider.dart';
 import 'package:tiktok_mobile/features/create/presentation/video_preview_screen.dart';
 import 'package:tiktok_mobile/features/create/presentation/widgets/filter_picker.dart';
+import 'package:tiktok_mobile/features/create/presentation/widgets/music_picker.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_flow.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_media_picker.dart';
 
@@ -96,6 +99,9 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
   /// it can still be changed. One filter for the whole video.
   EditFilter? _filter;
   var _showFilters = false;
+
+  /// The song chosen with "Add sound", carried into the editor.
+  EditMusic? _sound;
   var _timer = 0;
   int? _countdown;
   Timer? _countdownTicker;
@@ -355,7 +361,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
       return;
     }
     final cut = _session.toEdit();
-    final edit = _filter == null ? cut : (cut ?? const VideoEdit()).copyWith(filter: _filter);
+    final edit = _withPicks(cut);
     _resetRecording();
     _busy = false;
     await _review(File(recorded.path), edit);
@@ -431,8 +437,26 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
       return;
     }
     if (picked == null || !mounted) return;
-    await _review(File(picked.path), _filter == null ? null : VideoEdit(filter: _filter));
+    await _review(File(picked.path), _withPicks(null));
   }
+
+  /// The filter and song chosen on the camera, added to what was shot.
+  VideoEdit? _withPicks(VideoEdit? edit) {
+    if (_filter == null && _sound == null) return edit;
+    return (edit ?? const VideoEdit()).copyWith(filter: _filter, music: _sound);
+  }
+
+  /// A song picked before shooting goes into the editor with the clip, where
+  /// its levels and start can be set.
+  Future<void> _pickSound() async {
+    final track = await showMusicPicker(context);
+    if (track == null || !mounted) return;
+    setState(() => _sound = EditMusic(trackId: track.id, track: track));
+  }
+
+  /// How much of the length limit [d] uses, 0 to 1.
+  double _fraction(Duration d) =>
+      (d.inMilliseconds / _maxLength.inMilliseconds).clamp(0.0, 1.0);
 
   void _toast(String message) {
     if (!mounted) return;
@@ -474,17 +498,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
             ),
           ),
         ),
-        if (!_storyMode && (_started || _recording))
-          Positioned(
-            left: 14,
-            right: 14,
-            top: top + 4,
-            child: _RecordProgress(
-              played: _played,
-              max: _maxLength,
-              marks: _session.playedMarks,
-            ),
-          ),
         Positioned(
           left: 14,
           right: 14,
@@ -511,27 +524,49 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
                   ),
                 ),
               ),
-              Glass(
-                radius: 12,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                child: SizedBox(
-                  height: 36,
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.audiotrack,
-                        size: 14,
-                        color: NowaColors.supportInk,
+              if (_storyMode)
+                const SizedBox.shrink()
+              else
+                Flexible(
+                  child: GestureDetector(
+                    key: const Key('create_add_sound'),
+                    onTap: _recording || _busy ? null : _pickSound,
+                    child: Glass(
+                      radius: 12,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      child: SizedBox(
+                        height: 36,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.audiotrack,
+                              size: 14,
+                              color: NowaColors.supportInk,
+                            ),
+                            const SizedBox(width: 7),
+                            Flexible(
+                              child: Text(
+                                _sound?.track?.title ?? 'Add sound',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: sora(size: 12.5, weight: FontWeight.w500),
+                              ),
+                            ),
+                            if (_sound != null && !_recording) ...[
+                              const SizedBox(width: 6),
+                              GestureDetector(
+                                key: const Key('create_remove_sound'),
+                                onTap: () => setState(() => _sound = null),
+                                child: const Icon(Icons.close, size: 14, color: Colors.white70),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
-                      const SizedBox(width: 7),
-                      Text(
-                        'Add sound',
-                        style: sora(size: 12.5, weight: FontWeight.w500),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
               const SizedBox(width: 36),
             ],
           ),
@@ -599,7 +634,10 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
         Positioned(
           left: 0,
           right: 0,
-          bottom: 44,
+          // Clear of the shell's floating nav bar (60 tall, 12 off the bottom
+          // inset), which is drawn over this tab — or the status line under
+          // the shutter, where upload progress and errors show, is hidden.
+          bottom: 84 + MediaQuery.of(context).padding.bottom,
           child: Column(
             children: [
               if (postTools && _showFilters)
@@ -672,7 +710,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
                 )
               else
                 const SizedBox(height: 30),
-              const SizedBox(height: 20),
+              const SizedBox(height: 14),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -733,6 +771,10 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
                     child: _Shutter(
                       recording: _recording,
                       dimmed: upload.busy || (!_storyMode && _camera == null),
+                      progress: !_storyMode && (_started || _recording)
+                          ? _fraction(_played)
+                          : null,
+                      marks: [for (final m in _session.playedMarks) _fraction(m)],
                     ),
                   ),
                   const SizedBox(width: 34),
@@ -756,7 +798,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -780,7 +822,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
                     ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               if (_storyMode)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -803,7 +845,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
                   style: sora(size: 12, weight: FontWeight.w600, color: Colors.white),
                 )
               else
-                _UploadStatus(state: upload, clipLength: _len),
+                _UploadStatus(state: upload),
             ],
           ),
         ),
@@ -852,89 +894,135 @@ class _CameraView extends StatelessWidget {
   }
 }
 
-/// Thin bar across the top: how much of the length limit is used, with a
-/// tick where each clip ends.
-class _RecordProgress extends StatelessWidget {
-  const _RecordProgress({
-    required this.played,
-    required this.max,
-    required this.marks,
+/// The record button. Once a recording has started, a ring round it fills
+/// clockwise with how much of the length limit is used, with a tick where
+/// each clip ends.
+class _Shutter extends StatelessWidget {
+  const _Shutter({
+    required this.recording,
+    required this.dimmed,
+    this.progress,
+    this.marks = const [],
   });
 
-  final Duration played;
-  final Duration max;
-  final List<Duration> marks;
+  final bool recording;
+  final bool dimmed;
+
+  /// 0 to 1 of the length limit; null before anything is recorded.
+  final double? progress;
+
+  /// Where each finished clip ends, 0 to 1.
+  final List<double> marks;
+
+  static const _size = 100.0;
 
   @override
   Widget build(BuildContext context) {
-    double fraction(Duration d) =>
-        (d.inMilliseconds / max.inMilliseconds).clamp(0.0, 1.0);
+    final progress = this.progress;
     return SizedBox(
-      key: const Key('create_record_progress'),
-      height: 5,
-      child: LayoutBuilder(
-        builder: (context, box) => Stack(
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(3),
+      width: _size,
+      height: _size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          if (progress != null)
+            Positioned.fill(
+              child: CustomPaint(
+                key: const Key('create_record_progress'),
+                painter: _RingPainter(progress: progress, marks: marks),
               ),
             ),
-            Container(
-              width: box.maxWidth * fraction(played),
+          Container(
+            width: 82,
+            height: 82,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: dimmed ? NowaColors.accent.withValues(alpha: 0.35) : NowaColors.accent,
+              // The glow would sit under the ring; the ring says enough.
+              boxShadow: progress != null
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: NowaColors.accent.withValues(alpha: 0.25),
+                        spreadRadius: 4,
+                      ),
+                    ],
+            ),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: recording || dimmed ? 30 : 68,
+              height: recording || dimmed ? 30 : 68,
               decoration: BoxDecoration(
-                color: NowaColors.accent,
-                borderRadius: BorderRadius.circular(3),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(recording || dimmed ? 9 : 34),
               ),
             ),
-            for (final mark in marks)
-              Positioned(
-                left: (box.maxWidth * fraction(mark) - 1).clamp(0.0, box.maxWidth - 2),
-                top: 0,
-                bottom: 0,
-                child: Container(width: 2, color: Colors.white),
-              ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _Shutter extends StatelessWidget {
-  const _Shutter({required this.recording, required this.dimmed});
+class _RingPainter extends CustomPainter {
+  _RingPainter({required this.progress, required this.marks});
 
-  final bool recording;
-  final bool dimmed;
+  final double progress;
+  final List<double> marks;
+
+  static const _stroke = 6.0;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 82,
-      height: 82,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: dimmed ? NowaColors.accent.withValues(alpha: 0.35) : NowaColors.accent,
-        boxShadow: [
-          BoxShadow(
-            color: NowaColors.accent.withValues(alpha: recording ? 0.45 : 0.25),
-            spreadRadius: recording ? 10 : 4,
-          ),
-        ],
-      ),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        width: recording || dimmed ? 30 : 68,
-        height: recording || dimmed ? 30 : 68,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(recording || dimmed ? 9 : 34),
-        ),
-      ),
+  void paint(Canvas canvas, Size size) {
+    final centre = size.center(Offset.zero);
+    final radius = size.shortestSide / 2 - _stroke / 2;
+    final rect = Rect.fromCircle(center: centre, radius: radius);
+    const top = -math.pi / 2;
+
+    canvas.drawCircle(
+      centre,
+      radius,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = _stroke
+        ..color = Colors.white.withValues(alpha: 0.25),
     );
+    if (progress > 0) {
+      canvas.drawArc(
+        rect,
+        top,
+        2 * math.pi * progress,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = _stroke
+          ..strokeCap = StrokeCap.round
+          ..shader = SweepGradient(
+            startAngle: 0,
+            endAngle: 2 * math.pi,
+            transform: const GradientRotation(top),
+            colors: const [NowaColors.accent, NowaColors.supportInk, NowaColors.accent],
+          ).createShader(rect),
+      );
+    }
+    final tick = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 2.5;
+    for (final mark in marks) {
+      final angle = top + 2 * math.pi * mark;
+      final dir = Offset(math.cos(angle), math.sin(angle));
+      canvas.drawLine(
+        centre + dir * (radius - _stroke / 2),
+        centre + dir * (radius + _stroke / 2),
+        tick,
+      );
+    }
   }
+
+  @override
+  bool shouldRepaint(_RingPainter old) =>
+      old.progress != progress || !listEquals(old.marks, marks);
 }
 
 /// One button of the left-hand rail.
@@ -994,13 +1082,14 @@ class _Tool extends StatelessWidget {
 /// The one line under the shutter: what the upload is doing, or the hint when
 /// nothing is in flight.
 class _UploadStatus extends StatelessWidget {
-  const _UploadStatus({required this.state, required this.clipLength});
+  const _UploadStatus({required this.state});
 
   final UploadState state;
-  final String clipLength;
 
   @override
   Widget build(BuildContext context) {
+    // Nothing in flight: no line at all.
+    if (state.phase == UploadPhase.idle) return const SizedBox.shrink();
     final (text, color) = switch (state.phase) {
       UploadPhase.uploading => (
           state.progress < 0
@@ -1018,10 +1107,7 @@ class _UploadStatus extends StatelessWidget {
         ),
       UploadPhase.done => ('Posted', NowaColors.supportInk),
       UploadPhase.failed => (state.error ?? 'Upload failed', NowaColors.danger),
-      UploadPhase.idle => (
-          'Tap or hold to record · up to $clipLength, or pick a clip from the gallery',
-          Colors.white.withValues(alpha: 0.6),
-        ),
+      UploadPhase.idle => ('', Colors.transparent),
     };
 
     return Column(

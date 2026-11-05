@@ -615,11 +615,55 @@ class _Caption extends ConsumerWidget {
             ),
           ),
         ],
-        if (video.durationSeconds != null) ...[
+        // The song's credit when there is one — its Creative Commons
+        // licence asks for it wherever the video plays.
+        if (video.music != null) ...[
+          const SizedBox(height: 12),
+          _SoundPill(music: video.music!),
+        ] else if (video.durationSeconds != null) ...[
           const SizedBox(height: 12),
           _DurationPill(seconds: video.durationSeconds!),
         ],
       ],
+    );
+  }
+}
+
+/// The song under the video, credited: title and artist, as its licence asks.
+class _SoundPill extends StatelessWidget {
+  const _SoundPill({required this.music});
+
+  final MusicCredit music;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        key: const Key('feed_sound_pill'),
+        constraints: const BoxConstraints(maxWidth: 260),
+        padding: const EdgeInsets.fromLTRB(8, 6, 12, 6),
+        decoration: BoxDecoration(
+          color: NowaColors.support.withValues(alpha: 0.16),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: NowaColors.support.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.music_note, size: 13, color: NowaColors.supportInk),
+            const SizedBox(width: 7),
+            Flexible(
+              child: Text(
+                '${music.title} · ${music.artist}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: sora(size: 11.5, weight: FontWeight.w500, color: NowaColors.supportInk),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

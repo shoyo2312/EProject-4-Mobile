@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tiktok_mobile/features/create/data/music_track.dart';
 import 'package:tiktok_mobile/features/create/presentation/create_screen.dart';
+import 'package:tiktok_mobile/features/create/presentation/music_provider.dart';
 
 /// There is no camera plugin under test, which is also what a phone without a
 /// usable camera looks like: the screen has to stay usable — gallery and
@@ -9,6 +11,13 @@ import 'package:tiktok_mobile/features/create/presentation/create_screen.dart';
 void main() {
   Future<void> pump(WidgetTester tester) async {
     await tester.pumpWidget(ProviderScope(
+      overrides: [
+        musicSearchProvider('').overrideWith(
+          (ref) async => const [
+            MusicTrack(id: '42', title: 'Calm', artist: 'Someone', durationSeconds: 120, audioUrl: 'https://stream/42'),
+          ],
+        ),
+      ],
       child: MaterialApp(
         home: Scaffold(
           body: CreateScreen(
@@ -95,5 +104,19 @@ void main() {
 
     expect(find.byKey(const Key('create_tool_speed')), findsNothing);
     expect(find.byKey(const Key('create_story_hint')), findsOneWidget);
+  });
+
+  testWidgets('add sound picks a song, names it, and can drop it', (tester) async {
+    await pump(tester);
+
+    await tester.tap(find.byKey(const Key('create_add_sound')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('music_use_42')));
+    await tester.pumpAndSettle();
+    expect(find.text('Calm'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('create_remove_sound')));
+    await tester.pumpAndSettle();
+    expect(find.text('Add sound'), findsOneWidget);
   });
 }

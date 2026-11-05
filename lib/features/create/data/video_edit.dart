@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:tiktok_mobile/features/create/data/music_track.dart';
 
 part 'video_edit.freezed.dart';
 part 'video_edit.g.dart';
@@ -26,6 +27,9 @@ class VideoEdit with _$VideoEdit {
     @JsonKey(includeFromJson: false, includeToJson: false)
     @Default([])
     List<OverlayLayer> overlays,
+
+    /// A song from the catalogue under the video.
+    EditMusic? music,
   }) = _VideoEdit;
 
   factory VideoEdit.fromJson(Map<String, dynamic> json) =>
@@ -48,7 +52,7 @@ class VideoEdit with _$VideoEdit {
   /// Whether this would come out the same as the upload itself. Such an edit
   /// is not sent at all: the server would only re-encode for nothing.
   bool isUnchanged(Duration duration) {
-    if (filter != null || overlays.isNotEmpty) return false;
+    if (filter != null || overlays.isNotEmpty || music != null) return false;
     if (segments.isEmpty) return true;
     if (segments.length != 1) return false;
     final only = segments.single;
@@ -145,6 +149,30 @@ class OverlayLayer with _$OverlayLayer {
     /// Where the PNG was uploaded; set by the upload, sent on publish.
     String? imageUrl,
   }) = _OverlayLayer;
+}
+
+/// A catalogue song mixed under the video from its first frame (video doc
+/// 3.2, `edit.music`).
+@freezed
+class EditMusic with _$EditMusic {
+  const factory EditMusic({
+    required String trackId,
+
+    /// Seconds into the song the video's first frame plays against.
+    @Default(0.0) double start,
+
+    /// 0–1, the song's level.
+    @Default(1.0) double volume,
+
+    /// 0–1, the video's own sound; 0 replaces it with the song.
+    @Default(1.0) double originalVolume,
+
+    /// The song as the picker showed it, for the preview and the credit on
+    /// this device. Not sent: the server looks the id up itself.
+    @JsonKey(includeFromJson: false, includeToJson: false) MusicTrack? track,
+  }) = _EditMusic;
+
+  factory EditMusic.fromJson(Map<String, dynamic> json) => _$EditMusicFromJson(json);
 }
 
 /// A colour filter over the whole video: one of [videoFilters] by id, at

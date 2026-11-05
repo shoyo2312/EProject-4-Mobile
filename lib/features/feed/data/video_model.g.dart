@@ -31,6 +31,9 @@ _$VideoModelImpl _$$VideoModelImplFromJson(Map<String, dynamic> json) =>
       commentCount: _countOrZero(json['commentCount']),
       shareCount: (json['shareCount'] as num?)?.toInt() ?? 0,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      music: json['music'] == null
+          ? null
+          : MusicCredit.fromJson(json['music'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$$VideoModelImplToJson(_$VideoModelImpl instance) =>
@@ -50,6 +53,7 @@ Map<String, dynamic> _$$VideoModelImplToJson(_$VideoModelImpl instance) =>
       'commentCount': instance.commentCount,
       'shareCount': instance.shareCount,
       'createdAt': instance.createdAt.toIso8601String(),
+      'music': instance.music,
     };
 
 const _$VideoStatusEnumMap = {
@@ -66,3 +70,21 @@ const _$VideoVisibilityEnumMap = {
   VideoVisibility.private: 'PRIVATE',
   VideoVisibility.unknown: 'unknown',
 };
+
+_$MusicCreditImpl _$$MusicCreditImplFromJson(Map<String, dynamic> json) =>
+    _$MusicCreditImpl(
+      title: json['title'] as String,
+      artist: json['artist'] as String,
+      trackId: json['trackId'] as String?,
+      licenseUrl: json['licenseUrl'] as String?,
+      shareUrl: json['shareUrl'] as String?,
+    );
+
+Map<String, dynamic> _$$MusicCreditImplToJson(_$MusicCreditImpl instance) =>
+    <String, dynamic>{
+      'title': instance.title,
+      'artist': instance.artist,
+      'trackId': instance.trackId,
+      'licenseUrl': instance.licenseUrl,
+      'shareUrl': instance.shareUrl,
+    };

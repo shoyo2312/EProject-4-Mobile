@@ -158,6 +158,7 @@ class FeedRemoteDatasource {
                 for (final segment in edit.segments) segment.toJson(),
               ],
             if (edit.filter != null) 'filter': edit.filter!.toJson(),
+            if (edit.music != null) 'music': edit.music!.toJson(),
             // The text and sticker layers, each already uploaded as a PNG.
             if (edit.overlays.isNotEmpty)
               'overlays': [

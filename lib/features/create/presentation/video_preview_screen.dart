@@ -8,6 +8,8 @@ import 'package:tiktok_mobile/features/create/data/overlay_item.dart';
 import 'package:tiktok_mobile/features/create/data/video_edit.dart';
 import 'package:tiktok_mobile/features/create/presentation/post_details_screen.dart';
 import 'package:tiktok_mobile/features/create/presentation/widgets/filter_picker.dart';
+import 'package:tiktok_mobile/features/create/presentation/widgets/music_panel.dart';
+import 'package:tiktok_mobile/features/create/presentation/widgets/music_picker.dart';
 import 'package:tiktok_mobile/features/create/presentation/widgets/overlay_editor.dart';
 import 'package:tiktok_mobile/features/create/presentation/widgets/overlay_painter.dart';
 import 'package:video_player/video_player.dart';
@@ -125,6 +127,15 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   /// before it lands do not ask for the same seek again.
   var _seeking = false;
 
+  /// The song under the video, and the player previewing it in step with
+  /// the picture. The song plays on the edited clock at normal speed, as the
+  /// server mixes it.
+  late EditMusic? _music = widget.initialEdit?.music;
+  VideoPlayerController? _musicPlayer;
+
+  /// The song's controls are showing in place of the editor's.
+  var _musicOpen = false;
+
   @override
   void initState() {
     super.initState();
@@ -143,6 +154,8 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
         }
         setState(() => _ready = true);
         _controller.play();
+        final music = _music;
+        if (music != null) _loadMusic(music);
       });
   }
 
@@ -150,6 +163,7 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   void dispose() {
     _controller.removeListener(_followEdit);
     _controller.dispose();
+    _musicPlayer?.dispose();
     _stickers.dispose();
     super.dispose();
   }
@@ -169,6 +183,7 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   Future<void> _followEdit() async {
     if (!_ready || _seeking) return;
     _followClock();
+    _followMusic();
     final at = _playback.playbackAt(_controller.value.position);
     if (at.speed != _playingSpeed) {
       _playingSpeed = at.speed;
@@ -190,6 +205,99 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
     if (played == null) return;
     final last = _playedAt;
     if (last == null || (played - last).abs() >= 0.05) setState(() => _playedAt = played);
+  }
+
+  /// Starts the preview of [music]'s song, replacing any other.
+  Future<void> _loadMusic(EditMusic music) async {
+    final track = music.track;
+    final old = _musicPlayer;
+    _musicPlayer = null;
+    await old?.dispose();
+    if (track == null) return;
+    final player = VideoPlayerController.networkUrl(Uri.parse(track.audioUrl));
+    try {
+      await player.initialize();
+    } catch (_) {
+      // Preview only — the server fetches the song itself.
+      await player.dispose();
+      return;
+    }
+    if (!mounted || _music?.trackId != music.trackId) {
+      await player.dispose();
+      return;
+    }
+    _musicPlayer = player;
+    _applyLevels();
+    _followMusic();
+  }
+
+  void _applyLevels() {
+    final music = _music;
+    _controller.setVolume(music?.originalVolume ?? 1);
+    _musicPlayer?.setVolume(music?.volume ?? 0);
+  }
+
+  /// Keeps the song where the picture is: playing while it plays, at the
+  /// song's start plus the edited clock, put back when it drifts.
+  void _followMusic() {
+    final player = _musicPlayer;
+    final music = _music;
+    if (player == null || music == null || !player.value.isInitialized) return;
+    final played = _playback.playedAt(_controller.value.position);
+    if (played == null) return;
+    final target = Duration(milliseconds: ((music.start + played) * 1000).round());
+    final ended = target >= player.value.duration;
+    if (_controller.value.isPlaying && !ended) {
+      if ((player.value.position - target).abs() > const Duration(milliseconds: 350)) {
+        player.seekTo(target);
+      }
+      if (!player.value.isPlaying) player.play();
+    } else if (player.value.isPlaying) {
+      player.pause();
+    }
+  }
+
+  Future<void> _pickMusic() async {
+    _controller.pause();
+    final track = await showMusicPicker(context);
+    if (!mounted) return;
+    if (track != null) {
+      final music = EditMusic(
+        trackId: track.id,
+        track: track,
+        // Kept across a change of song: they are how the poster wants it mixed.
+        volume: _music?.volume ?? 1,
+        originalVolume: _music?.originalVolume ?? 1,
+      );
+      setState(() {
+        _music = music;
+        _musicOpen = true;
+        _selectedId = null;
+      });
+      await _loadMusic(music);
+    }
+    if (mounted) _controller.play();
+  }
+
+  void _setMusic(EditMusic music, {bool seek = false}) {
+    setState(() => _music = music);
+    _applyLevels();
+    if (seek) {
+      // The song's new start, heard against the video's first frame.
+      _controller.seekTo(_playback.rawAt(0));
+      _musicPlayer?.seekTo(Duration(milliseconds: (music.start * 1000).round()));
+    }
+  }
+
+  Future<void> _removeMusic() async {
+    setState(() {
+      _music = null;
+      _musicOpen = false;
+    });
+    final old = _musicPlayer;
+    _musicPlayer = null;
+    await old?.dispose();
+    _applyLevels();
   }
 
   /// How long the edited video plays, in seconds: the range item timings
@@ -225,7 +333,9 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   /// Null when nothing was changed, so an untouched clip is not re-encoded.
   /// A colour alone sends no segments: the whole clip at normal speed.
   VideoEdit? get _edit {
-    if (_locked) return widget.initialEdit!.copyWith(filter: _filter);
+    // The song is whatever [_music] is now, added by the caller: one picked on
+    // the camera may since have been removed here.
+    if (_locked) return widget.initialEdit!.copyWith(filter: _filter, music: null);
     final trim = _playback;
     final trimmed = !trim.isUnchanged(_duration);
     if (!trimmed && _filter == null) return null;
@@ -335,10 +445,16 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
       ));
       return;
     }
-    setState(() => _selectedId = null);
+    setState(() {
+      _selectedId = null;
+      _musicOpen = false;
+    });
     await _controller.pause();
+    await _musicPlayer?.pause();
     if (!mounted) return;
     var edit = _edit;
+    final music = _music;
+    if (music != null) edit = (edit ?? const VideoEdit()).copyWith(music: music);
     if (_items.isNotEmpty) {
       final layers = await _renderLayers();
       if (!mounted) return;
@@ -359,6 +475,8 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
     final top = MediaQuery.of(context).padding.top;
     final editing = widget.collectDetails && _ready && !_locked;
     final selected = widget.collectDetails ? _selected : null;
+    final music = _music;
+    final musicOpen = widget.collectDetails && _musicOpen && music != null;
     final playedAt = _playedAt;
     return Scaffold(
       backgroundColor: Colors.black,
@@ -434,7 +552,45 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
             Positioned(
               right: 14,
               top: top + 10,
-              child: OverlayTools(onText: _addText, onSticker: _addSticker),
+              child: OverlayTools(onText: _addText, onSticker: _addSticker, onSound: _pickMusic),
+            ),
+          if (music?.track != null && !_dragging)
+            Positioned(
+              top: top + 14,
+              left: 64,
+              right: 64,
+              child: Center(
+                child: GestureDetector(
+                  key: const Key('preview_music_chip'),
+                  onTap: widget.collectDetails
+                      ? () => setState(() {
+                            _musicOpen = !_musicOpen;
+                            _selectedId = null;
+                          })
+                      : null,
+                  child: Glass(
+                    radius: 999,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.music_note, size: 14, color: Colors.white),
+                          const SizedBox(width: 5),
+                          Flexible(
+                            child: Text(
+                              '${music!.track!.title} · ${music.track!.artist}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: sora(size: 12, weight: FontWeight.w600, color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           // Out of the way while an item is dragged, for the bin at the bottom.
           if (!_dragging)
@@ -442,7 +598,17 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
             left: 18,
             right: 18,
             bottom: MediaQuery.of(context).padding.bottom + 20,
-            child: selected != null
+            child: musicOpen
+                ? MusicPanel(
+                    key: const Key('music_panel'),
+                    music: music,
+                    videoSeconds: _playedSeconds,
+                    onChanged: _setMusic,
+                    onChange: _pickMusic,
+                    onRemove: _removeMusic,
+                    onDone: () => setState(() => _musicOpen = false),
+                  )
+                : selected != null
                 ? OverlayItemPanel(
                     key: const Key('overlay_item_panel'),
                     item: selected,

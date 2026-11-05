@@ -53,6 +53,9 @@ mixin _$VideoModel {
   int get shareCount => throw _privateConstructorUsedError;
   DateTime get createdAt => throw _privateConstructorUsedError;
 
+  /// The song under the video and its credit; null without one.
+  MusicCredit? get music => throw _privateConstructorUsedError;
+
   /// Serializes this VideoModel to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -87,7 +90,10 @@ abstract class $VideoModelCopyWith<$Res> {
     @JsonKey(fromJson: _countOrZero) int commentCount,
     int shareCount,
     DateTime createdAt,
+    MusicCredit? music,
   });
+
+  $MusicCreditCopyWith<$Res>? get music;
 }
 
 /// @nodoc
@@ -120,6 +126,7 @@ class _$VideoModelCopyWithImpl<$Res, $Val extends VideoModel>
     Object? commentCount = null,
     Object? shareCount = null,
     Object? createdAt = null,
+    Object? music = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -183,9 +190,27 @@ class _$VideoModelCopyWithImpl<$Res, $Val extends VideoModel>
                 ? _value.createdAt
                 : createdAt // ignore: cast_nullable_to_non_nullable
                       as DateTime,
+            music: freezed == music
+                ? _value.music
+                : music // ignore: cast_nullable_to_non_nullable
+                      as MusicCredit?,
           )
           as $Val,
     );
+  }
+
+  /// Create a copy of VideoModel
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $MusicCreditCopyWith<$Res>? get music {
+    if (_value.music == null) {
+      return null;
+    }
+
+    return $MusicCreditCopyWith<$Res>(_value.music!, (value) {
+      return _then(_value.copyWith(music: value) as $Val);
+    });
   }
 }
 
@@ -215,7 +240,11 @@ abstract class _$$VideoModelImplCopyWith<$Res>
     @JsonKey(fromJson: _countOrZero) int commentCount,
     int shareCount,
     DateTime createdAt,
+    MusicCredit? music,
   });
+
+  @override
+  $MusicCreditCopyWith<$Res>? get music;
 }
 
 /// @nodoc
@@ -247,6 +276,7 @@ class __$$VideoModelImplCopyWithImpl<$Res>
     Object? commentCount = null,
     Object? shareCount = null,
     Object? createdAt = null,
+    Object? music = freezed,
   }) {
     return _then(
       _$VideoModelImpl(
@@ -310,6 +340,10 @@ class __$$VideoModelImplCopyWithImpl<$Res>
             ? _value.createdAt
             : createdAt // ignore: cast_nullable_to_non_nullable
                   as DateTime,
+        music: freezed == music
+            ? _value.music
+            : music // ignore: cast_nullable_to_non_nullable
+                  as MusicCredit?,
       ),
     );
   }
@@ -335,6 +369,7 @@ class _$VideoModelImpl implements _VideoModel {
     @JsonKey(fromJson: _countOrZero) required this.commentCount,
     this.shareCount = 0,
     required this.createdAt,
+    this.music,
   });
 
   factory _$VideoModelImpl.fromJson(Map<String, dynamic> json) =>
@@ -390,9 +425,13 @@ class _$VideoModelImpl implements _VideoModel {
   @override
   final DateTime createdAt;
 
+  /// The song under the video and its credit; null without one.
+  @override
+  final MusicCredit? music;
+
   @override
   String toString() {
-    return 'VideoModel(id: $id, userId: $userId, title: $title, description: $description, thumbnailUrl: $thumbnailUrl, hlsUrl: $hlsUrl, durationSeconds: $durationSeconds, status: $status, visibility: $visibility, commentsDisabled: $commentsDisabled, viewCount: $viewCount, likeCount: $likeCount, commentCount: $commentCount, shareCount: $shareCount, createdAt: $createdAt)';
+    return 'VideoModel(id: $id, userId: $userId, title: $title, description: $description, thumbnailUrl: $thumbnailUrl, hlsUrl: $hlsUrl, durationSeconds: $durationSeconds, status: $status, visibility: $visibility, commentsDisabled: $commentsDisabled, viewCount: $viewCount, likeCount: $likeCount, commentCount: $commentCount, shareCount: $shareCount, createdAt: $createdAt, music: $music)';
   }
 
   @override
@@ -424,7 +463,8 @@ class _$VideoModelImpl implements _VideoModel {
             (identical(other.shareCount, shareCount) ||
                 other.shareCount == shareCount) &&
             (identical(other.createdAt, createdAt) ||
-                other.createdAt == createdAt));
+                other.createdAt == createdAt) &&
+            (identical(other.music, music) || other.music == music));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -446,6 +486,7 @@ class _$VideoModelImpl implements _VideoModel {
     commentCount,
     shareCount,
     createdAt,
+    music,
   );
 
   /// Create a copy of VideoModel
@@ -481,6 +522,7 @@ abstract class _VideoModel implements VideoModel {
     @JsonKey(fromJson: _countOrZero) required final int commentCount,
     final int shareCount,
     required final DateTime createdAt,
+    final MusicCredit? music,
   }) = _$VideoModelImpl;
 
   factory _VideoModel.fromJson(Map<String, dynamic> json) =
@@ -530,10 +572,260 @@ abstract class _VideoModel implements VideoModel {
   @override
   DateTime get createdAt;
 
+  /// The song under the video and its credit; null without one.
+  @override
+  MusicCredit? get music;
+
   /// Create a copy of VideoModel
   /// with the given fields replaced by the non-null parameter values.
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$VideoModelImplCopyWith<_$VideoModelImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+MusicCredit _$MusicCreditFromJson(Map<String, dynamic> json) {
+  return _MusicCredit.fromJson(json);
+}
+
+/// @nodoc
+mixin _$MusicCredit {
+  String get title => throw _privateConstructorUsedError;
+  String get artist => throw _privateConstructorUsedError;
+  String? get trackId => throw _privateConstructorUsedError;
+  String? get licenseUrl => throw _privateConstructorUsedError;
+  String? get shareUrl => throw _privateConstructorUsedError;
+
+  /// Serializes this MusicCredit to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of MusicCredit
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $MusicCreditCopyWith<MusicCredit> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $MusicCreditCopyWith<$Res> {
+  factory $MusicCreditCopyWith(
+    MusicCredit value,
+    $Res Function(MusicCredit) then,
+  ) = _$MusicCreditCopyWithImpl<$Res, MusicCredit>;
+  @useResult
+  $Res call({
+    String title,
+    String artist,
+    String? trackId,
+    String? licenseUrl,
+    String? shareUrl,
+  });
+}
+
+/// @nodoc
+class _$MusicCreditCopyWithImpl<$Res, $Val extends MusicCredit>
+    implements $MusicCreditCopyWith<$Res> {
+  _$MusicCreditCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of MusicCredit
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? title = null,
+    Object? artist = null,
+    Object? trackId = freezed,
+    Object? licenseUrl = freezed,
+    Object? shareUrl = freezed,
+  }) {
+    return _then(
+      _value.copyWith(
+            title: null == title
+                ? _value.title
+                : title // ignore: cast_nullable_to_non_nullable
+                      as String,
+            artist: null == artist
+                ? _value.artist
+                : artist // ignore: cast_nullable_to_non_nullable
+                      as String,
+            trackId: freezed == trackId
+                ? _value.trackId
+                : trackId // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            licenseUrl: freezed == licenseUrl
+                ? _value.licenseUrl
+                : licenseUrl // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            shareUrl: freezed == shareUrl
+                ? _value.shareUrl
+                : shareUrl // ignore: cast_nullable_to_non_nullable
+                      as String?,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$MusicCreditImplCopyWith<$Res>
+    implements $MusicCreditCopyWith<$Res> {
+  factory _$$MusicCreditImplCopyWith(
+    _$MusicCreditImpl value,
+    $Res Function(_$MusicCreditImpl) then,
+  ) = __$$MusicCreditImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    String title,
+    String artist,
+    String? trackId,
+    String? licenseUrl,
+    String? shareUrl,
+  });
+}
+
+/// @nodoc
+class __$$MusicCreditImplCopyWithImpl<$Res>
+    extends _$MusicCreditCopyWithImpl<$Res, _$MusicCreditImpl>
+    implements _$$MusicCreditImplCopyWith<$Res> {
+  __$$MusicCreditImplCopyWithImpl(
+    _$MusicCreditImpl _value,
+    $Res Function(_$MusicCreditImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of MusicCredit
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? title = null,
+    Object? artist = null,
+    Object? trackId = freezed,
+    Object? licenseUrl = freezed,
+    Object? shareUrl = freezed,
+  }) {
+    return _then(
+      _$MusicCreditImpl(
+        title: null == title
+            ? _value.title
+            : title // ignore: cast_nullable_to_non_nullable
+                  as String,
+        artist: null == artist
+            ? _value.artist
+            : artist // ignore: cast_nullable_to_non_nullable
+                  as String,
+        trackId: freezed == trackId
+            ? _value.trackId
+            : trackId // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        licenseUrl: freezed == licenseUrl
+            ? _value.licenseUrl
+            : licenseUrl // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        shareUrl: freezed == shareUrl
+            ? _value.shareUrl
+            : shareUrl // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$MusicCreditImpl implements _MusicCredit {
+  const _$MusicCreditImpl({
+    required this.title,
+    required this.artist,
+    this.trackId,
+    this.licenseUrl,
+    this.shareUrl,
+  });
+
+  factory _$MusicCreditImpl.fromJson(Map<String, dynamic> json) =>
+      _$$MusicCreditImplFromJson(json);
+
+  @override
+  final String title;
+  @override
+  final String artist;
+  @override
+  final String? trackId;
+  @override
+  final String? licenseUrl;
+  @override
+  final String? shareUrl;
+
+  @override
+  String toString() {
+    return 'MusicCredit(title: $title, artist: $artist, trackId: $trackId, licenseUrl: $licenseUrl, shareUrl: $shareUrl)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$MusicCreditImpl &&
+            (identical(other.title, title) || other.title == title) &&
+            (identical(other.artist, artist) || other.artist == artist) &&
+            (identical(other.trackId, trackId) || other.trackId == trackId) &&
+            (identical(other.licenseUrl, licenseUrl) ||
+                other.licenseUrl == licenseUrl) &&
+            (identical(other.shareUrl, shareUrl) ||
+                other.shareUrl == shareUrl));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, title, artist, trackId, licenseUrl, shareUrl);
+
+  /// Create a copy of MusicCredit
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$MusicCreditImplCopyWith<_$MusicCreditImpl> get copyWith =>
+      __$$MusicCreditImplCopyWithImpl<_$MusicCreditImpl>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$MusicCreditImplToJson(this);
+  }
+}
+
+abstract class _MusicCredit implements MusicCredit {
+  const factory _MusicCredit({
+    required final String title,
+    required final String artist,
+    final String? trackId,
+    final String? licenseUrl,
+    final String? shareUrl,
+  }) = _$MusicCreditImpl;
+
+  factory _MusicCredit.fromJson(Map<String, dynamic> json) =
+      _$MusicCreditImpl.fromJson;
+
+  @override
+  String get title;
+  @override
+  String get artist;
+  @override
+  String? get trackId;
+  @override
+  String? get licenseUrl;
+  @override
+  String? get shareUrl;
+
+  /// Create a copy of MusicCredit
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$MusicCreditImplCopyWith<_$MusicCreditImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }

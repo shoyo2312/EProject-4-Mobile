@@ -16,10 +16,33 @@ _$VideoEditImpl _$$VideoEditImplFromJson(Map<String, dynamic> json) =>
       filter: json['filter'] == null
           ? null
           : EditFilter.fromJson(json['filter'] as Map<String, dynamic>),
+      music: json['music'] == null
+          ? null
+          : EditMusic.fromJson(json['music'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$$VideoEditImplToJson(_$VideoEditImpl instance) =>
-    <String, dynamic>{'segments': instance.segments, 'filter': instance.filter};
+    <String, dynamic>{
+      'segments': instance.segments,
+      'filter': instance.filter,
+      'music': instance.music,
+    };
+
+_$EditMusicImpl _$$EditMusicImplFromJson(Map<String, dynamic> json) =>
+    _$EditMusicImpl(
+      trackId: json['trackId'] as String,
+      start: (json['start'] as num?)?.toDouble() ?? 0.0,
+      volume: (json['volume'] as num?)?.toDouble() ?? 1.0,
+      originalVolume: (json['originalVolume'] as num?)?.toDouble() ?? 1.0,
+    );
+
+Map<String, dynamic> _$$EditMusicImplToJson(_$EditMusicImpl instance) =>
+    <String, dynamic>{
+      'trackId': instance.trackId,
+      'start': instance.start,
+      'volume': instance.volume,
+      'originalVolume': instance.originalVolume,
+    };
 
 _$EditFilterImpl _$$EditFilterImplFromJson(Map<String, dynamic> json) =>
     _$EditFilterImpl(

@@ -69,6 +69,9 @@ class VideoModel with _$VideoModel {
     // private — so there is no field for them at all.
     @Default(0) int shareCount,
     required DateTime createdAt,
+
+    /// The song under the video and its credit; null without one.
+    MusicCredit? music,
   }) = _VideoModel;
 
   factory VideoModel.fromJson(Map<String, dynamic> json) =>
@@ -76,3 +79,18 @@ class VideoModel with _$VideoModel {
 }
 
 int _countOrZero(Object? json) => (json as num?)?.toInt() ?? 0;
+
+/// Credit for the Creative Commons song under a video, as its licence asks:
+/// title, artist, and links to the track and the licence.
+@freezed
+class MusicCredit with _$MusicCredit {
+  const factory MusicCredit({
+    required String title,
+    required String artist,
+    String? trackId,
+    String? licenseUrl,
+    String? shareUrl,
+  }) = _MusicCredit;
+
+  factory MusicCredit.fromJson(Map<String, dynamic> json) => _$MusicCreditFromJson(json);
+}

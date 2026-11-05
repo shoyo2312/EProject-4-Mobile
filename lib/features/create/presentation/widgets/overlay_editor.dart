@@ -459,10 +459,14 @@ class OverlayTools extends StatelessWidget {
     super.key,
     required this.onText,
     required this.onSticker,
+    this.onSound,
   });
 
   final VoidCallback onText;
   final VoidCallback onSticker;
+
+  /// Opens the sound picker; no button without it.
+  final VoidCallback? onSound;
 
   @override
   Widget build(BuildContext context) {
@@ -505,6 +509,8 @@ class OverlayTools extends StatelessWidget {
           'Stickers',
           onSticker,
         ),
+        if (onSound != null)
+          tool(const Key('edit_tool_sound'), Icons.music_note, 'Sounds', onSound!),
       ],
     );
   }

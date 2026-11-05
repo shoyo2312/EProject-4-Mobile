@@ -153,6 +153,45 @@ void main() {
     });
   });
 
+  test('a song goes out as its id and levels', () async {
+    await datasource.publish(
+      title: 'clip',
+      rawFileUrl: 's3://video-media/raw/1/clip.mp4',
+      visibility: VideoVisibility.public,
+      edit: const VideoEdit(music: EditMusic(trackId: '42', originalVolume: 0.2)),
+    );
+
+    final body = jsonDecode(jsonEncode(adapter.lastRequest?.data))
+        as Map<String, dynamic>;
+    expect(body['edit'], {
+      'music': {'trackId': '42', 'start': 0.0, 'volume': 1.0, 'originalVolume': 0.2},
+    });
+  });
+
+  test('the credit comes back on the video', () {
+    final video = VideoModel.fromJson({
+      'id': 'v1',
+      'userId': 1,
+      'title': 'clip',
+      'status': 'PUBLISHED',
+      'visibility': 'PUBLIC',
+      'viewCount': 0,
+      'likeCount': 0,
+      'commentCount': 0,
+      'createdAt': '2026-11-05T00:00:00Z',
+      'music': {
+        'trackId': '42',
+        'title': 'Calm',
+        'artist': 'Someone',
+        'licenseUrl': 'http://creativecommons.org/licenses/by/3.0/',
+        'shareUrl': 'https://www.jamendo.com/track/42',
+      },
+    });
+
+    expect(video.music?.title, 'Calm');
+    expect(video.music?.artist, 'Someone');
+  });
+
   test('an unedited clip sends no edit at all', () async {
     await datasource.publish(
       title: 'clip',

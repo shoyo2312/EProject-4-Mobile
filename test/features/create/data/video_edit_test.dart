@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tiktok_mobile/features/create/data/music_track.dart';
 import 'package:tiktok_mobile/features/create/data/video_edit.dart';
 
 void main() {
@@ -11,6 +12,32 @@ void main() {
 
     test('the local PNG paths are not part of the JSON', () {
       expect(layered.toJson().containsKey('overlays'), isFalse);
+    });
+  });
+
+  group('music', () {
+    const withMusic = VideoEdit(
+      music: EditMusic(
+        trackId: '42',
+        start: 12.5,
+        volume: 0.8,
+        originalVolume: 0,
+        track: MusicTrack(id: '42', title: 'Calm', artist: 'Someone', audioUrl: 'https://stream/42'),
+      ),
+    );
+
+    test('a song alone is a change worth sending', () {
+      expect(withMusic.isUnchanged(const Duration(seconds: 10)), isFalse);
+    });
+
+    /// The server looks the id up itself; the picker's copy of the song stays here.
+    test('goes out as the id and levels, without the track', () {
+      expect(withMusic.music!.toJson(), {
+        'trackId': '42',
+        'start': 12.5,
+        'volume': 0.8,
+        'originalVolume': 0.0,
+      });
     });
   });
 
