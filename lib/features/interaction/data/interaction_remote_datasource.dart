@@ -138,6 +138,16 @@ class InteractionRemoteDatasource {
   Future<VideoIdPage> getSavedVideoIds({String? cursor, int size = 20}) =>
       _fetchVideoIdPage('/interactions/users/me/saves', cursor, size);
 
+  /// Anyone's Reposts tab, newest first (doc 3.11). Public for a public
+  /// account; a private one answers `PRIVATE_ACCOUNT` (403) to anyone but the
+  /// owner and their followers.
+  Future<VideoIdPage> getRepostedVideoIds(
+    String userId, {
+    String? cursor,
+    int size = 20,
+  }) =>
+      _fetchVideoIdPage('/interactions/users/$userId/reposts', cursor, size);
+
   Future<VideoIdPage> _fetchVideoIdPage(
     String path,
     String? cursor,

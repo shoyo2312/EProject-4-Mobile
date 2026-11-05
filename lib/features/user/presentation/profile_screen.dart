@@ -154,6 +154,14 @@ class _MyProfileBody extends ConsumerWidget {
             tooltip: 'Muted users',
             onTap: () => context.push('/me/muted'),
           ),
+          // Moved here from the comment sheet, which no longer has a filter
+          // button.
+          _IconAction(
+            buttonKey: const Key('profile_comment_filters_button'),
+            icon: Icons.filter_alt_outlined,
+            tooltip: 'Comment filters',
+            onTap: () => context.push('/me/comment-filters'),
+          ),
           _IconAction(
             buttonKey: const Key('profile_qr_login_button'),
             icon: Icons.qr_code_scanner,
@@ -441,7 +449,7 @@ class _ProfileContentState extends State<_ProfileContent> {
                 const SizedBox(height: 18),
                 Row(
                   children: [
-                    for (final t in ['Posts', 'Liked', 'Saved']) ...[
+                    for (final t in ['Posts', 'Reposts', 'Liked', 'Saved']) ...[
                       Chip2(
                         label: t,
                         active: t == _tab,
@@ -458,6 +466,10 @@ class _ProfileContentState extends State<_ProfileContent> {
                     userId: profile.userId,
                     isOwnProfile: widget.isOwnProfile,
                   )
+                // Unlike likes and saves, anyone's reposts can be read — the
+                // server decides about private accounts.
+                else if (_tab == 'Reposts')
+                  _RepostedVideosGrid(userId: profile.userId)
                 // Likes and saves are private: interaction-service only ever
                 // answers for "me", so there is nothing to show on someone
                 // else's profile — not an empty list, no endpoint at all.
@@ -479,9 +491,10 @@ class _ProfileContentState extends State<_ProfileContent> {
 }
 
 class _PrivateTab extends StatelessWidget {
-  const _PrivateTab({required this.tab});
+  const _PrivateTab({required this.tab, this.message});
 
   final String tab;
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
@@ -489,7 +502,7 @@ class _PrivateTab extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 48),
       child: Center(
         child: Text(
-          '$tab videos are private',
+          message ?? '$tab videos are private',
           style: work(size: 13, color: NowaColors.text.withValues(alpha: 0.45)),
         ),
       ),
@@ -525,6 +538,39 @@ class _HistoryVideosGrid extends ConsumerWidget {
                   // a list of other people's videos they happened to like.
                   onLongPress: null,
                 ),
+        );
+  }
+}
+
+/// Anyone's Reposts tab (interaction doc 3.11). A private account the
+/// viewer does not follow answers `PRIVATE_ACCOUNT`, which is not an error to
+/// retry but the answer.
+class _RepostedVideosGrid extends ConsumerWidget {
+  const _RepostedVideosGrid({required this.userId});
+
+  final String userId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final provider = repostedVideosNotifierProvider(userId);
+    return ref.watch(provider).when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 48),
+            child: LoadingView(),
+          ),
+          error: (error, _) => error is ServerException &&
+                  error.code == 'PRIVATE_ACCOUNT'
+              ? const _PrivateTab(
+                  tab: 'Reposts',
+                  message: "This account's reposts are private",
+                )
+              : ErrorView(
+                  message: error.toString(),
+                  onRetry: () => ref.invalidate(provider),
+                ),
+          data: (videos) => videos.isEmpty
+              ? const _EmptyVideos(message: 'No reposts yet')
+              : _VideoGrid(videos: videos, onLongPress: null),
         );
   }
 }
@@ -755,7 +801,9 @@ class _ManageTile extends StatelessWidget {
 }
 
 class _EmptyVideos extends StatelessWidget {
-  const _EmptyVideos();
+  const _EmptyVideos({this.message = 'No videos yet'});
+
+  final String message;
 
   @override
   Widget build(BuildContext context) {
@@ -772,7 +820,7 @@ class _EmptyVideos extends StatelessWidget {
               color: NowaColors.text.withValues(alpha: 0.3),
             ),
             const SizedBox(height: 14),
-            Text('No videos yet', style: sora(size: 15)),
+            Text(message, style: sora(size: 15)),
           ],
         ),
       ),

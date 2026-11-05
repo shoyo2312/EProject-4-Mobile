@@ -375,12 +375,6 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
           _Header(
             count: count,
             onClose: () => Navigator.of(context).pop(),
-            onFilters: ownsVideo
-                ? () {
-                    Navigator.of(context).pop();
-                    context.push('/me/comment-filters');
-                  }
-                : null,
           ),
           const Divider(height: 1, color: NowaColors.hairline),
           Expanded(
@@ -539,13 +533,10 @@ Future<String?> _pickReason(
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.count, required this.onClose, this.onFilters});
+  const _Header({required this.count, required this.onClose});
 
   final int? count;
   final VoidCallback onClose;
-
-  /// Set only for the video's owner: the filters are theirs to set.
-  final VoidCallback? onFilters;
 
   @override
   Widget build(BuildContext context) {
@@ -569,22 +560,6 @@ class _Header extends StatelessWidget {
                 style: sora(size: 15),
               ),
               const Spacer(),
-              if (onFilters != null) ...[
-                GestureDetector(
-                  key: const Key('comment_filters_button'),
-                  onTap: onFilters,
-                  behavior: HitTestBehavior.opaque,
-                  child: Tooltip(
-                    message: 'Comment filters',
-                    child: Icon(
-                      Icons.filter_alt_outlined,
-                      size: 19,
-                      color: Colors.white.withValues(alpha: 0.6),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 18),
-              ],
               GestureDetector(
                 key: const Key('comment_close_button'),
                 onTap: onClose,

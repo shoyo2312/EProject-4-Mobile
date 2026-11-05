@@ -565,6 +565,178 @@ class _SaveNotifierProviderElement
   String get videoId => (origin as SaveNotifierProvider).videoId;
 }
 
+String _$repostedVideosNotifierHash() =>
+    r'25496119bedc71c98b6bc9ea2aaf937c82a19c62';
+
+abstract class _$RepostedVideosNotifier
+    extends BuildlessAutoDisposeAsyncNotifier<List<VideoModel>> {
+  late final String userId;
+
+  FutureOr<List<VideoModel>> build(String userId);
+}
+
+/// One account's Reposts tab, hydrated into playable rows the same two-hop
+/// way as [HistoryVideosNotifier]. Unlike likes and saves it is not private
+/// to the caller: any profile has one.
+///
+/// Copied from [RepostedVideosNotifier].
+@ProviderFor(RepostedVideosNotifier)
+const repostedVideosNotifierProvider = RepostedVideosNotifierFamily();
+
+/// One account's Reposts tab, hydrated into playable rows the same two-hop
+/// way as [HistoryVideosNotifier]. Unlike likes and saves it is not private
+/// to the caller: any profile has one.
+///
+/// Copied from [RepostedVideosNotifier].
+class RepostedVideosNotifierFamily
+    extends Family<AsyncValue<List<VideoModel>>> {
+  /// One account's Reposts tab, hydrated into playable rows the same two-hop
+  /// way as [HistoryVideosNotifier]. Unlike likes and saves it is not private
+  /// to the caller: any profile has one.
+  ///
+  /// Copied from [RepostedVideosNotifier].
+  const RepostedVideosNotifierFamily();
+
+  /// One account's Reposts tab, hydrated into playable rows the same two-hop
+  /// way as [HistoryVideosNotifier]. Unlike likes and saves it is not private
+  /// to the caller: any profile has one.
+  ///
+  /// Copied from [RepostedVideosNotifier].
+  RepostedVideosNotifierProvider call(String userId) {
+    return RepostedVideosNotifierProvider(userId);
+  }
+
+  @override
+  RepostedVideosNotifierProvider getProviderOverride(
+    covariant RepostedVideosNotifierProvider provider,
+  ) {
+    return call(provider.userId);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'repostedVideosNotifierProvider';
+}
+
+/// One account's Reposts tab, hydrated into playable rows the same two-hop
+/// way as [HistoryVideosNotifier]. Unlike likes and saves it is not private
+/// to the caller: any profile has one.
+///
+/// Copied from [RepostedVideosNotifier].
+class RepostedVideosNotifierProvider
+    extends
+        AutoDisposeAsyncNotifierProviderImpl<
+          RepostedVideosNotifier,
+          List<VideoModel>
+        > {
+  /// One account's Reposts tab, hydrated into playable rows the same two-hop
+  /// way as [HistoryVideosNotifier]. Unlike likes and saves it is not private
+  /// to the caller: any profile has one.
+  ///
+  /// Copied from [RepostedVideosNotifier].
+  RepostedVideosNotifierProvider(String userId)
+    : this._internal(
+        () => RepostedVideosNotifier()..userId = userId,
+        from: repostedVideosNotifierProvider,
+        name: r'repostedVideosNotifierProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$repostedVideosNotifierHash,
+        dependencies: RepostedVideosNotifierFamily._dependencies,
+        allTransitiveDependencies:
+            RepostedVideosNotifierFamily._allTransitiveDependencies,
+        userId: userId,
+      );
+
+  RepostedVideosNotifierProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.userId,
+  }) : super.internal();
+
+  final String userId;
+
+  @override
+  FutureOr<List<VideoModel>> runNotifierBuild(
+    covariant RepostedVideosNotifier notifier,
+  ) {
+    return notifier.build(userId);
+  }
+
+  @override
+  Override overrideWith(RepostedVideosNotifier Function() create) {
+    return ProviderOverride(
+      origin: this,
+      override: RepostedVideosNotifierProvider._internal(
+        () => create()..userId = userId,
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        userId: userId,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeAsyncNotifierProviderElement<
+    RepostedVideosNotifier,
+    List<VideoModel>
+  >
+  createElement() {
+    return _RepostedVideosNotifierProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is RepostedVideosNotifierProvider && other.userId == userId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, userId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin RepostedVideosNotifierRef
+    on AutoDisposeAsyncNotifierProviderRef<List<VideoModel>> {
+  /// The parameter `userId` of this provider.
+  String get userId;
+}
+
+class _RepostedVideosNotifierProviderElement
+    extends
+        AutoDisposeAsyncNotifierProviderElement<
+          RepostedVideosNotifier,
+          List<VideoModel>
+        >
+    with RepostedVideosNotifierRef {
+  _RepostedVideosNotifierProviderElement(super.provider);
+
+  @override
+  String get userId => (origin as RepostedVideosNotifierProvider).userId;
+}
+
 String _$historyVideosNotifierHash() =>
     r'd5937ed2d652a681c1aed27ba2cae1b5cf56dc66';
 

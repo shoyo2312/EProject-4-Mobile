@@ -160,6 +160,34 @@ void main() {
     );
   });
 
+  test('loadMore drops a comment the re-ranked next page repeats', () async {
+    // The server ranks again on every page: a comment liked in between can
+    // show up on both.
+    when(() => commentRepository.fetchComments('v1', cursor: null)).thenAnswer(
+      (_) async => CommentPage(
+        items: [makeComment('c1'), makeComment('c2')],
+        hasMore: true,
+        nextCursor: 'top.2',
+      ),
+    );
+    await container.read(commentNotifierProvider('v1').future);
+    when(() => commentRepository.fetchComments('v1', cursor: 'top.2'))
+        .thenAnswer(
+      (_) async => CommentPage(
+        items: [makeComment('c2'), makeComment('c3')],
+        hasMore: false,
+        nextCursor: null,
+      ),
+    );
+
+    await container.read(commentNotifierProvider('v1').notifier).loadMore();
+
+    expect(
+      container.read(commentNotifierProvider('v1')).value!.map((c) => c.id),
+      ['c1', 'c2', 'c3'],
+    );
+  });
+
   test('deleteComment drops the row it removed', () async {
     when(() => commentRepository.fetchComments('v1', cursor: null)).thenAnswer(
       (_) async => CommentPage(

@@ -158,6 +158,40 @@ class SaveNotifier extends _$SaveNotifier {
   }
 }
 
+/// One account's Reposts tab, hydrated into playable rows the same two-hop
+/// way as [HistoryVideosNotifier]. Unlike likes and saves it is not private
+/// to the caller: any profile has one.
+@riverpod
+class RepostedVideosNotifier extends _$RepostedVideosNotifier {
+  String? _cursor;
+  final _more = LoadMoreGuard();
+
+  @override
+  FutureOr<List<VideoModel>> build(String userId) async {
+    _cursor = null;
+    return _fetch();
+  }
+
+  Future<List<VideoModel>> _fetch() async {
+    final page = await ref
+        .read(interactionRepositoryProvider)
+        .getRepostedVideoIds(userId, cursor: _cursor);
+    _cursor = page.nextCursor;
+    _more.done = !page.hasMore;
+    return ref.read(feedRepositoryProvider).fetchByIds(page.videoIds);
+  }
+
+  Future<void> loadMore() => _more.run(() async {
+        var videos = state.value ?? [];
+        for (var attempt = 0; attempt < 3; attempt++) {
+          final before = videos.length;
+          videos = [...videos, ...await _fetch()];
+          if (videos.length > before || _more.done) break;
+        }
+        state = AsyncData(videos);
+      });
+}
+
 /// The two id-only histories interaction-service exposes about the caller.
 enum VideoHistory { liked, saved }
 

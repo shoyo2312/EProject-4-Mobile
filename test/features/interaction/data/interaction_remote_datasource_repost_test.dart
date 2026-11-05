@@ -20,6 +20,19 @@ class _StubAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     lastRequest = options;
+    if (options.path.endsWith('/reposts')) {
+      return ResponseBody.fromString(
+        jsonEncode({
+          'success': true,
+          'data': {'videoIds': [7312], 'hasMore': false, 'nextCursor': null},
+          'timestamp': '2026-11-05T00:00:00Z',
+        }),
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      );
+    }
     return ResponseBody.fromString(
       jsonEncode({
         'success': true,
@@ -71,5 +84,14 @@ void main() {
     expect(adapter.lastRequest?.path,
         endsWith('/interactions/videos/11/repost'));
     expect(reposted, isFalse);
+  });
+
+  test("a profile's Reposts tab is read by user id", () async {
+    final page = await datasource.getRepostedVideoIds('42', cursor: 'c1');
+
+    expect(adapter.lastRequest?.method, 'GET');
+    expect(adapter.lastRequest?.path, endsWith('/interactions/users/42/reposts'));
+    expect(adapter.lastRequest?.queryParameters['cursor'], 'c1');
+    expect(page.videoIds, ['7312']);
   });
 }

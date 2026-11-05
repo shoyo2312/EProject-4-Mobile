@@ -35,9 +35,15 @@ class CommentRemoteDatasource {
 
   final ApiClient _apiClient;
 
-  /// Top-level comments only, newest first (interaction doc 3.5).
-  Future<CommentPage> fetchComments(String videoId, {String? cursor}) =>
-      _page('/interactions/videos/$videoId/comments', cursor: cursor, size: 20);
+  /// Top-level comments only, most interaction (likes + replies) first
+  /// (interaction doc 3.5, `sort=top`). The cursor only works with the same
+  /// `sort`, which is why it is fixed here.
+  Future<CommentPage> fetchComments(String videoId, {String? cursor}) => _page(
+        '/interactions/videos/$videoId/comments',
+        cursor: cursor,
+        size: 20,
+        sort: 'top',
+      );
 
   /// One thread's replies, oldest first. Needs a token (interaction doc 3.5b).
   Future<CommentPage> fetchReplies(
@@ -56,12 +62,14 @@ class CommentRemoteDatasource {
     String path, {
     String? cursor,
     required int size,
+    String? sort,
   }) async {
     final response = await _apiClient.get<Map<String, dynamic>>(
       path,
       queryParameters: {
         'cursor': ?cursor,
         'size': size,
+        'sort': ?sort,
       },
     );
     final body = response.data!['data'] as Map<String, dynamic>;

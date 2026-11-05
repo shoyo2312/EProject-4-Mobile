@@ -189,5 +189,21 @@ void main() {
     expect(ctx.adapter.lastRequest?.path,
         endsWith('/interactions/videos/11/comments/22/replies'));
     expect(ctx.adapter.lastRequest?.queryParameters['cursor'], 'abc');
+    // Replies read as a conversation, oldest first: never ranked.
+    expect(ctx.adapter.lastRequest?.queryParameters.containsKey('sort'), isFalse);
+  });
+
+  test('the comment list asks for the most interaction first', () async {
+    final ctx = build({
+      'success': true,
+      'data': {'items': [], 'hasMore': false, 'nextCursor': null},
+    });
+
+    await ctx.datasource.fetchComments('11', cursor: 'top.20');
+
+    expect(ctx.adapter.lastRequest?.path,
+        endsWith('/interactions/videos/11/comments'));
+    expect(ctx.adapter.lastRequest?.queryParameters['sort'], 'top');
+    expect(ctx.adapter.lastRequest?.queryParameters['cursor'], 'top.20');
   });
 }

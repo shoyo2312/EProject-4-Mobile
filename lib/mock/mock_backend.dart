@@ -640,6 +640,20 @@ class _MockInteractionRepository extends InteractionRepository {
 
   final _reposted = <String>{};
 
+  /// Only the signed-in mock user reposts anything offline.
+  @override
+  Future<VideoIdPage> getRepostedVideoIds(
+    String userId, {
+    String? cursor,
+    int size = 20,
+  }) async {
+    await _latency();
+    return VideoIdPage(
+      videoIds: userId == _meId ? _reposted.toList().reversed.toList() : [],
+      hasMore: false,
+    );
+  }
+
   @override
   Future<bool> repost(String videoId) async {
     await _latency();

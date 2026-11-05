@@ -201,9 +201,10 @@ void main() {
       expect(find.text('first comment'), findsNothing);
     });
 
-    testWidgets('only the owner sees the filters button', (tester) async {
+    testWidgets('the sheet has no filters button, not even for the owner',
+        (tester) async {
       await pumpSheet(tester, videoOwnerId: '1');
-      expect(find.byKey(const Key('comment_filters_button')), findsOneWidget);
+      expect(find.byKey(const Key('comment_filters_button')), findsNothing);
     });
 
     testWidgets('an admin removes it with a reason, through admin-service',

@@ -353,15 +353,33 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTick
     unawaited(HapticFeedback.mediumImpact());
     final interactions = ref.read(interactionRepositoryProvider);
     final videoId = widget.video.id;
+    final meId = ref.read(authStateProvider).valueOrNull?.id;
+    // Through the container: Undo can be pressed after this panel scrolled
+    // away, when `ref` is gone.
+    final container = _container;
+    void refreshMyReposts() {
+      if (meId != null) {
+        container.invalidate(repostedVideosNotifierProvider(meId));
+      }
+    }
+
     try {
       await interactions.repost(videoId);
+      refreshMyReposts();
       if (!mounted) return;
       _toast(
         'Reposted to your profile',
         action: SnackBarAction(
           key: const Key('feed_repost_undo'),
           label: 'Undo',
-          onPressed: () => interactions.unrepost(videoId).ignore(),
+          onPressed: () async {
+            try {
+              await interactions.unrepost(videoId);
+              refreshMyReposts();
+            } on AppException {
+              // The repost stays; the tab shows it.
+            }
+          },
         ),
       );
     } on AppException catch (e) {

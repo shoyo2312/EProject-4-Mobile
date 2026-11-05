@@ -45,7 +45,9 @@ Future<void> _loadRings(Ref ref, List<String> userIds) async {
   }
 }
 
-/// The top-level comments of one video, newest first. Replies live in
+/// The top-level comments of one video, most liked and replied first — the
+/// server ranks them. Your own new comment still goes on top so you see it
+/// land. Replies live in
 /// [CommentReplies]; this notifier keeps the two in step (a reply posted or
 /// deleted moves its thread's `replyCount` here).
 @riverpod
@@ -84,7 +86,13 @@ class CommentNotifier extends _$CommentNotifier {
         // adds nothing never grows the list back to the scroll trigger. Try a
         // few before giving this scroll up.
         for (var attempt = 0; attempt < 3; attempt++) {
-          comments = [...comments, ...(await _fetch()).items];
+          // The ranking is redone on every page, so a comment liked meanwhile
+          // can come round again.
+          final seen = {for (final c in comments) c.id};
+          comments = [
+            ...comments,
+            ...(await _fetch()).items.where((c) => !seen.contains(c.id)),
+          ];
           if (comments.length > (state.value ?? []).length || _more.done) break;
         }
         state = AsyncData(comments);

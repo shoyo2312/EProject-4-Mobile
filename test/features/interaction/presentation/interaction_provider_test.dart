@@ -245,5 +245,34 @@ void main() {
         ['v2'],
       );
     });
+
+    test("a profile's reposts are read by that user's id and hydrated",
+        () async {
+      when(() => repository.getRepostedVideoIds('123',
+              cursor: null, size: any(named: 'size')))
+          .thenAnswer((_) async =>
+              const VideoIdPage(videoIds: ['v3'], hasMore: false));
+      when(() => feedRepository.fetchByIds(['v3']))
+          .thenAnswer((_) async => [video('v3')]);
+
+      final result =
+          await history.read(repostedVideosNotifierProvider('123').future);
+
+      expect(result.map((v) => v.id), ['v3']);
+    });
+
+    test('a private account answers with its refusal, not an empty tab',
+        () async {
+      when(() => repository.getRepostedVideoIds('123',
+              cursor: null, size: any(named: 'size')))
+          .thenThrow(const ServerException(403, 'private',
+              code: 'PRIVATE_ACCOUNT'));
+
+      await expectLater(
+        history.read(repostedVideosNotifierProvider('123').future),
+        throwsA(isA<ServerException>()
+            .having((e) => e.code, 'code', 'PRIVATE_ACCOUNT')),
+      );
+    });
   });
 }
