@@ -17,6 +17,15 @@ class Env {
     return 'http://$host:8080/api/v1';
   }
 
+  /// Origin of the web app (EProject-4-Web), used to build links people can
+  /// open from another app: `<webBaseUrl>/video/<id>` is its video page.
+  /// Pass `--dart-define=WEB_BASE_URL=https://...` once the site is public;
+  /// the default only opens on the machine running `next dev`.
+  static const String webBaseUrl = String.fromEnvironment(
+    'WEB_BASE_URL',
+    defaultValue: 'http://localhost:3000',
+  );
+
   /// `--dart-define=USE_MOCK=true` runs the app off in-memory sample data
   /// instead of the backend. Off by default, release builds included.
   static const bool useMockData = bool.fromEnvironment('USE_MOCK');

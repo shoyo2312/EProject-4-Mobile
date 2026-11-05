@@ -73,20 +73,46 @@ class LikeNotifier extends _$LikeNotifier {
     ref.read(likeStatusCacheProvider.notifier).put(status);
   }
 
-  /// Optimistic: the heart flips now and the server's own count replaces the
-  /// guess when it answers. A failed write puts the previous state back —
-  /// like/unlike are idempotent, so the next tap is safe to send again.
-  Future<void> toggle() async {
+  /// The state to act on. While `like-status` is still loading this waits for
+  /// it, so the tap does not race the answer. If it failed, null: the tap is
+  /// still sent, because like/unlike are idempotent and the server's reply
+  /// carries the real state.
+  Future<LikeStatus?> _settled() async {
     final current = state.valueOrNull;
-    // Still loading: nothing to toggle away from, and guessing here would
-    // fight the in-flight `like-status` answer.
-    if (current == null) return;
+    if (current != null) return current;
+    try {
+      return await future;
+    } on Object {
+      return null;
+    }
+  }
 
-    final wantLiked = !current.liked;
-    _publish(current.copyWith(
-      liked: wantLiked,
-      likeCount: current.likeCount + (wantLiked ? 1 : -1),
-    ));
+  /// Optimistic: the heart flips now and the server's own count replaces the
+  /// guess when it answers. A failed write puts the previous state back and
+  /// returns the error, so the screen can say why — like/unlike are
+  /// idempotent, so the next tap is safe to send again.
+  Future<AppException?> toggle() async {
+    final current = await _settled();
+    return _write(wantLiked: !(current?.liked ?? false), current: current);
+  }
+
+  /// Double-tap: likes, never un-likes.
+  Future<AppException?> like() async {
+    final current = await _settled();
+    if (current?.liked ?? false) return null;
+    return _write(wantLiked: true, current: current);
+  }
+
+  Future<AppException?> _write({
+    required bool wantLiked,
+    required LikeStatus? current,
+  }) async {
+    if (current != null) {
+      _publish(current.copyWith(
+        liked: wantLiked,
+        likeCount: current.likeCount + (wantLiked ? 1 : -1),
+      ));
+    }
 
     final repository = ref.read(interactionRepositoryProvider);
     try {
@@ -97,15 +123,11 @@ class LikeNotifier extends _$LikeNotifier {
       );
       // The Liked tab on the profile lists exactly what this just changed.
       ref.invalidate(historyVideosNotifierProvider(VideoHistory.liked));
-    } on AppException {
-      _publish(current);
+      return null;
+    } on AppException catch (e) {
+      if (current != null) _publish(current);
+      return e;
     }
-  }
-
-  /// Double-tap: likes, never un-likes.
-  Future<void> like() async {
-    if (state.valueOrNull?.liked ?? true) return;
-    await toggle();
   }
 }
 
@@ -135,10 +157,21 @@ class SaveNotifier extends _$SaveNotifier {
   }
 
   /// Optimistic, like [LikeNotifier.toggle], and safe to tap again after a
-  /// failure: save and unsave are both idempotent.
-  Future<void> toggle() async {
-    final current = state.valueOrNull;
-    if (current == null) return;
+  /// failure: save and unsave are both idempotent. Returns the error of a
+  /// failed write so the screen can show it.
+  ///
+  /// A `save-status` that is still loading is waited for; one that failed is
+  /// treated as "not saved", so the tap still saves instead of doing nothing.
+  Future<AppException?> toggle() async {
+    SaveStatus? loaded = state.valueOrNull;
+    if (loaded == null) {
+      try {
+        loaded = await future;
+      } on Object {
+        loaded = null;
+      }
+    }
+    final current = loaded ?? SaveStatus(videoId: videoId, saved: false);
 
     final wantSaved = !current.saved;
     state = AsyncData(current.copyWith(saved: wantSaved));
@@ -152,8 +185,10 @@ class SaveNotifier extends _$SaveNotifier {
       );
       // The Saved tab on the profile lists exactly what this just changed.
       ref.invalidate(historyVideosNotifierProvider(VideoHistory.saved));
-    } on AppException {
+      return null;
+    } on AppException catch (e) {
       state = AsyncData(current);
+      return e;
     }
   }
 }

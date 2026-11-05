@@ -275,23 +275,34 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTick
 
   /// Liking needs an account: signed out the write would 401, so the tap opens
   /// the login screen instead of failing quietly.
-  void _like({bool toggle = true}) {
+  Future<void> _like({bool toggle = true}) async {
     if (!_signedIn) {
       context.push('/login');
       return;
     }
     final notifier = ref.read(likeNotifierProvider(widget.video.id).notifier);
-    toggle ? notifier.toggle() : notifier.like();
+    final error = await (toggle ? notifier.toggle() : notifier.like());
+    // The heart already went back; say why instead of failing quietly.
+    if (error != null && mounted) _toast(error.message);
   }
 
   /// Saving needs an account too, and for a harder reason than liking: a save
   /// is private, so there is no signed-out state for it to fall back to.
-  void _save() {
+  Future<void> _save() async {
     if (!_signedIn) {
       context.push('/login');
       return;
     }
-    ref.read(saveNotifierProvider(widget.video.id).notifier).toggle();
+    final error =
+        await ref.read(saveNotifierProvider(widget.video.id).notifier).toggle();
+    if (!mounted) return;
+    if (error != null) {
+      _toast(error.message);
+    } else {
+      final saved =
+          ref.read(saveNotifierProvider(widget.video.id)).valueOrNull?.saved;
+      _toast(saved == true ? 'Saved to favorites' : 'Removed from favorites');
+    }
   }
 
   /// Anonymous views are not counted at all — the server has nothing to
@@ -332,7 +343,13 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTick
   /// Reported after the share happened, and never retried — every call is
   /// another share, so a retry inflates the count.
   Future<void> _share() async {
-    final shared = await showShareSheet(context, video: widget.video);
+    final shared = await showShareSheet(
+      context,
+      video: widget.video,
+      saved: ref.read(saveNotifierProvider(widget.video.id)).valueOrNull?.saved ??
+          false,
+      onToggleSave: _save,
+    );
     if (!shared || !_signedIn) return;
     ref.read(interactionRepositoryProvider).share(widget.video.id).ignore();
   }

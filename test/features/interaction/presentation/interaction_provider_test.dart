@@ -100,6 +100,32 @@ void main() {
     verifyNever(() => repository.unlike(any()));
   });
 
+  test('double-tap still likes when like-status failed to load', () async {
+    when(() => repository.getLikeStatus('v1'))
+        .thenThrow(const NetworkException());
+    when(() => repository.like('v1'))
+        .thenAnswer((_) async => status(liked: true, likeCount: 6));
+    await expectLater(
+      container.read(likeNotifierProvider('v1').future),
+      throwsA(isA<NetworkException>()),
+    );
+
+    final error = await container.read(likeNotifierProvider('v1').notifier).like();
+
+    expect(error, isNull);
+    verify(() => repository.like('v1')).called(1);
+    expect(container.read(likeNotifierProvider('v1')).value!.liked, isTrue);
+  });
+
+  test('a failed like hands the error back so the screen can show it', () async {
+    when(() => repository.like('v1')).thenThrow(const NetworkException());
+    await container.read(likeNotifierProvider('v1').future);
+
+    final error = await container.read(likeNotifierProvider('v1').notifier).toggle();
+
+    expect(error, isA<NetworkException>());
+  });
+
   test('a video the feed already batched costs no request of its own', () async {
     when(() => repository.getLikeStatuses(['v1']))
         .thenAnswer((_) async => [status(liked: true, likeCount: 7)]);
@@ -174,6 +200,24 @@ void main() {
       await signedIn.read(saveNotifierProvider('v1').notifier).toggle();
 
       expect(signedIn.read(saveNotifierProvider('v1')).value!.saved, isFalse);
+    });
+
+    test('saving still works when save-status failed to load', () async {
+      when(() => repository.getSaveStatus('v1'))
+          .thenThrow(const NetworkException());
+      when(() => repository.save('v1'))
+          .thenAnswer((_) async => const SaveStatus(videoId: 'v1', saved: true));
+      await expectLater(
+        signedIn.read(saveNotifierProvider('v1').future),
+        throwsA(isA<NetworkException>()),
+      );
+
+      final error =
+          await signedIn.read(saveNotifierProvider('v1').notifier).toggle();
+
+      expect(error, isNull);
+      verify(() => repository.save('v1')).called(1);
+      expect(signedIn.read(saveNotifierProvider('v1')).value!.saved, isTrue);
     });
 
     test('a guest is answered locally, never over the network', () async {
