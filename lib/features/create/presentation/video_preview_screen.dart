@@ -11,9 +11,19 @@ import 'package:video_player/video_player.dart';
 /// Step 2 of the create flow: trim the clip and pick its speed before
 /// committing to it. Resolves `true` once the post is up, `null` if the poster
 /// backed out of either step.
-Future<bool?> showVideoPreview(BuildContext context, {required File file}) {
+///
+/// [edit] is what the in-app camera already made of the recording — speeds
+/// and deleted clips. A single segment stays editable; several are previewed
+/// as they are and sent unchanged.
+Future<bool?> showVideoPreview(
+  BuildContext context, {
+  required File file,
+  VideoEdit? edit,
+}) {
   return Navigator.of(context).push<bool>(
-    MaterialPageRoute(builder: (_) => VideoPreviewScreen(file: file)),
+    MaterialPageRoute(
+      builder: (_) => VideoPreviewScreen(file: file, initialEdit: edit),
+    ),
   );
 }
 
@@ -59,8 +69,9 @@ class VideoPreviewScreen extends StatefulWidget {
   /// already made, so the editing controls are hidden too.
   final bool collectDetails;
 
-  /// The edit to preview with. Only the first segment is shown — the editor
-  /// only ever makes one.
+  /// The edit to preview with. One segment loads into the trim and speed
+  /// controls; several — clips recorded at different speeds, or with one
+  /// deleted — are played as they are and cannot be trimmed here.
   final VideoEdit? initialEdit;
 
   @override
@@ -76,8 +87,14 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   var _end = Duration.zero;
   var _speed = 1.0;
 
-  /// Set while a loop-back seek is in flight, so the position updates that
-  /// arrive before it lands do not ask for the same seek again.
+  /// Several segments from the camera: played as recorded, not editable.
+  late final bool _locked = (widget.initialEdit?.segments.length ?? 0) > 1;
+
+  /// The rate last handed to the player, so it is only set on a change.
+  double? _playingSpeed;
+
+  /// Set while a seek is in flight, so the position updates that arrive
+  /// before it lands do not ask for the same seek again.
   var _seeking = false;
 
   @override
@@ -85,27 +102,25 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
     super.initState();
     _controller = VideoPlayerController.file(widget.file)
       ..setLooping(true)
-      ..addListener(_keepInsideTrim)
+      ..addListener(_followEdit)
       ..initialize().then((_) {
         if (!mounted) return;
         _duration = _controller.value.duration;
         _end = _duration;
         final segment = widget.initialEdit?.segments.firstOrNull;
-        if (segment != null) {
+        if (segment != null && !_locked) {
           _start = _seconds(segment.start);
           _end = _seconds(segment.end) < _duration ? _seconds(segment.end) : _duration;
           _speed = segment.speed;
         }
         setState(() => _ready = true);
-        _applySpeed();
-        _controller.seekTo(_start);
         _controller.play();
       });
   }
 
   @override
   void dispose() {
-    _controller.removeListener(_keepInsideTrim);
+    _controller.removeListener(_followEdit);
     _controller.dispose();
     super.dispose();
   }
@@ -113,23 +128,35 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   static Duration _seconds(double seconds) =>
       Duration(milliseconds: (seconds * 1000).round());
 
-  /// The preview of a trim: playback that reaches the end handle, or that the
-  /// player's own loop sent back to zero, goes back to the start handle.
-  Future<void> _keepInsideTrim() async {
+  /// What playback follows: the camera's segments, or the trim and speed
+  /// set here.
+  VideoEdit get _playback => _locked
+      ? widget.initialEdit!
+      : VideoEdit.single(start: _start, end: _end, speed: _speed);
+
+  /// The preview of an edit: playback jumps over what is cut — before the
+  /// trim, between segments, past the end, or back at zero after the
+  /// player's own loop — and each segment plays at its own speed.
+  Future<void> _followEdit() async {
     if (!_ready || _seeking) return;
-    final position = _controller.value.position;
-    if (position >= _end || position < _start - const Duration(milliseconds: 200)) {
+    final at = _playback.playbackAt(_controller.value.position);
+    if (at.speed != _playingSpeed) {
+      _playingSpeed = at.speed;
+      await _applySpeed(at.speed);
+    }
+    final jumpTo = at.jumpTo;
+    if (jumpTo != null) {
       _seeking = true;
-      await _controller.seekTo(_start);
+      await _controller.seekTo(jumpTo);
       _seeking = false;
     }
   }
 
   /// Some platforms refuse rates their decoder cannot do; the preview then
   /// plays at normal speed, and the server still applies the chosen one.
-  Future<void> _applySpeed() async {
+  Future<void> _applySpeed(double speed) async {
     try {
-      await _controller.setPlaybackSpeed(_speed);
+      await _controller.setPlaybackSpeed(speed);
     } catch (_) {
       // Preview only — the edit sent on publish is what counts.
     }
@@ -149,14 +176,12 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
     if (startMoved) _controller.seekTo(start);
   }
 
-  void _onSpeed(double speed) {
-    setState(() => _speed = speed);
-    _applySpeed();
-  }
+  void _onSpeed(double speed) => setState(() => _speed = speed);
 
   /// Null when nothing was changed, so an untouched clip is not re-encoded.
   VideoEdit? get _edit {
-    final edit = VideoEdit.single(start: _start, end: _end, speed: _speed);
+    if (_locked) return widget.initialEdit;
+    final edit = _playback;
     return edit.isUnchanged(_duration) ? null : edit;
   }
 
@@ -178,7 +203,7 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.of(context).padding.top;
-    final editing = widget.collectDetails && _ready;
+    final editing = widget.collectDetails && _ready && !_locked;
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -239,7 +264,21 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
                     played: _edit?.playedDuration ?? _duration,
                     onChanged: _onTrim,
                   ),
-                ] else if (_ready)
+                ] else if (_ready && _locked)
+                  Glass(
+                    radius: 14,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        '${widget.initialEdit!.segments.length} clips · '
+                        '${_TrimBar._clock(widget.initialEdit!.playedWithin(_duration))}',
+                        key: const Key('preview_clips_summary'),
+                        textAlign: TextAlign.center,
+                        style: sora(size: 12.5, weight: FontWeight.w600, color: NowaColors.text),
+                      ),
+                    ),
+                  )
+                else if (_ready)
                   VideoProgressIndicator(
                     _controller,
                     allowScrubbing: true,

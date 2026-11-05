@@ -43,7 +43,12 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       // (and its audio keeps running) under Discover or Inbox.
       () => FeedScreen(visible: _index == 0, onOpenDiscover: () => _go(1)),
       () => const DiscoverScreen(),
-      () => CreateScreen(onClose: () => _go(0), onPosted: () => _go(4)),
+      // Told when it is off screen too, so it lets go of the camera.
+      () => CreateScreen(
+            visible: _index == 2,
+            onClose: () => _go(0),
+            onPosted: () => _go(4),
+          ),
       () => const InboxScreen(),
       () => const ProfileScreen(embedded: true),
     ];
