@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
+import 'package:tiktok_mobile/features/create/data/overlay_item.dart';
 import 'package:tiktok_mobile/features/create/data/video_edit.dart';
 import 'package:tiktok_mobile/features/create/presentation/post_details_screen.dart';
 import 'package:tiktok_mobile/features/create/presentation/widgets/filter_picker.dart';
+import 'package:tiktok_mobile/features/create/presentation/widgets/overlay_editor.dart';
+import 'package:tiktok_mobile/features/create/presentation/widgets/overlay_painter.dart';
 import 'package:video_player/video_player.dart';
 
 /// Step 2 of the create flow: trim the clip and pick its speed before
@@ -91,6 +94,27 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   /// The colour over the whole video, editable in every mode.
   late EditFilter? _filter = widget.initialEdit?.filter;
 
+  /// The text and stickers laid over the video, bottom first.
+  var _items = <OverlayItem>[];
+  var _nextItemId = 0;
+  final _stickers = StickerImages();
+
+  /// The item whose timing and actions are showing in place of the editor's.
+  int? _selectedId;
+
+  OverlayItem? get _selected => _items.where((i) => i.id == _selectedId).firstOrNull;
+
+  /// Where the preview is on the edited video's clock, for showing each item
+  /// only over its own stretch. Only followed while there are items to time.
+  double? _playedAt;
+
+  /// The layers made earlier, re-watched from the details screen.
+  List<OverlayLayer> get _reviewLayers =>
+      widget.collectDetails ? const [] : widget.initialEdit?.overlays ?? const [];
+
+  /// An item is under the fingers: the controls step aside for the bin.
+  var _dragging = false;
+
   /// Several segments from the camera: played as recorded, not editable.
   late final bool _locked = (widget.initialEdit?.segments.length ?? 0) > 1;
 
@@ -126,6 +150,7 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   void dispose() {
     _controller.removeListener(_followEdit);
     _controller.dispose();
+    _stickers.dispose();
     super.dispose();
   }
 
@@ -143,6 +168,7 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   /// player's own loop — and each segment plays at its own speed.
   Future<void> _followEdit() async {
     if (!_ready || _seeking) return;
+    _followClock();
     final at = _playback.playbackAt(_controller.value.position);
     if (at.speed != _playingSpeed) {
       _playingSpeed = at.speed;
@@ -155,6 +181,20 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
       _seeking = false;
     }
   }
+
+  /// Moves [_playedAt] along with playback. A position in a cut keeps the
+  /// last one — the preview is about to jump out of it anyway.
+  void _followClock() {
+    if (_items.isEmpty && _reviewLayers.isEmpty) return;
+    final played = _playback.playedAt(_controller.value.position);
+    if (played == null) return;
+    final last = _playedAt;
+    if (last == null || (played - last).abs() >= 0.05) setState(() => _playedAt = played);
+  }
+
+  /// How long the edited video plays, in seconds: the range item timings
+  /// are set in.
+  double get _playedSeconds => _playback.playedWithin(_duration).inMilliseconds / 1000;
 
   /// Some platforms refuse rates their decoder cannot do; the preview then
   /// plays at normal speed, and the server still applies the chosen one.
@@ -192,12 +232,119 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
     return VideoEdit(segments: trimmed ? trim.segments : const [], filter: _filter);
   }
 
+  void _togglePlayback() => setState(() {
+        _controller.value.isPlaying ? _controller.pause() : _controller.play();
+      });
+
+  Future<void> _addText() async {
+    final typed = await showOverlayTextEditor(context);
+    if (typed == null || typed.removed || !mounted) return;
+    setState(() => _items = [
+          ..._items,
+          OverlayItem(
+            id: _nextItemId++,
+            kind: OverlayKind.text,
+            text: typed.text,
+            colour: typed.colour,
+            boxed: typed.boxed,
+            font: typed.font,
+            y: 0.4,
+          ),
+        ]);
+  }
+
+  Future<void> _editText(OverlayItem item) async {
+    final typed = await showOverlayTextEditor(context, editing: item);
+    if (typed == null || !mounted) return;
+    setState(() {
+      _items = [
+        for (final i in _items)
+          if (i.id != item.id)
+            i
+          else if (!typed.removed)
+            i.copyWith(text: typed.text, colour: typed.colour, boxed: typed.boxed, font: typed.font),
+      ];
+      if (typed.removed) _selectedId = null;
+    });
+  }
+
+  void _setTiming(OverlayItem item, double? start, double? end, double movedTo) {
+    setState(() {
+      _items = [for (final i in _items) i.id == item.id ? i.copyWith(start: start, end: end) : i];
+      _playedAt = movedTo;
+    });
+    // Shows the frame the moved end lands on, still, as the item will appear there.
+    _controller.pause();
+    _controller.seekTo(_playback.rawAt(movedTo));
+  }
+
+  void _delete(OverlayItem item) => setState(() {
+        _items = _items.where((i) => i.id != item.id).toList();
+        _selectedId = null;
+      });
+
+  Future<void> _addSticker() async {
+    final sticker = await showStickerPicker(context);
+    if (sticker == null || !mounted) return;
+    // Decoded before it is placed: a canvas draws only what is already decoded.
+    await _stickers.load(sticker);
+    if (!mounted) return;
+    // Each one lands a little off the last, so a second is not hidden under the first.
+    final nudge = (_nextItemId % 5 - 2) * 0.06;
+    setState(() => _items = [
+          ..._items,
+          OverlayItem(
+            id: _nextItemId++,
+            kind: OverlayKind.sticker,
+            text: sticker,
+            x: 0.5 + nudge,
+            y: 0.5 + nudge,
+          ),
+        ]);
+  }
+
+  /// The server composites at most this many layers (video doc 3.2).
+  static const _maxLayers = 10;
+
+  /// The items drawn at the size the server caps the video at, one PNG per
+  /// layer, written where the upload can pick the files up.
+  Future<List<OverlayLayer>> _renderLayers() async {
+    final frame = overlayFrameFor(_controller.value.aspectRatio);
+    final stamp = DateTime.now().microsecondsSinceEpoch;
+    final layers = <OverlayLayer>[];
+    for (final (i, items) in overlayLayers(_items).indexed) {
+      final bytes = await renderOverlayPng(items, _stickers, frame);
+      final file = File('${Directory.systemTemp.path}/overlay_${stamp}_$i.png');
+      await file.writeAsBytes(bytes, flush: true);
+      layers.add(OverlayLayer(
+        path: file.path,
+        start: items.first.start,
+        end: items.first.end,
+        texts: [for (final item in items) if (item.kind == OverlayKind.text) item.text],
+      ));
+    }
+    return layers;
+  }
+
   /// Playback is paused across the details screen: the clip looping under a
   /// keyboard is only noise, and its audio would keep running.
   Future<void> _continue() async {
+    if (overlayLayers(_items).length > _maxLayers) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Text and stickers can appear at up to $_maxLayers different times'),
+      ));
+      return;
+    }
+    setState(() => _selectedId = null);
     await _controller.pause();
     if (!mounted) return;
-    final posted = await showPostDetails(context, file: widget.file, edit: _edit);
+    var edit = _edit;
+    if (_items.isNotEmpty) {
+      final layers = await _renderLayers();
+      if (!mounted) return;
+      edit = (edit ?? const VideoEdit()).copyWith(overlays: layers);
+    }
+    final posted = await showPostDetails(context, file: widget.file, edit: edit);
     if (!mounted) return;
     if (posted != true) {
       await _controller.play();
@@ -211,6 +358,8 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   Widget build(BuildContext context) {
     final top = MediaQuery.of(context).padding.top;
     final editing = widget.collectDetails && _ready && !_locked;
+    final selected = widget.collectDetails ? _selected : null;
+    final playedAt = _playedAt;
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -219,17 +368,42 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
           if (_ready)
             GestureDetector(
               key: const Key('preview_playback_toggle'),
-              onTap: () => setState(() {
-                _controller.value.isPlaying
-                    ? _controller.pause()
-                    : _controller.play();
-              }),
+              onTap: _togglePlayback,
               child: Center(
                 child: AspectRatio(
                   aspectRatio: _controller.value.aspectRatio,
-                  child: FilteredView(
-                    filter: _filter,
-                    child: VideoPlayer(_controller),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      FilteredView(
+                        filter: _filter,
+                        child: VideoPlayer(_controller),
+                      ),
+                      // Over the filter, not under it: the server lays the
+                      // overlay on after the colour too.
+                      if (widget.collectDetails)
+                        OverlayEditor(
+                          items: _items,
+                          stickers: _stickers,
+                          selectedId: _selectedId,
+                          playedAt: playedAt,
+                          onChanged: (items) => setState(() => _items = items),
+                          onSelect: (item) => setState(() => _selectedId = item?.id),
+                          onEditText: _editText,
+                          onTapEmpty: _togglePlayback,
+                          onDragging: (dragging) => setState(() => _dragging = dragging),
+                        )
+                      else
+                        for (final (i, layer) in _reviewLayers.indexed)
+                          if (playedAt == null ||
+                              ((layer.start == null || playedAt >= layer.start!) &&
+                                  (layer.end == null || playedAt <= layer.end!)))
+                            Image.file(
+                              File(layer.path),
+                              key: Key('preview_overlay_image_$i'),
+                              fit: BoxFit.fill,
+                            ),
+                    ],
                   ),
                 ),
               ),
@@ -256,11 +430,29 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
               ),
             ),
           ),
+          if (widget.collectDetails && _ready && !_dragging)
+            Positioned(
+              right: 14,
+              top: top + 10,
+              child: OverlayTools(onText: _addText, onSticker: _addSticker),
+            ),
+          // Out of the way while an item is dragged, for the bin at the bottom.
+          if (!_dragging)
           Positioned(
             left: 18,
             right: 18,
             bottom: MediaQuery.of(context).padding.bottom + 20,
-            child: Column(
+            child: selected != null
+                ? OverlayItemPanel(
+                    key: const Key('overlay_item_panel'),
+                    item: selected,
+                    duration: _playedSeconds,
+                    onTiming: (start, end, movedTo) => _setTiming(selected, start, end, movedTo),
+                    onEdit: () => _editText(selected),
+                    onDelete: () => _delete(selected),
+                    onDone: () => setState(() => _selectedId = null),
+                  )
+                : Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

@@ -118,6 +118,33 @@ void main() {
     verifyNever(() => repository.getVideo(any()));
   });
 
+  test('words over the picture that are refused name the text, not the caption',
+      () async {
+    when(() => repository.uploadAndPublish(
+          file: any(named: 'file'),
+          contentType: any(named: 'contentType'),
+          title: any(named: 'title'),
+          description: any(named: 'description'),
+          visibility: any(named: 'visibility'),
+          tags: any(named: 'tags'),
+          onProgress: any(named: 'onProgress'),
+          cancelToken: any(named: 'cancelToken'),
+        )).thenThrow(const ServerException(
+      422,
+      "The video's overlay contains language that isn't allowed",
+      code: 'VIDEO_OVERLAY_REJECTED',
+    ));
+
+    await notifier().start(
+      file: FakeFile(),
+      title: 'clip',
+      visibility: VideoVisibility.public,
+    );
+
+    expect(state().phase, UploadPhase.failed);
+    expect(state().error, contains('text on your video'));
+  });
+
   test('comments switched off at upload reach the repository', () async {
     when(() => repository.uploadAndPublish(
           file: any(named: 'file'),

@@ -26,6 +26,13 @@ mixin _$VideoEdit {
   List<EditSegment> get segments => throw _privateConstructorUsedError;
   EditFilter? get filter => throw _privateConstructorUsedError;
 
+  /// The text and stickers, drawn on this device into PNG layers the shape
+  /// of the video, lowest first. Not part of this JSON: each file is
+  /// uploaded on its own and the request carries its storage URL in
+  /// `edit.overlays`.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  List<OverlayLayer> get overlays => throw _privateConstructorUsedError;
+
   /// Serializes this VideoEdit to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -41,7 +48,12 @@ abstract class $VideoEditCopyWith<$Res> {
   factory $VideoEditCopyWith(VideoEdit value, $Res Function(VideoEdit) then) =
       _$VideoEditCopyWithImpl<$Res, VideoEdit>;
   @useResult
-  $Res call({List<EditSegment> segments, EditFilter? filter});
+  $Res call({
+    List<EditSegment> segments,
+    EditFilter? filter,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    List<OverlayLayer> overlays,
+  });
 
   $EditFilterCopyWith<$Res>? get filter;
 }
@@ -60,7 +72,11 @@ class _$VideoEditCopyWithImpl<$Res, $Val extends VideoEdit>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? segments = null, Object? filter = freezed}) {
+  $Res call({
+    Object? segments = null,
+    Object? filter = freezed,
+    Object? overlays = null,
+  }) {
     return _then(
       _value.copyWith(
             segments: null == segments
@@ -71,6 +87,10 @@ class _$VideoEditCopyWithImpl<$Res, $Val extends VideoEdit>
                 ? _value.filter
                 : filter // ignore: cast_nullable_to_non_nullable
                       as EditFilter?,
+            overlays: null == overlays
+                ? _value.overlays
+                : overlays // ignore: cast_nullable_to_non_nullable
+                      as List<OverlayLayer>,
           )
           as $Val,
     );
@@ -100,7 +120,12 @@ abstract class _$$VideoEditImplCopyWith<$Res>
   ) = __$$VideoEditImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({List<EditSegment> segments, EditFilter? filter});
+  $Res call({
+    List<EditSegment> segments,
+    EditFilter? filter,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    List<OverlayLayer> overlays,
+  });
 
   @override
   $EditFilterCopyWith<$Res>? get filter;
@@ -119,7 +144,11 @@ class __$$VideoEditImplCopyWithImpl<$Res>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? segments = null, Object? filter = freezed}) {
+  $Res call({
+    Object? segments = null,
+    Object? filter = freezed,
+    Object? overlays = null,
+  }) {
     return _then(
       _$VideoEditImpl(
         segments: null == segments
@@ -130,6 +159,10 @@ class __$$VideoEditImplCopyWithImpl<$Res>
             ? _value.filter
             : filter // ignore: cast_nullable_to_non_nullable
                   as EditFilter?,
+        overlays: null == overlays
+            ? _value._overlays
+            : overlays // ignore: cast_nullable_to_non_nullable
+                  as List<OverlayLayer>,
       ),
     );
   }
@@ -141,7 +174,10 @@ class _$VideoEditImpl extends _VideoEdit {
   const _$VideoEditImpl({
     final List<EditSegment> segments = const [],
     this.filter,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    final List<OverlayLayer> overlays = const [],
   }) : _segments = segments,
+       _overlays = overlays,
        super._();
 
   factory _$VideoEditImpl.fromJson(Map<String, dynamic> json) =>
@@ -164,9 +200,27 @@ class _$VideoEditImpl extends _VideoEdit {
   @override
   final EditFilter? filter;
 
+  /// The text and stickers, drawn on this device into PNG layers the shape
+  /// of the video, lowest first. Not part of this JSON: each file is
+  /// uploaded on its own and the request carries its storage URL in
+  /// `edit.overlays`.
+  final List<OverlayLayer> _overlays;
+
+  /// The text and stickers, drawn on this device into PNG layers the shape
+  /// of the video, lowest first. Not part of this JSON: each file is
+  /// uploaded on its own and the request carries its storage URL in
+  /// `edit.overlays`.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  List<OverlayLayer> get overlays {
+    if (_overlays is EqualUnmodifiableListView) return _overlays;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_overlays);
+  }
+
   @override
   String toString() {
-    return 'VideoEdit(segments: $segments, filter: $filter)';
+    return 'VideoEdit(segments: $segments, filter: $filter, overlays: $overlays)';
   }
 
   @override
@@ -175,7 +229,8 @@ class _$VideoEditImpl extends _VideoEdit {
         (other.runtimeType == runtimeType &&
             other is _$VideoEditImpl &&
             const DeepCollectionEquality().equals(other._segments, _segments) &&
-            (identical(other.filter, filter) || other.filter == filter));
+            (identical(other.filter, filter) || other.filter == filter) &&
+            const DeepCollectionEquality().equals(other._overlays, _overlays));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -184,6 +239,7 @@ class _$VideoEditImpl extends _VideoEdit {
     runtimeType,
     const DeepCollectionEquality().hash(_segments),
     filter,
+    const DeepCollectionEquality().hash(_overlays),
   );
 
   /// Create a copy of VideoEdit
@@ -204,6 +260,8 @@ abstract class _VideoEdit extends VideoEdit {
   const factory _VideoEdit({
     final List<EditSegment> segments,
     final EditFilter? filter,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    final List<OverlayLayer> overlays,
   }) = _$VideoEditImpl;
   const _VideoEdit._() : super._();
 
@@ -217,11 +275,274 @@ abstract class _VideoEdit extends VideoEdit {
   @override
   EditFilter? get filter;
 
+  /// The text and stickers, drawn on this device into PNG layers the shape
+  /// of the video, lowest first. Not part of this JSON: each file is
+  /// uploaded on its own and the request carries its storage URL in
+  /// `edit.overlays`.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  List<OverlayLayer> get overlays;
+
   /// Create a copy of VideoEdit
   /// with the given fields replaced by the non-null parameter values.
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$VideoEditImplCopyWith<_$VideoEditImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+mixin _$OverlayLayer {
+  /// The PNG on this device.
+  String get path => throw _privateConstructorUsedError;
+  double? get start => throw _privateConstructorUsedError;
+  double? get end => throw _privateConstructorUsedError;
+
+  /// The words drawn in it, for the server's text moderation.
+  List<String> get texts => throw _privateConstructorUsedError;
+
+  /// Where the PNG was uploaded; set by the upload, sent on publish.
+  String? get imageUrl => throw _privateConstructorUsedError;
+
+  /// Create a copy of OverlayLayer
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $OverlayLayerCopyWith<OverlayLayer> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $OverlayLayerCopyWith<$Res> {
+  factory $OverlayLayerCopyWith(
+    OverlayLayer value,
+    $Res Function(OverlayLayer) then,
+  ) = _$OverlayLayerCopyWithImpl<$Res, OverlayLayer>;
+  @useResult
+  $Res call({
+    String path,
+    double? start,
+    double? end,
+    List<String> texts,
+    String? imageUrl,
+  });
+}
+
+/// @nodoc
+class _$OverlayLayerCopyWithImpl<$Res, $Val extends OverlayLayer>
+    implements $OverlayLayerCopyWith<$Res> {
+  _$OverlayLayerCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of OverlayLayer
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? path = null,
+    Object? start = freezed,
+    Object? end = freezed,
+    Object? texts = null,
+    Object? imageUrl = freezed,
+  }) {
+    return _then(
+      _value.copyWith(
+            path: null == path
+                ? _value.path
+                : path // ignore: cast_nullable_to_non_nullable
+                      as String,
+            start: freezed == start
+                ? _value.start
+                : start // ignore: cast_nullable_to_non_nullable
+                      as double?,
+            end: freezed == end
+                ? _value.end
+                : end // ignore: cast_nullable_to_non_nullable
+                      as double?,
+            texts: null == texts
+                ? _value.texts
+                : texts // ignore: cast_nullable_to_non_nullable
+                      as List<String>,
+            imageUrl: freezed == imageUrl
+                ? _value.imageUrl
+                : imageUrl // ignore: cast_nullable_to_non_nullable
+                      as String?,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$OverlayLayerImplCopyWith<$Res>
+    implements $OverlayLayerCopyWith<$Res> {
+  factory _$$OverlayLayerImplCopyWith(
+    _$OverlayLayerImpl value,
+    $Res Function(_$OverlayLayerImpl) then,
+  ) = __$$OverlayLayerImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    String path,
+    double? start,
+    double? end,
+    List<String> texts,
+    String? imageUrl,
+  });
+}
+
+/// @nodoc
+class __$$OverlayLayerImplCopyWithImpl<$Res>
+    extends _$OverlayLayerCopyWithImpl<$Res, _$OverlayLayerImpl>
+    implements _$$OverlayLayerImplCopyWith<$Res> {
+  __$$OverlayLayerImplCopyWithImpl(
+    _$OverlayLayerImpl _value,
+    $Res Function(_$OverlayLayerImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of OverlayLayer
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? path = null,
+    Object? start = freezed,
+    Object? end = freezed,
+    Object? texts = null,
+    Object? imageUrl = freezed,
+  }) {
+    return _then(
+      _$OverlayLayerImpl(
+        path: null == path
+            ? _value.path
+            : path // ignore: cast_nullable_to_non_nullable
+                  as String,
+        start: freezed == start
+            ? _value.start
+            : start // ignore: cast_nullable_to_non_nullable
+                  as double?,
+        end: freezed == end
+            ? _value.end
+            : end // ignore: cast_nullable_to_non_nullable
+                  as double?,
+        texts: null == texts
+            ? _value._texts
+            : texts // ignore: cast_nullable_to_non_nullable
+                  as List<String>,
+        imageUrl: freezed == imageUrl
+            ? _value.imageUrl
+            : imageUrl // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+
+class _$OverlayLayerImpl implements _OverlayLayer {
+  const _$OverlayLayerImpl({
+    required this.path,
+    this.start,
+    this.end,
+    final List<String> texts = const [],
+    this.imageUrl,
+  }) : _texts = texts;
+
+  /// The PNG on this device.
+  @override
+  final String path;
+  @override
+  final double? start;
+  @override
+  final double? end;
+
+  /// The words drawn in it, for the server's text moderation.
+  final List<String> _texts;
+
+  /// The words drawn in it, for the server's text moderation.
+  @override
+  @JsonKey()
+  List<String> get texts {
+    if (_texts is EqualUnmodifiableListView) return _texts;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_texts);
+  }
+
+  /// Where the PNG was uploaded; set by the upload, sent on publish.
+  @override
+  final String? imageUrl;
+
+  @override
+  String toString() {
+    return 'OverlayLayer(path: $path, start: $start, end: $end, texts: $texts, imageUrl: $imageUrl)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$OverlayLayerImpl &&
+            (identical(other.path, path) || other.path == path) &&
+            (identical(other.start, start) || other.start == start) &&
+            (identical(other.end, end) || other.end == end) &&
+            const DeepCollectionEquality().equals(other._texts, _texts) &&
+            (identical(other.imageUrl, imageUrl) ||
+                other.imageUrl == imageUrl));
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    path,
+    start,
+    end,
+    const DeepCollectionEquality().hash(_texts),
+    imageUrl,
+  );
+
+  /// Create a copy of OverlayLayer
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$OverlayLayerImplCopyWith<_$OverlayLayerImpl> get copyWith =>
+      __$$OverlayLayerImplCopyWithImpl<_$OverlayLayerImpl>(this, _$identity);
+}
+
+abstract class _OverlayLayer implements OverlayLayer {
+  const factory _OverlayLayer({
+    required final String path,
+    final double? start,
+    final double? end,
+    final List<String> texts,
+    final String? imageUrl,
+  }) = _$OverlayLayerImpl;
+
+  /// The PNG on this device.
+  @override
+  String get path;
+  @override
+  double? get start;
+  @override
+  double? get end;
+
+  /// The words drawn in it, for the server's text moderation.
+  @override
+  List<String> get texts;
+
+  /// Where the PNG was uploaded; set by the upload, sent on publish.
+  @override
+  String? get imageUrl;
+
+  /// Create a copy of OverlayLayer
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$OverlayLayerImplCopyWith<_$OverlayLayerImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
 

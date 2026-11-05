@@ -2,6 +2,44 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tiktok_mobile/features/create/data/video_edit.dart';
 
 void main() {
+  group('overlays', () {
+    const layered = VideoEdit(overlays: [OverlayLayer(path: '/tmp/o.png')]);
+
+    test('text or stickers alone are a change worth sending', () {
+      expect(layered.isUnchanged(const Duration(seconds: 10)), isFalse);
+    });
+
+    test('the local PNG paths are not part of the JSON', () {
+      expect(layered.toJson().containsKey('overlays'), isFalse);
+    });
+  });
+
+  /// Overlay timings are set on the clock the viewer sees: after the cuts,
+  /// with each segment's speed applied.
+  group('the edited clock', () {
+    const edit = VideoEdit(segments: [
+      EditSegment(start: 2, end: 4, speed: 1), // plays 0–2
+      EditSegment(start: 10, end: 14, speed: 2), // plays 2–4
+    ]);
+
+    test('playedAt maps the raw file onto it, and a cut onto nothing', () {
+      expect(edit.playedAt(const Duration(seconds: 3)), closeTo(1, 1e-9));
+      expect(edit.playedAt(const Duration(seconds: 12)), closeTo(3, 1e-9));
+      expect(edit.playedAt(const Duration(seconds: 6)), isNull);
+    });
+
+    test('rawAt finds the raw position that shows a moment of it', () {
+      expect(edit.rawAt(1), const Duration(seconds: 3));
+      expect(edit.rawAt(3), const Duration(seconds: 12));
+      expect(edit.rawAt(99), const Duration(seconds: 14));
+    });
+
+    test('without segments both clocks are the same', () {
+      expect(const VideoEdit().playedAt(const Duration(milliseconds: 1500)), 1.5);
+      expect(const VideoEdit().rawAt(1.5), const Duration(milliseconds: 1500));
+    });
+  });
+
   const tenSeconds = Duration(seconds: 10);
 
   group('VideoEdit.single', () {

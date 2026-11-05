@@ -119,6 +119,40 @@ void main() {
     });
   });
 
+  test('the text and sticker layers go out with their URLs, timing and words',
+      () async {
+    await datasource.publish(
+      title: 'clip',
+      rawFileUrl: 's3://video-media/raw/1/clip.mp4',
+      visibility: VideoVisibility.public,
+      edit: const VideoEdit(overlays: [
+        OverlayLayer(path: '/tmp/a.png', imageUrl: 's3://video-media/raw/1/a.png'),
+        OverlayLayer(
+          path: '/tmp/b.png',
+          imageUrl: 's3://video-media/raw/1/b.png',
+          start: 1.5,
+          end: 4,
+          texts: ['Xin chào'],
+        ),
+      ]),
+    );
+
+    final body = jsonDecode(jsonEncode(adapter.lastRequest?.data))
+        as Map<String, dynamic>;
+    // The local paths never leave the phone; only the uploaded files' URLs.
+    expect(body['edit'], {
+      'overlays': [
+        {'imageUrl': 's3://video-media/raw/1/a.png'},
+        {
+          'imageUrl': 's3://video-media/raw/1/b.png',
+          'start': 1.5,
+          'end': 4.0,
+          'texts': ['Xin chào'],
+        },
+      ],
+    });
+  });
+
   test('an unedited clip sends no edit at all', () async {
     await datasource.publish(
       title: 'clip',

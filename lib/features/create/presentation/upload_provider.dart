@@ -218,6 +218,9 @@ class UploadNotifier extends _$UploadNotifier {
         'UNSUPPORTED_UPLOAD_TYPE' =>
           'Only MP4, MOV and WebM videos can be uploaded',
         'FOREIGN_UPLOAD' => 'That upload does not belong to this account',
+        // The words typed over the picture in the editor (video doc 3.2).
+        'VIDEO_OVERLAY_REJECTED' =>
+          "The text on your video contains language that isn't allowed. Change it and post again.",
         _ => e.message,
       };
     }

@@ -28,6 +28,20 @@ class FeedRepository {
     CancelToken? cancelToken,
   }) async {
     try {
+      // The text and sticker layers first: small files, and the video's
+      // progress reaching the end then still means the publish comes next.
+      final uploaded = <OverlayLayer>[];
+      for (final layer in edit?.overlays ?? const <OverlayLayer>[]) {
+        const pngType = 'image/png';
+        final overlayTicket = await _remoteDatasource.createUploadUrl(pngType);
+        await _remoteDatasource.uploadFile(
+          overlayTicket,
+          File(layer.path),
+          contentType: pngType,
+          cancelToken: cancelToken,
+        );
+        uploaded.add(layer.copyWith(imageUrl: overlayTicket.fileUrl));
+      }
       final ticket = await _remoteDatasource.createUploadUrl(contentType);
       await _remoteDatasource.uploadFile(
         ticket,
@@ -43,7 +57,7 @@ class FeedRepository {
         visibility: visibility,
         tags: tags,
         commentsDisabled: commentsDisabled,
-        edit: edit,
+        edit: uploaded.isEmpty ? edit : edit!.copyWith(overlays: uploaded),
       );
     } on DioException catch (e) {
       throw AppException.fromDioException(e);

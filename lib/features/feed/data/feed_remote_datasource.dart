@@ -158,6 +158,17 @@ class FeedRemoteDatasource {
                 for (final segment in edit.segments) segment.toJson(),
               ],
             if (edit.filter != null) 'filter': edit.filter!.toJson(),
+            // The text and sticker layers, each already uploaded as a PNG.
+            if (edit.overlays.isNotEmpty)
+              'overlays': [
+                for (final layer in edit.overlays)
+                  {
+                    'imageUrl': layer.imageUrl,
+                    if (layer.start != null) 'start': layer.start,
+                    if (layer.end != null) 'end': layer.end,
+                    if (layer.texts.isNotEmpty) 'texts': layer.texts,
+                  },
+              ],
           },
       },
     );

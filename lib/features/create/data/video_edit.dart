@@ -18,6 +18,14 @@ class VideoEdit with _$VideoEdit {
     /// the colour.
     @Default([]) List<EditSegment> segments,
     EditFilter? filter,
+
+    /// The text and stickers, drawn on this device into PNG layers the shape
+    /// of the video, lowest first. Not part of this JSON: each file is
+    /// uploaded on its own and the request carries its storage URL in
+    /// `edit.overlays`.
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    @Default([])
+    List<OverlayLayer> overlays,
   }) = _VideoEdit;
 
   factory VideoEdit.fromJson(Map<String, dynamic> json) =>
@@ -40,7 +48,7 @@ class VideoEdit with _$VideoEdit {
   /// Whether this would come out the same as the upload itself. Such an edit
   /// is not sent at all: the server would only re-encode for nothing.
   bool isUnchanged(Duration duration) {
-    if (filter != null) return false;
+    if (filter != null || overlays.isNotEmpty) return false;
     if (segments.isEmpty) return true;
     if (segments.length != 1) return false;
     final only = segments.single;
@@ -88,8 +96,55 @@ class VideoEdit with _$VideoEdit {
 
   static const _seekSlack = 0.3;
 
+  /// Where [position] on the raw file falls on the edited video's clock — the
+  /// one the viewer sees, and the one overlay timings are set on. Null for a
+  /// position that is cut.
+  double? playedAt(Duration position) {
+    final at = position.inMilliseconds / 1000;
+    if (segments.isEmpty) return at;
+    var before = 0.0;
+    for (final s in segments) {
+      if (at >= s.start && at < s.end) return before + (at - s.start) / s.speed;
+      before += (s.end - s.start) / s.speed;
+    }
+    return null;
+  }
+
+  /// The raw file's position that shows [seconds] of the edited video: what
+  /// to seek the preview to.
+  Duration rawAt(double seconds) {
+    if (segments.isEmpty) return _duration(seconds);
+    var before = 0.0;
+    for (final s in segments) {
+      final length = (s.end - s.start) / s.speed;
+      if (seconds < before + length) {
+        return _duration(s.start + (seconds - before) * s.speed);
+      }
+      before += length;
+    }
+    return _duration(segments.last.end);
+  }
+
   static Duration _duration(double seconds) =>
       Duration(milliseconds: (seconds * 1000).round());
+}
+
+/// One PNG of text and stickers over the video, and when it shows on the
+/// edited video's clock (null: from the start / to the end).
+@freezed
+class OverlayLayer with _$OverlayLayer {
+  const factory OverlayLayer({
+    /// The PNG on this device.
+    required String path,
+    double? start,
+    double? end,
+
+    /// The words drawn in it, for the server's text moderation.
+    @Default([]) List<String> texts,
+
+    /// Where the PNG was uploaded; set by the upload, sent on publish.
+    String? imageUrl,
+  }) = _OverlayLayer;
 }
 
 /// A colour filter over the whole video: one of [videoFilters] by id, at
