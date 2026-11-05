@@ -17,7 +17,9 @@ import 'package:tiktok_mobile/features/create/presentation/upload_provider.dart'
 import 'package:tiktok_mobile/features/create/presentation/video_preview_screen.dart';
 import 'package:tiktok_mobile/features/create/presentation/widgets/filter_picker.dart';
 import 'package:tiktok_mobile/features/create/presentation/widgets/music_picker.dart';
+import 'package:tiktok_mobile/features/story/data/story_repository.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_flow.dart';
+import 'package:tiktok_mobile/features/story/presentation/story_provider.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_media_picker.dart';
 
 /// Clip-length options and the most the finished video may play for.
@@ -257,7 +259,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
       _played < _maxLength;
 
   Future<void> _onShutterTap() async {
-    if (_storyMode) return _story(StoryMediaSource.photo);
+    if (_storyMode) return _storyPhoto();
     if (_countdown != null) return _cancelCountdown();
     if (_recording) return _pauseClip();
     if (_timer > 0) return _startCountdown();
@@ -404,9 +406,96 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
     if (posted == true) widget.onPosted();
   }
 
-  /// In story mode the shutter takes a photo, holding it records a clip, and
-  /// the gallery tile takes either — all through the system camera, which
-  /// cannot open while this screen holds it. Back to the feed once shared.
+  // ── Story ─────────────────────────────────────────────────────────────
+
+  /// A story clip being recorded with the hold, stopped on release or at 60s.
+  var _storyRecording = false;
+
+  /// In story mode the shutter takes a photo on this screen's camera, and
+  /// holding it records a clip; either goes straight to the editor.
+  Future<void> _storyPhoto() async {
+    final camera = _camera;
+    if (camera == null || _busy || _storyRecording || ref.read(uploadNotifierProvider).busy) return;
+    _busy = true;
+    final XFile shot;
+    try {
+      shot = await camera.takePicture();
+    } on CameraException catch (e) {
+      _toast(e.description ?? 'The photo could not be taken');
+      return;
+    } finally {
+      _busy = false;
+    }
+    await _storyEdit(File(shot.path), 'image/jpeg');
+  }
+
+  Future<void> _storyStartVideo() async {
+    final camera = _camera;
+    if (camera == null || _busy || _storyRecording || ref.read(uploadNotifierProvider).busy) return;
+    _busy = true;
+    try {
+      await camera.startVideoRecording();
+      _storyRecording = true;
+      _clipWatch
+        ..reset()
+        ..start();
+      setState(() => _recording = true);
+      _clipTicker = Timer.periodic(const Duration(milliseconds: 50), (_) {
+        if (!mounted) return;
+        if (_clipWatch.elapsed >= storyVideoMaxDuration) {
+          _storyStopVideo();
+        } else {
+          setState(() {});
+        }
+      });
+    } on CameraException catch (e) {
+      _toast(e.description ?? 'Recording could not start');
+    } finally {
+      _busy = false;
+    }
+  }
+
+  Future<void> _storyStopVideo() async {
+    final camera = _camera;
+    if (camera == null || !_storyRecording) return;
+    _storyRecording = false;
+    _clipTicker?.cancel();
+    _clipWatch.stop();
+    setState(() => _recording = false);
+    final XFile clip;
+    try {
+      clip = await camera.stopVideoRecording();
+    } on CameraException catch (e) {
+      _toast(e.description ?? 'The recording could not be saved');
+      return;
+    }
+    // A tap that was read as a hold: too short to be a story, take a photo.
+    if (_clipWatch.elapsed < const Duration(milliseconds: 500)) {
+      unawaited(File(clip.path).delete().catchError((_) => File(clip.path)));
+      return _storyPhoto();
+    }
+    await _storyEdit(File(clip.path), storyContentTypeForPath(clip.path) ?? 'video/mp4');
+  }
+
+  /// The editor and then the composer. The camera is closed meanwhile; back
+  /// to the feed once shared.
+  Future<void> _storyEdit(File file, String contentType) async {
+    await _releaseCamera();
+    if (!mounted) return;
+    final posted = await startStoryFlowWithDraft(
+      context,
+      StoryDraft(file: file, contentType: contentType),
+    );
+    if (!mounted) return;
+    if (posted) {
+      widget.onClose();
+    } else if (widget.visible) {
+      _openCamera();
+    }
+  }
+
+  /// The gallery tile in story mode: a photo or a clip, through the system
+  /// picker. Back to the feed once shared.
   Future<void> _story(StoryMediaSource source) async {
     await _releaseCamera();
     if (!mounted) return;
@@ -756,24 +845,27 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
                     // Hold to record: the clip runs for as long as the finger
                     // stays down. In story mode holding records a story clip.
                     onLongPressStart: _storyMode
-                        ? null
+                        ? (_) => _storyStartVideo()
                         : (_) {
                             if (!_recording && _countdown == null) _startClip();
                           },
                     onLongPressEnd: _storyMode
-                        ? null
+                        ? (_) => _storyStopVideo()
                         : (_) {
                             if (_recording) _pauseClip();
                           },
-                    onLongPress: _storyMode
-                        ? () => _story(StoryMediaSource.video)
-                        : null,
                     child: _Shutter(
                       recording: _recording,
-                      dimmed: upload.busy || (!_storyMode && _camera == null),
-                      progress: !_storyMode && (_started || _recording)
-                          ? _fraction(_played)
-                          : null,
+                      dimmed: upload.busy || _camera == null,
+                      progress: _storyMode
+                          ? (_storyRecording
+                              ? (_clipWatch.elapsed.inMilliseconds /
+                                      storyVideoMaxDuration.inMilliseconds)
+                                  .clamp(0.0, 1.0)
+                              : null)
+                          : (_started || _recording)
+                              ? _fraction(_played)
+                              : null,
                       marks: [for (final m in _session.playedMarks) _fraction(m)],
                     ),
                   ),
@@ -824,20 +916,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
               ),
               const SizedBox(height: 10),
               if (_storyMode)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Text(
-                    'Tap for a photo · hold to record (up to 60s) · or pick '
-                    'from the gallery. Stories disappear after 24 hours.',
-                    key: const Key('create_story_hint'),
-                    textAlign: TextAlign.center,
-                    style: sora(
-                      size: 12,
-                      weight: FontWeight.w500,
-                      color: Colors.white.withValues(alpha: 0.6),
-                    ),
-                  ),
-                )
+                const SizedBox.shrink()
               else if (_started && upload.phase == UploadPhase.idle)
                 Text(
                   '${_clock(_played)} / ${_clock(_maxLength)}',

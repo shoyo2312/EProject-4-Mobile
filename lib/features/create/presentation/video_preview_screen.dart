@@ -21,17 +21,25 @@ import 'package:video_player/video_player.dart';
 /// [edit] is what the in-app camera already made of the recording — speeds
 /// and deleted clips. A single segment stays editable; several are previewed
 /// as they are and sent unchanged.
+///
+/// [onNext] replaces the post details as the step after this one — a story
+/// goes to its own composer — and resolves the same way: true once shared.
 Future<bool?> showVideoPreview(
   BuildContext context, {
   required File file,
   VideoEdit? edit,
+  EditorNext? onNext,
 }) {
   return Navigator.of(context).push<bool>(
     MaterialPageRoute(
-      builder: (_) => VideoPreviewScreen(file: file, initialEdit: edit),
+      builder: (_) => VideoPreviewScreen(file: file, initialEdit: edit, onNext: onNext),
     ),
   );
 }
+
+/// The step after the editor, handed what was made of the clip; true once
+/// it is shared, anything else to come back to the editor.
+typedef EditorNext = Future<bool?> Function(BuildContext context, VideoEdit? edit);
 
 /// Reopens the same player from the details screen, purely to watch the clip
 /// again as it will be posted — no controls, back is the only way out.
@@ -66,9 +74,13 @@ class VideoPreviewScreen extends StatefulWidget {
     required this.file,
     this.collectDetails = true,
     this.initialEdit,
+    this.onNext,
   });
 
   final File file;
+
+  /// In place of the post details; see [showVideoPreview].
+  final EditorNext? onNext;
 
   /// False when the details screen reopens this to re-watch the clip: the
   /// details are already being filled in one route below, and the edit is
@@ -460,7 +472,12 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
       if (!mounted) return;
       edit = (edit ?? const VideoEdit()).copyWith(overlays: layers);
     }
-    final posted = await showPostDetails(context, file: widget.file, edit: edit);
+    if (!mounted) return;
+    final next = widget.onNext;
+    final Future<bool?> step = next != null
+        ? next(context, edit)
+        : showPostDetails(context, file: widget.file, edit: edit);
+    final posted = await step;
     if (!mounted) return;
     if (posted != true) {
       await _controller.play();

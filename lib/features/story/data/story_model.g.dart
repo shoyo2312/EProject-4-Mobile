@@ -38,6 +38,9 @@ _$StoryModelImpl _$$StoryModelImplFromJson(Map<String, dynamic> json) =>
       reactionCounts: _countsFromJson(json['reactionCounts']),
       createdAt: DateTime.parse(json['createdAt'] as String),
       expiresAt: DateTime.parse(json['expiresAt'] as String),
+      music: json['music'] == null
+          ? null
+          : MusicCredit.fromJson(json['music'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$$StoryModelImplToJson(_$StoryModelImpl instance) =>
@@ -56,6 +59,7 @@ Map<String, dynamic> _$$StoryModelImplToJson(_$StoryModelImpl instance) =>
       'reactionCounts': _countsToJson(instance.reactionCounts),
       'createdAt': instance.createdAt.toIso8601String(),
       'expiresAt': instance.expiresAt.toIso8601String(),
+      'music': instance.music,
     };
 
 const _$StoryMediaTypeEnumMap = {

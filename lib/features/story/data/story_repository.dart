@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
+import 'package:tiktok_mobile/features/create/data/video_edit.dart';
 import 'package:tiktok_mobile/features/story/data/story_model.dart';
 import 'package:tiktok_mobile/features/story/data/story_remote_datasource.dart';
 
@@ -35,22 +36,57 @@ const storyVideoMaxBytes = 50 * 1024 * 1024;
 /// Longer videos are REJECTED by media-worker after the upload.
 const storyVideoMaxDuration = Duration(seconds: 60);
 
+/// The `edit` of a create (story doc §3): the video recipe, plus how long a
+/// photo with a song plays. Overlays must already carry their upload URLs.
+Map<String, dynamic> storyEditJson(VideoEdit edit, double? photoSeconds) => {
+      if (edit.segments.isNotEmpty)
+        'segments': [for (final segment in edit.segments) segment.toJson()],
+      if (edit.filter != null) 'filter': edit.filter!.toJson(),
+      if (edit.music != null) 'music': edit.music!.toJson(),
+      if (edit.overlays.isNotEmpty)
+        'overlays': [
+          for (final layer in edit.overlays)
+            {
+              'imageUrl': layer.imageUrl,
+              if (layer.start != null) 'start': layer.start,
+              if (layer.end != null) 'end': layer.end,
+              if (layer.texts.isNotEmpty) 'texts': layer.texts,
+            },
+        ],
+      'photoSeconds': ?photoSeconds,
+    };
+
 class StoryRepository {
   StoryRepository(this._remoteDatasource);
 
   final StoryRemoteDatasource _remoteDatasource;
 
   /// Ticket, upload, create — in one call. The story comes back
-  /// PENDING_MODERATION.
+  /// PENDING_MODERATION. The editor's text and sticker layers go up first, as
+  /// PNG uploads of their own, and [edit] names them by their file URLs.
   Future<StoryModel> uploadAndCreate({
     required File file,
     required String contentType,
+    VideoEdit? edit,
+    double? photoSeconds,
     String? caption,
     required StoryVisibility visibility,
     void Function(int sent, int total)? onProgress,
     CancelToken? cancelToken,
   }) async {
     try {
+      final overlays = <OverlayLayer>[];
+      for (final layer in edit?.overlays ?? const <OverlayLayer>[]) {
+        const png = 'image/png';
+        final overlayTicket = await _remoteDatasource.createUploadUrl(png);
+        await _remoteDatasource.uploadFile(
+          overlayTicket,
+          File(layer.path),
+          contentType: png,
+          cancelToken: cancelToken,
+        );
+        overlays.add(layer.copyWith(imageUrl: overlayTicket.fileUrl));
+      }
       final ticket = await _remoteDatasource.createUploadUrl(contentType);
       await _remoteDatasource.uploadFile(
         ticket,
@@ -63,6 +99,7 @@ class StoryRepository {
         mediaUrl: ticket.fileUrl,
         caption: caption,
         visibility: visibility,
+        edit: edit == null ? null : storyEditJson(edit.copyWith(overlays: overlays), photoSeconds),
       );
     } on DioException catch (e) {
       throw AppException.fromDioException(e);

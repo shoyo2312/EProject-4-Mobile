@@ -43,6 +43,9 @@ mixin _$StoryModel {
   DateTime get createdAt => throw _privateConstructorUsedError;
   DateTime get expiresAt => throw _privateConstructorUsedError;
 
+  /// The song under the story, credited as its licence asks; null without one.
+  MusicCredit? get music => throw _privateConstructorUsedError;
+
   /// Serializes this StoryModel to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -77,7 +80,10 @@ abstract class $StoryModelCopyWith<$Res> {
     Map<StoryReaction, int>? reactionCounts,
     DateTime createdAt,
     DateTime expiresAt,
+    MusicCredit? music,
   });
+
+  $MusicCreditCopyWith<$Res>? get music;
 }
 
 /// @nodoc
@@ -109,6 +115,7 @@ class _$StoryModelCopyWithImpl<$Res, $Val extends StoryModel>
     Object? reactionCounts = freezed,
     Object? createdAt = null,
     Object? expiresAt = null,
+    Object? music = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -168,9 +175,27 @@ class _$StoryModelCopyWithImpl<$Res, $Val extends StoryModel>
                 ? _value.expiresAt
                 : expiresAt // ignore: cast_nullable_to_non_nullable
                       as DateTime,
+            music: freezed == music
+                ? _value.music
+                : music // ignore: cast_nullable_to_non_nullable
+                      as MusicCredit?,
           )
           as $Val,
     );
+  }
+
+  /// Create a copy of StoryModel
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $MusicCreditCopyWith<$Res>? get music {
+    if (_value.music == null) {
+      return null;
+    }
+
+    return $MusicCreditCopyWith<$Res>(_value.music!, (value) {
+      return _then(_value.copyWith(music: value) as $Val);
+    });
   }
 }
 
@@ -200,7 +225,11 @@ abstract class _$$StoryModelImplCopyWith<$Res>
     Map<StoryReaction, int>? reactionCounts,
     DateTime createdAt,
     DateTime expiresAt,
+    MusicCredit? music,
   });
+
+  @override
+  $MusicCreditCopyWith<$Res>? get music;
 }
 
 /// @nodoc
@@ -231,6 +260,7 @@ class __$$StoryModelImplCopyWithImpl<$Res>
     Object? reactionCounts = freezed,
     Object? createdAt = null,
     Object? expiresAt = null,
+    Object? music = freezed,
   }) {
     return _then(
       _$StoryModelImpl(
@@ -290,6 +320,10 @@ class __$$StoryModelImplCopyWithImpl<$Res>
             ? _value.expiresAt
             : expiresAt // ignore: cast_nullable_to_non_nullable
                   as DateTime,
+        music: freezed == music
+            ? _value.music
+            : music // ignore: cast_nullable_to_non_nullable
+                  as MusicCredit?,
       ),
     );
   }
@@ -315,6 +349,7 @@ class _$StoryModelImpl implements _StoryModel {
     final Map<StoryReaction, int>? reactionCounts,
     required this.createdAt,
     required this.expiresAt,
+    this.music,
   }) : _reactionCounts = reactionCounts;
 
   factory _$StoryModelImpl.fromJson(Map<String, dynamic> json) =>
@@ -364,9 +399,13 @@ class _$StoryModelImpl implements _StoryModel {
   @override
   final DateTime expiresAt;
 
+  /// The song under the story, credited as its licence asks; null without one.
+  @override
+  final MusicCredit? music;
+
   @override
   String toString() {
-    return 'StoryModel(id: $id, userId: $userId, mediaUrl: $mediaUrl, mediaType: $mediaType, caption: $caption, visibility: $visibility, status: $status, durationSeconds: $durationSeconds, viewCount: $viewCount, viewedByMe: $viewedByMe, myReaction: $myReaction, reactionCounts: $reactionCounts, createdAt: $createdAt, expiresAt: $expiresAt)';
+    return 'StoryModel(id: $id, userId: $userId, mediaUrl: $mediaUrl, mediaType: $mediaType, caption: $caption, visibility: $visibility, status: $status, durationSeconds: $durationSeconds, viewCount: $viewCount, viewedByMe: $viewedByMe, myReaction: $myReaction, reactionCounts: $reactionCounts, createdAt: $createdAt, expiresAt: $expiresAt, music: $music)';
   }
 
   @override
@@ -399,7 +438,8 @@ class _$StoryModelImpl implements _StoryModel {
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt) &&
             (identical(other.expiresAt, expiresAt) ||
-                other.expiresAt == expiresAt));
+                other.expiresAt == expiresAt) &&
+            (identical(other.music, music) || other.music == music));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -420,6 +460,7 @@ class _$StoryModelImpl implements _StoryModel {
     const DeepCollectionEquality().hash(_reactionCounts),
     createdAt,
     expiresAt,
+    music,
   );
 
   /// Create a copy of StoryModel
@@ -456,6 +497,7 @@ abstract class _StoryModel implements StoryModel {
     final Map<StoryReaction, int>? reactionCounts,
     required final DateTime createdAt,
     required final DateTime expiresAt,
+    final MusicCredit? music,
   }) = _$StoryModelImpl;
 
   factory _StoryModel.fromJson(Map<String, dynamic> json) =
@@ -495,6 +537,10 @@ abstract class _StoryModel implements StoryModel {
   DateTime get createdAt;
   @override
   DateTime get expiresAt;
+
+  /// The song under the story, credited as its licence asks; null without one.
+  @override
+  MusicCredit? get music;
 
   /// Create a copy of StoryModel
   /// with the given fields replaced by the non-null parameter values.

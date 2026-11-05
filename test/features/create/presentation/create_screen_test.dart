@@ -103,7 +103,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('create_tool_speed')), findsNothing);
-    expect(find.byKey(const Key('create_story_hint')), findsOneWidget);
+    expect(find.byKey(const Key('create_story_hint')), findsNothing);
   });
 
   testWidgets('add sound picks a song, names it, and can drop it', (tester) async {

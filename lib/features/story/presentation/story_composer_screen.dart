@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
+import 'package:tiktok_mobile/features/create/presentation/video_preview_screen.dart';
+import 'package:tiktok_mobile/features/create/presentation/widgets/filter_picker.dart';
 import 'package:tiktok_mobile/features/story/data/story_model.dart';
 import 'package:tiktok_mobile/features/story/data/story_repository.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_provider.dart';
@@ -43,12 +46,19 @@ class _StoryComposerScreenState extends ConsumerState<StoryComposerScreen> {
     super.initState();
     if (widget.draft.isVideo) {
       final controller = _video = VideoPlayerController.file(widget.draft.file);
+      final edit = widget.draft.edit;
       controller
         ..setLooping(true)
         ..initialize().then((_) {
           if (!mounted) return;
           setState(() => _duration = controller.value.duration);
-          controller.play();
+          if (edit == null) {
+            controller.play();
+          } else {
+            // Edited: the still at the edit's first frame, with the full
+            // preview a tap away — the raw clip would play the cut parts.
+            controller.seekTo(edit.rawAt(0));
+          }
         }).catchError((_) {
           // No platform player (tests) or an unreadable file: the preview
           // stays blank and the server still has the last word on it.
@@ -63,8 +73,19 @@ class _StoryComposerScreenState extends ConsumerState<StoryComposerScreen> {
     super.dispose();
   }
 
-  bool get _tooLong =>
-      _duration != null && _duration! > storyVideoMaxDuration + _slack;
+  /// The edited length when there is an edit: a long clip cut down is fine.
+  Duration? get _length {
+    final duration = _duration;
+    final edit = widget.draft.edit;
+    if (duration == null) return null;
+    return edit == null ? duration : edit.playedWithin(duration);
+  }
+
+  bool get _tooLong => _length != null && _length! > storyVideoMaxDuration + _slack;
+
+  Future<void> _previewEdit() async {
+    await showVideoReview(context, file: widget.draft.file, edit: widget.draft.edit);
+  }
 
   /// Containers round their duration up; a 60.4s clip is a 60s clip.
   static const _slack = Duration(milliseconds: 900);
@@ -140,6 +161,48 @@ class _StoryComposerScreenState extends ConsumerState<StoryComposerScreen> {
                 ),
               ),
             ),
+            if (widget.draft.edit?.music?.track case final track?)
+              Positioned(
+                top: top + 14,
+                left: 64,
+                right: 64,
+                child: Center(
+                  child: Glass(
+                    key: const Key('story_composer_music'),
+                    radius: 999,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      child: Text(
+                        '♫ ${track.title} · ${track.artist}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: sora(size: 12, weight: FontWeight.w600, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            if (widget.draft.isVideo && widget.draft.edit != null)
+              Center(
+                child: GestureDetector(
+                  key: const Key('story_composer_preview_edit'),
+                  onTap: busy ? null : _previewEdit,
+                  child: Glass(
+                    radius: 999,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.play_arrow, size: 20, color: Colors.white),
+                          const SizedBox(width: 6),
+                          Text('Preview', style: sora(size: 13, weight: FontWeight.w600, color: Colors.white)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             Positioned(
               left: 16,
               right: 16,
@@ -153,7 +216,7 @@ class _StoryComposerScreenState extends ConsumerState<StoryComposerScreen> {
                     if (_tooLong)
                       _Notice(
                         text: 'Stories can be at most 60 seconds — this one '
-                            'is ${_duration!.inSeconds}s. Trim it and try again.',
+                            'is ${_length!.inSeconds}s. Trim it and try again.',
                         color: NowaColors.danger,
                       ),
                     if (upload.phase == StoryUploadPhase.failed &&
@@ -245,12 +308,33 @@ class _Preview extends StatelessWidget {
   final StoryDraft draft;
   final VideoPlayerController? video;
 
+  /// The edit's colour and layers over [picture], as the server draws them.
+  Widget _edited(Widget picture) {
+    final edit = draft.edit;
+    if (edit == null) return picture;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        FilteredView(filter: edit.filter, child: picture),
+        for (final (i, layer) in edit.overlays.indexed)
+          Image.file(File(layer.path), key: Key('story_preview_overlay_$i'), fit: BoxFit.fill),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = video;
     if (!draft.isVideo) {
-      return Image.file(draft.file, key: const Key('story_preview_image'),
-          fit: BoxFit.contain);
+      final image = Image.file(
+        draft.file,
+        key: const Key('story_preview_image'),
+        fit: draft.edit == null ? BoxFit.contain : BoxFit.fill,
+      );
+      if (draft.edit == null) return image;
+      return Center(
+        child: AspectRatio(aspectRatio: draft.aspectRatio ?? 9 / 16, child: _edited(image)),
+      );
     }
     if (controller == null) return const SizedBox.shrink();
     return ValueListenableBuilder<VideoPlayerValue>(
@@ -264,7 +348,7 @@ class _Preview extends StatelessWidget {
         return Center(
           child: AspectRatio(
             aspectRatio: value.aspectRatio,
-            child: VideoPlayer(controller),
+            child: _edited(VideoPlayer(controller)),
           ),
         );
       },

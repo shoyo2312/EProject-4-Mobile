@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
+import 'package:tiktok_mobile/features/create/data/video_edit.dart';
 import 'package:tiktok_mobile/features/story/data/story_model.dart';
 import 'package:tiktok_mobile/features/story/data/story_remote_datasource.dart';
 import 'package:tiktok_mobile/features/story/data/story_repository.dart';
@@ -261,14 +262,46 @@ class StoryViewers extends _$StoryViewers {
   }
 }
 
-/// A picked photo or clip, ready for the composer.
+/// A picked photo or clip, ready for the composer — and what the editor made
+/// of it, which media-worker renders before the story is screened.
 class StoryDraft {
-  const StoryDraft({required this.file, required this.contentType});
+  const StoryDraft({
+    required this.file,
+    required this.contentType,
+    this.edit,
+    this.photoSeconds,
+    this.aspectRatio,
+  });
 
   final File file;
   final String contentType;
 
+  /// Null when it is shared as it was picked.
+  final VideoEdit? edit;
+
+  /// How long a photo with a song plays; null otherwise.
+  final double? photoSeconds;
+
+  /// Width over height of a photo as edited, for drawing its layers over it
+  /// in the composer's preview.
+  final double? aspectRatio;
+
   bool get isVideo => isVideoContentType(contentType);
+
+  StoryDraft edited({
+    required File file,
+    required String contentType,
+    VideoEdit? edit,
+    double? photoSeconds,
+    double? aspectRatio,
+  }) =>
+      StoryDraft(
+        file: file,
+        contentType: contentType,
+        edit: edit,
+        photoSeconds: photoSeconds,
+        aspectRatio: aspectRatio,
+      );
 }
 
 enum StoryUploadPhase { idle, uploading, creating, done, failed }
@@ -320,6 +353,8 @@ class StoryUpload extends _$StoryUpload {
       final story = await ref.read(storyRepositoryProvider).uploadAndCreate(
             file: draft.file,
             contentType: draft.contentType,
+            edit: draft.edit,
+            photoSeconds: draft.photoSeconds,
             caption: caption,
             visibility: visibility,
             cancelToken: cancelToken,
@@ -378,6 +413,10 @@ String storyErrorMessage(AppException e) {
       'FOREIGN_UPLOAD' => 'This file was already used for another story',
       'STORY_CAPTION_REJECTED' =>
         'The caption contains words that are not allowed',
+      'STORY_OVERLAY_REJECTED' =>
+        'The text on the story contains words that are not allowed',
+      'MUSIC_NOT_FOUND' => 'That sound is no longer available. Pick another.',
+      'MUSIC_UNAVAILABLE' => "Music isn't available right now. Try again or remove the sound.",
       'STORY_NOT_FOUND' => 'This story is no longer available',
       'NOT_STORY_OWNER' => 'Only the owner can do that',
       'UPLOAD_URL_UNAVAILABLE' => 'Storage is unavailable. Try again later.',

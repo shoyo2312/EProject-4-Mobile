@@ -15,9 +15,13 @@ class MusicPanel extends StatelessWidget {
     required this.onChange,
     required this.onRemove,
     required this.onDone,
+    this.hasOriginalSound = true,
   });
 
   final EditMusic music;
+
+  /// False over a photo: there is no sound of its own to turn down.
+  final bool hasOriginalSound;
 
   /// How long the edited video plays: the most of the song it can use.
   final double videoSeconds;
@@ -69,16 +73,17 @@ class MusicPanel extends StatelessWidget {
                   onChanged: (v) => onChanged(music.copyWith(start: v), seek: true),
                 ),
               ),
-            _Row(
-              label: 'Original',
-              child: Slider(
-                key: const Key('music_original_volume_slider'),
-                value: music.originalVolume,
-                activeColor: NowaColors.accent,
-                inactiveColor: NowaColors.hairline,
-                onChanged: (v) => onChanged(music.copyWith(originalVolume: v)),
+            if (hasOriginalSound)
+              _Row(
+                label: 'Original',
+                child: Slider(
+                  key: const Key('music_original_volume_slider'),
+                  value: music.originalVolume,
+                  activeColor: NowaColors.accent,
+                  inactiveColor: NowaColors.hairline,
+                  onChanged: (v) => onChanged(music.copyWith(originalVolume: v)),
+                ),
               ),
-            ),
             _Row(
               label: 'Sound',
               child: Slider(

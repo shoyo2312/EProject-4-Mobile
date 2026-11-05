@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 
 part 'story_model.freezed.dart';
 part 'story_model.g.dart';
@@ -145,6 +146,9 @@ class StoryModel with _$StoryModel {
     Map<StoryReaction, int>? reactionCounts,
     required DateTime createdAt,
     required DateTime expiresAt,
+
+    /// The song under the story, credited as its licence asks; null without one.
+    MusicCredit? music,
   }) = _StoryModel;
 
   factory StoryModel.fromJson(Map<String, dynamic> json) =>

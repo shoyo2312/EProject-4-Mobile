@@ -638,6 +638,34 @@ class _GroupPlayerState extends ConsumerState<_GroupPlayer>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // The song's credit, which its Creative Commons licence asks for.
+              if (story.music case final music?) ...[
+                Center(
+                  child: Glass(
+                    key: const Key('story_music_credit'),
+                    radius: 999,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.music_note, size: 13, color: NowaColors.supportInk),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              '${music.title} · ${music.artist}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: sora(size: 11.5, weight: FontWeight.w500, color: NowaColors.supportInk),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
               if (story.caption != null && story.caption!.isNotEmpty) ...[
                 Text(
                   story.caption!,

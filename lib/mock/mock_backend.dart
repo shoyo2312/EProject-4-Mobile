@@ -1398,6 +1398,8 @@ class _MockStoryRepository extends StoryRepository {
   Future<StoryModel> uploadAndCreate({
     required File file,
     required String contentType,
+    VideoEdit? edit,
+    double? photoSeconds,
     String? caption,
     required StoryVisibility visibility,
     void Function(int sent, int total)? onProgress,

@@ -80,6 +80,7 @@ class StoryRemoteDatasource {
     required String mediaUrl,
     String? caption,
     required StoryVisibility visibility,
+    Map<String, dynamic>? edit,
   }) async {
     final response = await _apiClient.post<Map<String, dynamic>>(
       '/stories',
@@ -87,6 +88,9 @@ class StoryRemoteDatasource {
         'mediaUrl': mediaUrl,
         if (caption != null && caption.isNotEmpty) 'caption': caption,
         'visibility': wireStoryVisibility(visibility),
+        // What media-worker renders before screening; absent, the story
+        // plays as it was picked.
+        'edit': ?edit,
       },
     );
     return _unwrapStory(response.data!);

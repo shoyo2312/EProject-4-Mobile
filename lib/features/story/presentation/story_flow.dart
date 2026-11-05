@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
+import 'package:tiktok_mobile/features/create/presentation/photo_editor_screen.dart';
+import 'package:tiktok_mobile/features/create/presentation/video_preview_screen.dart';
 import 'package:tiktok_mobile/features/story/data/story_model.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_media_picker.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_provider.dart';
@@ -20,15 +22,48 @@ Future<bool> startStoryFlow(
   StoryMediaSource? source,
   ImagePicker? picker,
 }) async {
-  final messenger = ScaffoldMessenger.of(context);
-  final router = GoRouter.of(context);
   final pick = source == null
       ? pickStoryDraft(context, picker: picker)
       : pickStoryDraftFrom(context, source, picker: picker);
   final draft = await pick;
   if (draft == null) return false;
+  if (!context.mounted) return false;
+  return startStoryFlowWithDraft(context, draft);
+}
 
-  final posted = await router.push<bool>('/stories/new', extra: draft);
+/// Edit → compose → share for a photo or clip already in hand — the in-app
+/// camera's. Resolves true once the story exists.
+Future<bool> startStoryFlowWithDraft(BuildContext context, StoryDraft draft) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final router = GoRouter.of(context);
+
+  // The editor first — cut, colour, text, stickers, a song — then the
+  // composer on top of it, so backing out of the composer returns to the edit.
+  final Future<bool?> edited = draft.isVideo
+      ? showVideoPreview(
+          context,
+          file: draft.file,
+          onNext: (_, edit) => router.push<bool>(
+            '/stories/new',
+            extra: draft.edited(file: draft.file, contentType: draft.contentType, edit: edit),
+          ),
+        )
+      : showPhotoEditor(
+          context,
+          file: draft.file,
+          contentType: draft.contentType,
+          onNext: (_, result) => router.push<bool>(
+            '/stories/new',
+            extra: draft.edited(
+              file: result.file,
+              contentType: result.contentType,
+              edit: result.edit,
+              photoSeconds: result.photoSeconds,
+              aspectRatio: result.aspectRatio,
+            ),
+          ),
+        );
+  final posted = await edited;
   if (posted != true) return false;
   messenger.showSnackBar(const SnackBar(
     content: Text(

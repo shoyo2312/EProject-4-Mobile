@@ -492,7 +492,7 @@ class _StoryViewersProviderElement
   String get storyId => (origin as StoryViewersProvider).storyId;
 }
 
-String _$storyUploadHash() => r'2aa9495279dcd34ec2685991e31136c9af68733f';
+String _$storyUploadHash() => r'3461405271aac46b26e769dd9fb48bd2d8f4fc6c';
 
 /// Kept alive so a switch of tab does not cancel an upload mid-file.
 ///
