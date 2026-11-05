@@ -437,15 +437,31 @@ class _ProfileContentState extends State<_ProfileContent> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(child: widget.primaryAction),
-                    for (final action in widget.iconActions) ...[
-                      const SizedBox(width: 9),
-                      action,
+                // Few icons fit beside the primary button; with more (own
+                // profile has 6) they go on their own row, spread evenly, so
+                // the primary button keeps its full width on narrow phones.
+                if (widget.iconActions.length <= 3)
+                  Row(
+                    children: [
+                      Expanded(child: widget.primaryAction),
+                      for (final action in widget.iconActions) ...[
+                        const SizedBox(width: 9),
+                        action,
+                      ],
                     ],
-                  ],
-                ),
+                  )
+                else ...[
+                  SizedBox(width: double.infinity, child: widget.primaryAction),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      for (var i = 0; i < widget.iconActions.length; i++) ...[
+                        if (i > 0) const SizedBox(width: 9),
+                        Expanded(child: widget.iconActions[i]),
+                      ],
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 18),
                 Row(
                   children: [
