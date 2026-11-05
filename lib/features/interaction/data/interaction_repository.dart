@@ -112,6 +112,22 @@ class InteractionRepository {
     }
   }
 
+  Future<bool> repost(String videoId) async {
+    try {
+      return await _remoteDatasource.repost(videoId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<bool> unrepost(String videoId) async {
+    try {
+      return await _remoteDatasource.unrepost(videoId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
   Future<void> share(String videoId) async {
     try {
       await _remoteDatasource.share(videoId);

@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/utils/time_ago.dart';
 import 'package:tiktok_mobile/core/widgets/action_rail.dart';
@@ -10,7 +13,10 @@ import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/error_view.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
+import 'package:tiktok_mobile/features/comment/data/comment_model.dart';
+import 'package:tiktok_mobile/features/comment/presentation/comment_provider.dart';
 import 'package:tiktok_mobile/features/comment/presentation/comment_sheet.dart';
+import 'package:tiktok_mobile/features/comment/presentation/quick_comment_picker.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 import 'package:tiktok_mobile/features/feed/presentation/feed_provider.dart';
 import 'package:tiktok_mobile/features/feed/presentation/share_sheet.dart';
@@ -331,6 +337,70 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTick
     ref.read(interactionRepositoryProvider).share(widget.video.id).ignore();
   }
 
+  void _toast(String message, {SnackBarAction? action}) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message), action: action));
+  }
+
+  /// The heart held for 1.5s: repost, with a way back. Idempotent on the
+  /// server, so holding again on a video already reposted changes nothing.
+  Future<void> _repost() async {
+    if (!_signedIn) {
+      context.push('/login');
+      return;
+    }
+    unawaited(HapticFeedback.mediumImpact());
+    final interactions = ref.read(interactionRepositoryProvider);
+    final videoId = widget.video.id;
+    try {
+      await interactions.repost(videoId);
+      if (!mounted) return;
+      _toast(
+        'Reposted to your profile',
+        action: SnackBarAction(
+          key: const Key('feed_repost_undo'),
+          label: 'Undo',
+          onPressed: () => interactions.unrepost(videoId).ignore(),
+        ),
+      );
+    } on AppException catch (e) {
+      if (mounted) _toast(e.message);
+    }
+  }
+
+  /// The comment button held: pick an emoji, and it is posted as a comment
+  /// on its own — no sheet, no keyboard.
+  Future<void> _quickComment(Offset anchor) async {
+    if (!_signedIn) {
+      context.push('/login');
+      return;
+    }
+    if (widget.video.commentsDisabled) {
+      _toast('Comments are turned off for this video');
+      return;
+    }
+    unawaited(HapticFeedback.selectionClick());
+    final emoji = await showQuickCommentPicker(context, anchor: anchor);
+    if (emoji == null || !mounted) return;
+
+    final videoId = widget.video.id;
+    try {
+      final created = await ref
+          .read(commentRepositoryProvider)
+          .postComment(videoId, emoji);
+      if (!mounted) return;
+      // The open thread and the counter both read the server again.
+      ref.invalidate(commentNotifierProvider(videoId));
+      ref.invalidate(videoCountsProvider(videoId));
+      _toast(created.status == CommentStatus.held
+          ? 'Your comment is being reviewed before it appears'
+          : 'Commented $emoji');
+    } on AppException catch (e) {
+      if (mounted) _toast(e.message);
+    }
+  }
+
   @override
   void didUpdateWidget(covariant FeedVideoPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -410,6 +480,8 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTick
                   likeCount: like?.likeCount ?? video.likeCount,
                   saved: save?.saved ?? false,
                   onLike: _like,
+                  onRepost: _repost,
+                  onQuickComment: _quickComment,
                   onSave: _save,
                   onShare: _share,
                 ),
@@ -707,6 +779,9 @@ class _DurationPill extends StatelessWidget {
   }
 }
 
+/// How long the heart is held to repost.
+const repostHold = Duration(milliseconds: 1500);
+
 /// Every action here is wired to interaction-service. Save is the one without a
 /// number: there is no `save_count` to read, because a save is private.
 class _Rail extends StatelessWidget {
@@ -717,6 +792,8 @@ class _Rail extends StatelessWidget {
     required this.likeCount,
     required this.saved,
     required this.onLike,
+    required this.onRepost,
+    required this.onQuickComment,
     required this.onSave,
     required this.onShare,
   });
@@ -730,6 +807,12 @@ class _Rail extends StatelessWidget {
   final int likeCount;
   final bool saved;
   final VoidCallback onLike;
+
+  /// The heart held for [repostHold].
+  final VoidCallback onRepost;
+
+  /// The comment button held, with where the finger is.
+  final void Function(Offset at) onQuickComment;
   final VoidCallback onSave;
   final VoidCallback onShare;
 
@@ -743,6 +826,10 @@ class _Rail extends StatelessWidget {
           color: liked ? NowaColors.accent : Colors.white,
           label: compact(likeCount),
           onTap: onLike,
+          // A tap likes; holding on until the ring closes reposts.
+          onHold: (_) => onRepost(),
+          holdDuration: repostHold,
+          showHoldProgress: true,
         ),
         RailAction(
           itemKey: Key('feed_comment_count_${video.id}'),
@@ -758,6 +845,7 @@ class _Rail extends StatelessWidget {
             totalCount: counts?.commentCount ?? video.commentCount,
             commentsDisabled: video.commentsDisabled,
           ),
+          onHold: onQuickComment,
         ),
         RailAction(
           itemKey: Key('feed_save_button_${video.id}'),

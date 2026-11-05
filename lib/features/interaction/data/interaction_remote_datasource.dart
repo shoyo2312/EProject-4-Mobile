@@ -158,6 +158,25 @@ class InteractionRemoteDatasource {
     );
   }
 
+  /// Idempotent, like [like]: answers whether the caller now has it reposted
+  /// (doc 3.13). The video then shows on the caller's Reposts tab.
+  Future<bool> repost(String videoId) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/interactions/videos/$videoId/repost',
+    );
+    return _reposted(response.data!);
+  }
+
+  Future<bool> unrepost(String videoId) async {
+    final response = await _apiClient.delete<Map<String, dynamic>>(
+      '/interactions/videos/$videoId/repost',
+    );
+    return _reposted(response.data!);
+  }
+
+  bool _reposted(Map<String, dynamic> body) =>
+      (body['data'] as Map<String, dynamic>)['reposted'] as bool? ?? false;
+
   SaveStatus _unwrapSave(Map<String, dynamic> body) {
     return ApiResponse<SaveStatus>.fromJson(
       body,

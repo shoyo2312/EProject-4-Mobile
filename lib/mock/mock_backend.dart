@@ -637,6 +637,22 @@ class _MockInteractionRepository extends InteractionRepository {
 
   @override
   Future<void> share(String videoId) => _latency();
+
+  final _reposted = <String>{};
+
+  @override
+  Future<bool> repost(String videoId) async {
+    await _latency();
+    _reposted.add(videoId);
+    return true;
+  }
+
+  @override
+  Future<bool> unrepost(String videoId) async {
+    await _latency();
+    _reposted.remove(videoId);
+    return false;
+  }
 }
 
 class _MockFeedRepository extends FeedRepository {
