@@ -23,6 +23,9 @@ UserRepository userRepository(Ref ref) =>
 class MyProfile extends _$MyProfile {
   @override
   FutureOr<UserProfileModel> build() {
+    // Rebuild whenever the signed-in account changes, so one account's profile
+    // can never be served to the next one that logs in on this device.
+    ref.watch(authStateProvider.select((s) => s.valueOrNull?.id));
     return ref.read(userRepositoryProvider).getMyProfile();
   }
 

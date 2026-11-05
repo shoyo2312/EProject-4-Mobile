@@ -23,7 +23,7 @@ final userRepositoryProvider = Provider<UserRepository>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef UserRepositoryRef = ProviderRef<UserRepository>;
-String _$myProfileHash() => r'254f733eed70c0d6c20f7958b19600bee52f3a39';
+String _$myProfileHash() => r'3badbb3a68d76d626446390c6784f96aab9dcf11';
 
 /// See also [MyProfile].
 @ProviderFor(MyProfile)
