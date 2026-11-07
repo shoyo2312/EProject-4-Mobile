@@ -127,62 +127,116 @@ class _MyProfileBody extends ConsumerWidget {
         message: error.toString(),
         onRetry: () => ref.invalidate(myProfileProvider),
       ),
-      data: (profile) => _ProfileContent(
-        profile: profile,
-        handle: handle,
-        isOwnProfile: true,
-        embedded: embedded,
-        onFollowersTap: () =>
-            context.push('/profile/${profile.userId}/followers'),
-        onFollowingTap: () =>
-            context.push('/profile/${profile.userId}/following'),
-        primaryAction: NowaButton(
-          key: const Key('profile_edit_button'),
-          label: 'Edit profile',
-          onTap: () => context.push('/profile/edit'),
-        ),
-        iconActions: [
-          _IconAction(
-            buttonKey: const Key('profile_blocked_list_button'),
-            icon: Icons.block,
-            tooltip: 'Blocked users',
-            onTap: () => context.push('/me/blocked'),
+      // The account's actions live behind one menu button in the corner
+      // rather than a row of icons under the bio.
+      data: (profile) => Stack(
+        children: [
+          _ProfileContent(
+            profile: profile,
+            handle: handle,
+            isOwnProfile: true,
+            embedded: embedded,
+            onFollowersTap: () =>
+                context.push('/profile/${profile.userId}/followers'),
+            onFollowingTap: () =>
+                context.push('/profile/${profile.userId}/following'),
           ),
-          _IconAction(
-            buttonKey: const Key('profile_muted_list_button'),
-            icon: Icons.volume_off_outlined,
-            tooltip: 'Muted users',
-            onTap: () => context.push('/me/muted'),
-          ),
-          // Moved here from the comment sheet, which no longer has a filter
-          // button.
-          _IconAction(
-            buttonKey: const Key('profile_comment_filters_button'),
-            icon: Icons.filter_alt_outlined,
-            tooltip: 'Comment filters',
-            onTap: () => context.push('/me/comment-filters'),
-          ),
-          _IconAction(
-            buttonKey: const Key('profile_qr_login_button'),
-            icon: Icons.qr_code_scanner,
-            tooltip: 'Log in on web',
-            onTap: () => context.push('/me/qr-login'),
-          ),
-          _IconAction(
-            buttonKey: const Key('profile_devices_button'),
-            icon: Icons.devices_outlined,
-            tooltip: 'Devices',
-            onTap: () => context.push('/me/devices'),
-          ),
-          _IconAction(
-            buttonKey: const Key('profile_logout_button'),
-            icon: Icons.logout,
-            tooltip: 'Log out',
-            onTap: () => ref.read(authStateProvider.notifier).logout(),
+          Positioned(
+            right: 8,
+            top: MediaQuery.of(context).padding.top + 6,
+            child: _CornerButton(
+              buttonKey: const Key('profile_menu_button'),
+              icon: Icons.menu,
+              tooltip: 'Menu',
+              onTap: () => _openMenu(context, ref),
+            ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _openMenu(BuildContext context, WidgetRef ref) async {
+    final route = await showModalBottomSheet<String>(
+      context: context,
+      // Sized to its items rather than capped at 9/16 of the screen, which
+      // six rows overflow on a short phone; it scrolls if even that is short.
+      isScrollControlled: true,
+      backgroundColor: NowaColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        void choose(String value) => Navigator.of(sheetContext).pop(value);
+        return SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 8),
+                _ManageTile(
+                  itemKey: const Key('profile_menu_studio'),
+                  icon: Icons.insights_outlined,
+                  label: 'Nowa Studio',
+                  onTap: () => choose('/studio'),
+                ),
+                _ManageTile(
+                  itemKey: const Key('profile_menu_edit'),
+                  icon: Icons.edit_outlined,
+                  label: 'Edit profile',
+                  onTap: () => choose('/profile/edit'),
+                ),
+                _ManageTile(
+                  itemKey: const Key('profile_menu_settings'),
+                  icon: Icons.settings_outlined,
+                  label: 'Settings and privacy',
+                  onTap: () => choose('/settings'),
+                ),
+                _ManageTile(
+                  itemKey: const Key('profile_menu_blocked'),
+                  icon: Icons.block,
+                  label: 'Blocked accounts',
+                  onTap: () => choose('/me/blocked'),
+                ),
+                _ManageTile(
+                  itemKey: const Key('profile_menu_comment_filters'),
+                  icon: Icons.filter_alt_outlined,
+                  label: 'Comment filters',
+                  onTap: () => choose('/me/comment-filters'),
+                ),
+                _ManageTile(
+                  itemKey: const Key('profile_menu_qr_login'),
+                  icon: Icons.qr_code_scanner,
+                  label: 'Log in with QR code',
+                  onTap: () => choose('/me/qr-login'),
+                ),
+                _ManageTile(
+                  itemKey: const Key('profile_menu_devices'),
+                  icon: Icons.devices_outlined,
+                  label: 'Device management',
+                  onTap: () => choose('/me/devices'),
+                ),
+                const Divider(height: 1, color: NowaColors.hairline),
+                _ManageTile(
+                  itemKey: const Key('profile_menu_logout'),
+                  icon: Icons.logout,
+                  label: 'Log out',
+                  danger: true,
+                  onTap: () => choose('logout'),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (route == null || !context.mounted) return;
+    if (route == 'logout') {
+      await ref.read(authStateProvider.notifier).logout();
+    } else {
+      context.push(route);
+    }
   }
 }
 
@@ -199,9 +253,31 @@ class _OtherProfileBody extends ConsumerWidget {
   Future<void> _openChat(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final conversationId =
-          await ref.read(conversationsProvider.notifier).openWith(userId);
+      final conversationId = await ref
+          .read(conversationsProvider.notifier)
+          .openWith(userId);
       if (context.mounted) context.push('/messages/$conversationId');
+    } on AppException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  /// Follow, or withdraw / unfollow. A private account answers with a
+  /// request rather than a follow, which is worth saying.
+  Future<void> _toggleFollow(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final provider = profileNotifierProvider(userId);
+    final wasRequested = ref.read(provider).valueOrNull?.isRequested == true;
+    try {
+      await ref.read(provider.notifier).toggleFollow();
+      // Following or not decides whether a private account's grid opens.
+      ref.invalidate(userVideosNotifierProvider(userId));
+      final nowRequested = ref.read(provider).valueOrNull?.isRequested == true;
+      if (nowRequested && !wasRequested) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Follow request sent.')),
+        );
+      }
     } on AppException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
     }
@@ -219,6 +295,7 @@ class _OtherProfileBody extends ConsumerWidget {
       data: (state) {
         final notifier = ref.read(profileNotifierProvider(userId).notifier);
         final following = state.isFollowing == true;
+        final requested = state.isRequested == true;
         return _ProfileContent(
           profile: state.profile,
           isOwnProfile: false,
@@ -227,9 +304,13 @@ class _OtherProfileBody extends ConsumerWidget {
           onFollowingTap: () => context.push('/profile/$userId/following'),
           primaryAction: NowaButton(
             key: const Key('profile_follow_button'),
-            label: following ? 'Following' : 'Follow',
-            filled: !following,
-            onTap: notifier.toggleFollow,
+            label: following
+                ? 'Following'
+                : requested
+                ? 'Requested'
+                : 'Follow',
+            filled: !following && !requested,
+            onTap: () => _toggleFollow(context, ref),
           ),
           iconActions: [
             _IconAction(
@@ -266,8 +347,8 @@ class _ProfileContent extends StatefulWidget {
     required this.embedded,
     required this.onFollowersTap,
     required this.onFollowingTap,
-    required this.primaryAction,
-    required this.iconActions,
+    this.primaryAction,
+    this.iconActions = const [],
     this.handle,
   });
 
@@ -277,7 +358,9 @@ class _ProfileContent extends StatefulWidget {
   final String? handle;
   final VoidCallback onFollowersTap;
   final VoidCallback onFollowingTap;
-  final Widget primaryAction;
+
+  /// Null on your own profile: its actions sit in the corner menu instead.
+  final Widget? primaryAction;
   final List<Widget> iconActions;
 
   @override
@@ -340,7 +423,10 @@ class _ProfileContentState extends State<_ProfileContent> {
                             height: 88,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(30),
-                              border: Border.all(color: NowaColors.bg, width: 2),
+                              border: Border.all(
+                                color: NowaColors.bg,
+                                width: 2,
+                              ),
                             ),
                             child: RemoteImage(
                               url: profile.avatarUrl,
@@ -436,28 +522,14 @@ class _ProfileContentState extends State<_ProfileContent> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                // Few icons fit beside the primary button; with more (own
-                // profile has 6) they go on their own row, spread evenly, so
-                // the primary button keeps its full width on narrow phones.
-                if (widget.iconActions.length <= 3)
+                if (widget.primaryAction != null) ...[
+                  const SizedBox(height: 16),
                   Row(
                     children: [
-                      Expanded(child: widget.primaryAction),
+                      Expanded(child: widget.primaryAction!),
                       for (final action in widget.iconActions) ...[
                         const SizedBox(width: 9),
                         action,
-                      ],
-                    ],
-                  )
-                else ...[
-                  SizedBox(width: double.infinity, child: widget.primaryAction),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      for (var i = 0; i < widget.iconActions.length; i++) ...[
-                        if (i > 0) const SizedBox(width: 9),
-                        Expanded(child: widget.iconActions[i]),
                       ],
                     ],
                   ),
@@ -537,7 +609,9 @@ class _HistoryVideosGrid extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final provider = historyVideosNotifierProvider(history);
-    return ref.watch(provider).when(
+    return ref
+        .watch(provider)
+        .when(
           loading: () => const Padding(
             padding: EdgeInsets.symmetric(vertical: 48),
             child: LoadingView(),
@@ -569,13 +643,15 @@ class _RepostedVideosGrid extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final provider = repostedVideosNotifierProvider(userId);
-    return ref.watch(provider).when(
+    return ref
+        .watch(provider)
+        .when(
           loading: () => const Padding(
             padding: EdgeInsets.symmetric(vertical: 48),
             child: LoadingView(),
           ),
-          error: (error, _) => error is ServerException &&
-                  error.code == 'PRIVATE_ACCOUNT'
+          error: (error, _) =>
+              error is ServerException && error.code == 'PRIVATE_ACCOUNT'
               ? const _PrivateTab(
                   tab: 'Reposts',
                   message: "This account's reposts are private",
@@ -628,8 +704,7 @@ class _VideoGrid extends StatelessWidget {
         return GestureDetector(
           key: Key('profile_video_${video.id}'),
           onTap: () => _openViewer(context, video),
-          onLongPress:
-              onLongPress == null ? null : () => onLongPress!(video),
+          onLongPress: onLongPress == null ? null : () => onLongPress!(video),
           child: _VideoThumbnail(video: video),
         );
       },
@@ -713,8 +788,9 @@ class _UserVideosGrid extends ConsumerWidget {
       }
     } on AppException catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
 
@@ -759,8 +835,9 @@ class _UserVideosGrid extends ConsumerWidget {
           .delete(video.id);
     } on AppException catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
 
@@ -772,10 +849,15 @@ class _UserVideosGrid extends ConsumerWidget {
         padding: EdgeInsets.symmetric(vertical: 48),
         child: LoadingView(),
       ),
-      error: (error, _) => ErrorView(
-        message: error.toString(),
-        onRetry: () => ref.invalidate(userVideosNotifierProvider(userId)),
-      ),
+      // A private account the viewer does not follow: the answer, not a
+      // failure to retry (video doc 3.5).
+      error: (error, _) =>
+          error is ServerException && error.code == 'PRIVATE_ACCOUNT'
+          ? const _PrivateAccount()
+          : ErrorView(
+              message: error.toString(),
+              onRetry: () => ref.invalidate(userVideosNotifierProvider(userId)),
+            ),
       data: (videos) => videos.isEmpty
           ? const _EmptyVideos()
           : _VideoGrid(
@@ -785,6 +867,45 @@ class _UserVideosGrid extends ConsumerWidget {
                   ? (video) => _openManageSheet(context, ref, video)
                   : null,
             ),
+    );
+  }
+}
+
+class _PrivateAccount extends StatelessWidget {
+  const _PrivateAccount();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      key: const Key('profile_private_account'),
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      child: Column(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: NowaColors.hairline, width: 1.5),
+            ),
+            child: Icon(
+              Icons.lock_outline,
+              size: 24,
+              color: NowaColors.text.withValues(alpha: 0.6),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text('This account is private', style: sora(size: 15)),
+          const SizedBox(height: 6),
+          Text(
+            'Follow this account to see their videos.',
+            style: work(
+              size: 13,
+              color: NowaColors.text.withValues(alpha: 0.5),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -826,9 +947,9 @@ class _EmptyVideos extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 48),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(
               Icons.photo_library_outlined,
@@ -931,6 +1052,41 @@ class _Stat extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A small glass button floating over the cover image — the back arrow on
+/// the left, the menu on the right.
+class _CornerButton extends StatelessWidget {
+  const _CornerButton({
+    required this.buttonKey,
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final Key buttonKey;
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        key: buttonKey,
+        onTap: onTap,
+        child: Glass(
+          radius: 12,
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: Icon(icon, size: 18, color: Colors.white),
+          ),
+        ),
       ),
     );
   }

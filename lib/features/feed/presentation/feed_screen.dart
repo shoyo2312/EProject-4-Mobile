@@ -74,11 +74,12 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
       };
 
   String get _emptyMessage => switch (_tab) {
-        'Following' => 'Nothing from the people you follow yet',
-        'Friends' => 'Nothing from your friends yet — friends are people '
-            'you follow who follow you back',
-        _ => 'No videos yet',
-      };
+    'Following' => 'Nothing from the people you follow yet',
+    'Friends' =>
+      'Nothing from your friends yet — friends are people '
+          'you follow who follow you back',
+    _ => 'No videos yet',
+  };
 
   /// Both feeds share one PageView, so the position has to go back to the top
   /// with the data — otherwise a switch lands on page 12 of a list that may
@@ -137,15 +138,15 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   }
 
   Widget _topBar(BuildContext context) => Positioned(
-        left: 14,
-        right: 14,
-        top: MediaQuery.of(context).padding.top + 10,
-        child: _TopBar(
-          tab: _tab,
-          onTab: _onTabChanged,
-          onSearch: widget.onOpenDiscover,
-        ),
-      );
+    left: 14,
+    right: 14,
+    top: MediaQuery.of(context).padding.top + 10,
+    child: _TopBar(
+      tab: _tab,
+      onTab: _onTabChanged,
+      onSearch: widget.onOpenDiscover,
+    ),
+  );
 }
 
 /// LIVE badge, source chips, search. "For You" has its own endpoint;
@@ -173,11 +174,16 @@ class _TopBar extends StatelessWidget {
               Container(
                 width: 6,
                 height: 6,
-                decoration:
-                    const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
               ),
               const SizedBox(width: 6),
-              Text('LIVE', style: sora(size: 11.5, spacing: 0.6, color: Colors.white)),
+              Text(
+                'LIVE',
+                style: sora(size: 11.5, spacing: 0.6, color: Colors.white),
+              ),
             ],
           ),
         ),
@@ -190,7 +196,11 @@ class _TopBar extends StatelessWidget {
                 for (final t in ['Friends', 'Following', 'For You'])
                   Padding(
                     padding: const EdgeInsets.only(right: 6),
-                    child: Chip2(label: t, active: t == tab, onTap: () => onTab(t)),
+                    child: Chip2(
+                      label: t,
+                      active: t == tab,
+                      onTap: () => onTab(t),
+                    ),
                   ),
               ],
             ),
@@ -228,7 +238,8 @@ class FeedVideoPanel extends ConsumerStatefulWidget {
   ConsumerState<FeedVideoPanel> createState() => _FeedVideoPanelState();
 }
 
-class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTickerProviderStateMixin {
+class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _burst = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 760),
@@ -293,14 +304,17 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTick
       context.push('/login');
       return;
     }
-    final error =
-        await ref.read(saveNotifierProvider(widget.video.id).notifier).toggle();
+    final error = await ref
+        .read(saveNotifierProvider(widget.video.id).notifier)
+        .toggle();
     if (!mounted) return;
     if (error != null) {
       _toast(error.message);
     } else {
-      final saved =
-          ref.read(saveNotifierProvider(widget.video.id)).valueOrNull?.saved;
+      final saved = ref
+          .read(saveNotifierProvider(widget.video.id))
+          .valueOrNull
+          ?.saved;
       _toast(saved == true ? 'Saved to favorites' : 'Removed from favorites');
     }
   }
@@ -346,7 +360,8 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTick
     final shared = await showShareSheet(
       context,
       video: widget.video,
-      saved: ref.read(saveNotifierProvider(widget.video.id)).valueOrNull?.saved ??
+      saved:
+          ref.read(saveNotifierProvider(widget.video.id)).valueOrNull?.saved ??
           false,
       onToggleSave: _save,
     );
@@ -428,9 +443,11 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTick
       // The open thread and the counter both read the server again.
       ref.invalidate(commentNotifierProvider(videoId));
       ref.invalidate(videoCountsProvider(videoId));
-      _toast(created.status == CommentStatus.held
-          ? 'Your comment is being reviewed before it appears'
-          : 'Commented $emoji');
+      _toast(
+        created.status == CommentStatus.held
+            ? 'Your comment is being reviewed before it appears'
+            : 'Commented $emoji',
+      );
     } on AppException catch (e) {
       if (mounted) _toast(e.message);
     }
@@ -570,13 +587,19 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel> with SingleTick
           builder: (_, _) {
             final t = _burst.value;
             if (t == 0 || t == 1) return const SizedBox.shrink();
-            final scale = t < 0.3 ? 0.35 + (t / 0.3) * 0.83 : 1.18 - (t - 0.3) * 0.26;
+            final scale = t < 0.3
+                ? 0.35 + (t / 0.3) * 0.83
+                : 1.18 - (t - 0.3) * 0.26;
             final opacity = t < 0.3 ? t / 0.3 : 1 - (t - 0.3) / 0.7;
             return Opacity(
               opacity: opacity.clamp(0, 1),
               child: Transform.scale(
                 scale: scale,
-                child: const Icon(Icons.favorite, size: 130, color: NowaColors.accent),
+                child: const Icon(
+                  Icons.favorite,
+                  size: 130,
+                  color: NowaColors.accent,
+                ),
               ),
             );
           },
@@ -620,7 +643,11 @@ class _Scrims extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.bottomCenter,
                     end: Alignment.topCenter,
-                    colors: [Color(0xDB060508), Color(0x59060508), Color(0x00060508)],
+                    colors: [
+                      Color(0xDB060508),
+                      Color(0x59060508),
+                      Color(0x00060508),
+                    ],
                     stops: [0.12, 0.55, 1],
                   ),
                 ),
@@ -640,11 +667,17 @@ class _Caption extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profileState = ref.watch(profileNotifierProvider(video.userId)).valueOrNull;
+    final profileState = ref
+        .watch(profileNotifierProvider(video.userId))
+        .valueOrNull;
     final author = profileState?.profile;
     final me = ref.watch(authStateProvider).valueOrNull;
     final isMe = me?.id == video.userId;
     final following = profileState?.isFollowing == true;
+    // A private author's request is waiting: drawn like Following, and a tap
+    // withdraws it.
+    final requested = profileState?.isRequested == true;
+    final active = following || requested;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -684,21 +717,28 @@ class _Caption extends ConsumerWidget {
                     .read(profileNotifierProvider(video.userId).notifier)
                     .toggleFollow(),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
-                    color: following ? Colors.transparent : NowaColors.accent,
+                    color: active ? Colors.transparent : NowaColors.accent,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: following
+                      color: active
                           ? Colors.white.withValues(alpha: 0.3)
                           : NowaColors.accent,
                     ),
                   ),
                   child: Text(
-                    following ? 'Following' : 'Follow',
+                    following
+                        ? 'Following'
+                        : requested
+                        ? 'Requested'
+                        : 'Follow',
                     style: sora(
                       size: 12.5,
-                      color: following
+                      color: active
                           ? Colors.white.withValues(alpha: 0.8)
                           : Colors.white,
                     ),
@@ -758,14 +798,22 @@ class _SoundPill extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.music_note, size: 13, color: NowaColors.supportInk),
+            const Icon(
+              Icons.music_note,
+              size: 13,
+              color: NowaColors.supportInk,
+            ),
             const SizedBox(width: 7),
             Flexible(
               child: Text(
                 '${music.title} · ${music.artist}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: sora(size: 11.5, weight: FontWeight.w500, color: NowaColors.supportInk),
+                style: sora(
+                  size: 11.5,
+                  weight: FontWeight.w500,
+                  color: NowaColors.supportInk,
+                ),
               ),
             ),
           ],
@@ -784,7 +832,8 @@ class _DurationPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+    final label =
+        '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
@@ -797,7 +846,11 @@ class _DurationPill extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.play_circle_outline, size: 13, color: NowaColors.supportInk),
+            const Icon(
+              Icons.play_circle_outline,
+              size: 13,
+              color: NowaColors.supportInk,
+            ),
             const SizedBox(width: 7),
             Text(
               label,

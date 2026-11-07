@@ -20,6 +20,20 @@ enum NotificationKind {
   /// the story owner's id, not the story's.
   @JsonValue('STORY')
   story,
+
+  /// Someone asked to follow this private account. [NotificationModel.referenceId]
+  /// is the requester's id; the request itself may since have been answered,
+  /// so the requests list is where it leads.
+  @JsonValue('FOLLOW_REQUEST')
+  followRequest,
+
+  /// A private account approved this user's request; referenceId is theirs.
+  @JsonValue('FOLLOW_REQUEST_ACCEPTED')
+  followRequestAccepted,
+
+  /// Last week's screen time; referenceId is that week's Monday.
+  @JsonValue('SCREEN_TIME')
+  screenTime,
   @JsonValue('SYSTEM')
   system,
 }

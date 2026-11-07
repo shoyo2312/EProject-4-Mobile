@@ -67,8 +67,8 @@ class _VideoLinkScreenState extends ConsumerState<VideoLinkScreen> {
               error: (error, _) => ErrorView(
                 key: const Key('video_link_error'),
                 message: _messageFor(error),
-                onRetry: error is ServerException &&
-                        error.code == 'VIDEO_NOT_FOUND'
+                onRetry:
+                    error is ServerException && error.code == 'VIDEO_NOT_FOUND'
                     ? null
                     : () => ref.invalidate(videoByIdProvider(widget.videoId)),
               ),

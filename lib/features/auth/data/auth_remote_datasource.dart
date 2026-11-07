@@ -121,6 +121,16 @@ class AuthRemoteDatasource {
     return _unwrap(response.data!, UserModel.fromJson);
   }
 
+  /// `PUT /auth/me/username` — a new handle, once every 30 days. 409
+  /// `USERNAME_ALREADY_EXISTS`, 429 `USERNAME_CHANGE_TOO_SOON`.
+  Future<UserModel> changeUsername(String username) async {
+    final response = await _apiClient.put<Map<String, dynamic>>(
+      '/auth/me/username',
+      data: {'username': username},
+    );
+    return _unwrap(response.data!, UserModel.fromJson);
+  }
+
   Future<void> verifyEmail({required String email, required String otp}) {
     return _apiClient.post<void>(
       '/auth/verify-email',

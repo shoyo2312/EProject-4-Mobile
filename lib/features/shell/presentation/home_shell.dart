@@ -30,6 +30,14 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   /// you tap "You").
   late final Set<int> _visited = {widget.initialIndex};
 
+  /// `/feed?tab=create` while the shell is already up (Studio's Upload)
+  /// arrives as a new initial index on the same state.
+  @override
+  void didUpdateWidget(HomeShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialIndex != oldWidget.initialIndex) _go(widget.initialIndex);
+  }
+
   void _go(int i) => setState(() {
         _index = i;
         _visited.add(i);

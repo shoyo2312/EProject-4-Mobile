@@ -32,13 +32,22 @@ import 'package:tiktok_mobile/features/notification/data/notification_remote_dat
 import 'package:tiktok_mobile/features/notification/data/notification_repository.dart';
 import 'package:tiktok_mobile/features/notification/presentation/notification_provider.dart';
 import 'package:tiktok_mobile/features/search/data/search_remote_datasource.dart';
+import 'package:tiktok_mobile/features/settings/data/settings_models.dart';
+import 'package:tiktok_mobile/features/settings/data/settings_remote_datasource.dart';
+import 'package:tiktok_mobile/features/settings/data/settings_repository.dart';
+import 'package:tiktok_mobile/features/settings/presentation/settings_provider.dart';
 import 'package:tiktok_mobile/features/search/data/search_repository.dart';
 import 'package:tiktok_mobile/features/search/presentation/search_provider.dart';
+import 'package:tiktok_mobile/features/studio/data/studio_models.dart';
+import 'package:tiktok_mobile/features/studio/data/studio_remote_datasource.dart';
+import 'package:tiktok_mobile/features/studio/data/studio_repository.dart';
+import 'package:tiktok_mobile/features/studio/presentation/studio_provider.dart';
 import 'package:tiktok_mobile/features/story/data/story_model.dart';
 import 'package:tiktok_mobile/features/story/data/story_remote_datasource.dart';
 import 'package:tiktok_mobile/features/story/data/story_repository.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_provider.dart';
 import 'package:tiktok_mobile/features/user/data/comment_filter_settings.dart';
+import 'package:tiktok_mobile/features/user/data/follow_models.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/data/user_remote_datasource.dart';
 import 'package:tiktok_mobile/features/user/data/user_repository.dart';
@@ -48,48 +57,61 @@ import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 /// `--dart-define=USE_MOCK=true`. Nothing here touches the network; the
 /// repositories are subclassed so every provider above them stays untouched.
 List<Override> mockOverrides() => [
-      authStateProvider.overrideWith(_MockAuthState.new),
-      feedRepositoryProvider.overrideWith(
-        (ref) =>
-            _MockFeedRepository(FeedRemoteDatasource(ref.watch(apiClientProvider))),
-      ),
-      userRepositoryProvider.overrideWith(
-        (ref) =>
-            _MockUserRepository(UserRemoteDatasource(ref.watch(apiClientProvider))),
-      ),
-      commentRepositoryProvider.overrideWith(
-        (ref) => _MockCommentRepository(
-          CommentRemoteDatasource(ref.watch(apiClientProvider)),
-        ),
-      ),
-      interactionRepositoryProvider.overrideWith(
-        (ref) => _MockInteractionRepository(
-          InteractionRemoteDatasource(ref.watch(apiClientProvider)),
-        ),
-      ),
-      chatRepositoryProvider.overrideWith(
-        (ref) => _MockChatRepository(
-          ChatRemoteDatasource(ref.watch(apiClientProvider)),
-          // Never asked for a token: every stream is overridden below.
-          ChatSocket(() async => null),
-        ),
-      ),
-      notificationRepositoryProvider.overrideWith(
-        (ref) => _MockNotificationRepository(
-          NotificationRemoteDatasource(ref.watch(apiClientProvider)),
-        ),
-      ),
-      searchRepositoryProvider.overrideWith(
-        (ref) => _MockSearchRepository(
-          SearchRemoteDatasource(ref.watch(apiClientProvider)),
-        ),
-      ),
-      storyRepositoryProvider.overrideWith(
-        (ref) => _MockStoryRepository(
-          StoryRemoteDatasource(ref.watch(apiClientProvider)),
-        ),
-      ),
-    ];
+  authStateProvider.overrideWith(_MockAuthState.new),
+  feedRepositoryProvider.overrideWith(
+    (ref) =>
+        _MockFeedRepository(FeedRemoteDatasource(ref.watch(apiClientProvider))),
+  ),
+  userRepositoryProvider.overrideWith(
+    (ref) =>
+        _MockUserRepository(UserRemoteDatasource(ref.watch(apiClientProvider))),
+  ),
+  commentRepositoryProvider.overrideWith(
+    (ref) => _MockCommentRepository(
+      CommentRemoteDatasource(ref.watch(apiClientProvider)),
+    ),
+  ),
+  interactionRepositoryProvider.overrideWith(
+    (ref) => _MockInteractionRepository(
+      InteractionRemoteDatasource(ref.watch(apiClientProvider)),
+    ),
+  ),
+  chatRepositoryProvider.overrideWith(
+    (ref) => _MockChatRepository(
+      ChatRemoteDatasource(ref.watch(apiClientProvider)),
+      // Never asked for a token: every stream is overridden below.
+      ChatSocket(() async => null),
+    ),
+  ),
+  notificationRepositoryProvider.overrideWith(
+    (ref) => _MockNotificationRepository(
+      NotificationRemoteDatasource(ref.watch(apiClientProvider)),
+    ),
+  ),
+  searchRepositoryProvider.overrideWith(
+    (ref) => _MockSearchRepository(
+      SearchRemoteDatasource(ref.watch(apiClientProvider)),
+    ),
+  ),
+  settingsRepositoryProvider.overrideWith(
+    (ref) => _MockSettingsRepository(
+      SettingsRemoteDatasource(ref.watch(apiClientProvider)),
+    ),
+  ),
+  storyRepositoryProvider.overrideWith(
+    (ref) => _MockStoryRepository(
+      StoryRemoteDatasource(ref.watch(apiClientProvider)),
+    ),
+  ),
+  studioRepositoryProvider.overrideWith(
+    (ref) => _MockStudioRepository(
+      StudioRemoteDatasource(ref.watch(apiClientProvider)),
+      // One catalogue: a caption changed here must survive a visibility
+      // change made through the feed repository, as it does on the server.
+      ref.watch(feedRepositoryProvider) as _MockFeedRepository,
+    ),
+  ),
+];
 
 // ---------------------------------------------------------------------------
 // Data
@@ -470,8 +492,12 @@ CommentModel _comment(String videoId, int index) {
     videoId: videoId,
     userId: '${7100 + index % 12}',
     text: seed?.text ?? _texts[(index * 7) % _texts.length],
-    createdAt: DateTime(2026, 8, 14, 11)
-        .subtract(Duration(hours: seed?.hoursAgo ?? index * 3)),
+    createdAt: DateTime(
+      2026,
+      8,
+      14,
+      11,
+    ).subtract(Duration(hours: seed?.hoursAgo ?? index * 3)),
     replyCount: index == 0 ? _mockReplyCount : 0,
   );
 }
@@ -493,12 +519,12 @@ CommentPage _commentPage(String videoId, String? cursor) {
 }
 
 PageResponse<T> _singlePage<T>(List<T> items) => PageResponse(
-      content: items,
-      size: items.length,
-      number: 0,
-      totalElements: items.length,
-      totalPages: 1,
-    );
+  content: items,
+  size: items.length,
+  number: 0,
+  totalElements: items.length,
+  totalPages: 1,
+);
 
 UserProfileModel _profile(String userId) {
   final known = _profiles[userId];
@@ -528,6 +554,17 @@ class _MockAuthState extends AuthState {
   Future<UserModel?> build() async => _me;
 
   @override
+  Future<void> changeUsername(String username) async {
+    final current = state.valueOrNull ?? _me;
+    state = AsyncData(
+      current.copyWith(
+        username: username,
+        usernameChangeableAt: DateTime.now().add(const Duration(days: 30)),
+      ),
+    );
+  }
+
+  @override
   Future<void> logout() async => state = const AsyncData(null);
 }
 
@@ -542,10 +579,10 @@ class _MockInteractionRepository extends InteractionRepository {
   final _counts = <String, int>{};
 
   LikeStatus _status(String videoId) => LikeStatus(
-        videoId: videoId,
-        liked: _liked.contains(videoId),
-        likeCount: _counts[videoId] ?? 0,
-      );
+    videoId: videoId,
+    liked: _liked.contains(videoId),
+    likeCount: _counts[videoId] ?? 0,
+  );
 
   @override
   Future<LikeStatus> getLikeStatus(String videoId) async {
@@ -592,8 +629,7 @@ class _MockInteractionRepository extends InteractionRepository {
     String videoId, {
     required int watchedMs,
     required int durationMs,
-  }) =>
-      _latency();
+  }) => _latency();
 
   @override
   Future<List<LikeStatus>> getLikeStatuses(List<String> ids) async {
@@ -675,9 +711,9 @@ class _MockFeedRepository extends FeedRepository {
   final _deleted = <String>{};
 
   List<VideoModel> get _live => [
-        for (final v in _videos)
-          if (!_deleted.contains(v.id)) _edits[v.id] ?? v,
-      ];
+    for (final v in _videos)
+      if (!_deleted.contains(v.id)) _edits[v.id] ?? v,
+  ];
 
   /// The offline leaderboard is the catalogue by view count — no recency
   /// decay, but the same contract: best first, ids the caller hydrates.
@@ -722,12 +758,14 @@ class _MockFeedRepository extends FeedRepository {
     await _latency();
     // One page then done — `nextCursor: null` is the only stop condition.
     if (cursor != null) return const VideoPage(items: []);
-    return VideoPage(items: [
-      for (final v in _live)
-        if (v.status == VideoStatus.published &&
-            v.visibility == VideoVisibility.public)
-          v,
-    ]);
+    return VideoPage(
+      items: [
+        for (final v in _live)
+          if (v.status == VideoStatus.published &&
+              v.visibility == VideoVisibility.public)
+            v,
+      ],
+    );
   }
 
   @override
@@ -791,8 +829,11 @@ class _MockFeedRepository extends FeedRepository {
   Future<VideoModel> getVideo(String videoId) async {
     final video = _live.where((v) => v.id == videoId).firstOrNull;
     if (video == null) {
-      throw const ServerException(404, 'Video not found',
-          code: 'VIDEO_NOT_FOUND');
+      throw const ServerException(
+        404,
+        'Video not found',
+        code: 'VIDEO_NOT_FOUND',
+      );
     }
     if (video.status != VideoStatus.processing) return video;
     // Transcoding "finishes" on the first poll.
@@ -810,10 +851,7 @@ class _MockFeedRepository extends FeedRepository {
   Future<List<VideoModel>> fetchByIds(List<String> ids) async {
     await _latency();
     final byId = {for (final v in _live) v.id: v};
-    return [
-      for (final id in ids)
-        ?byId[id],
-    ];
+    return [for (final id in ids) ?byId[id]];
   }
 
   final _edits = <String, VideoModel>{};
@@ -845,12 +883,12 @@ class _MockFeedRepository extends FeedRepository {
   Future<void> deleteVideo(String videoId) async => _deleted.add(videoId);
 
   PageResponse<VideoModel> _emptyPage() => const PageResponse(
-        content: [],
-        size: 20,
-        number: 1,
-        totalElements: 0,
-        totalPages: 1,
-      );
+    content: [],
+    size: 20,
+    number: 1,
+    totalElements: 0,
+    totalPages: 1,
+  );
 }
 
 class _MockUserRepository extends UserRepository {
@@ -872,11 +910,13 @@ class _MockUserRepository extends UserRepository {
   ) async {
     await _latency();
     _filters = _filters.copyWith(
-      filterSpamOffensive: changes['filterSpamOffensive'] as bool? ??
+      filterSpamOffensive:
+          changes['filterSpamOffensive'] as bool? ??
           _filters.filterSpamOffensive,
       filterAllComments:
           changes['filterAllComments'] as bool? ?? _filters.filterAllComments,
-      commentKeywords: changes['commentKeywords'] as List<String>? ??
+      commentKeywords:
+          changes['commentKeywords'] as List<String>? ??
           _filters.commentKeywords,
     );
     return _filters;
@@ -894,6 +934,9 @@ class _MockUserRepository extends UserRepository {
       displayName: changes['displayName'] as String? ?? _mine.displayName,
       bio: changes['bio'] as String? ?? _mine.bio,
       avatarUrl: changes['avatarUrl'] as String? ?? _mine.avatarUrl,
+      displayNameChangeableAt: changes.containsKey('displayName')
+          ? DateTime.now().add(const Duration(days: 7))
+          : _mine.displayNameChangeableAt,
     );
     return _mine;
   }
@@ -924,11 +967,38 @@ class _MockUserRepository extends UserRepository {
     };
   }
 
-  @override
-  Future<void> follow(String userId) async {}
+  final _following = <String>{};
+  final _followRequests = <String>{'2001', '2002'};
 
   @override
-  Future<void> unfollow(String userId) async {}
+  Future<FollowStatus> follow(String userId) async {
+    _following.add(userId);
+    return FollowStatus.following;
+  }
+
+  @override
+  Future<void> unfollow(String userId) async => _following.remove(userId);
+
+  @override
+  Future<Friendship> getFriendship(String userId) async =>
+      Friendship(userId: userId, following: _following.contains(userId));
+
+  @override
+  Future<PageResponse<UserProfileModel>> getFollowRequests({
+    int page = 0,
+    int size = 20,
+  }) async {
+    await _latency();
+    return _singlePage([for (final id in _followRequests) _profile(id)]);
+  }
+
+  @override
+  Future<void> approveFollowRequest(String requesterId) async =>
+      _followRequests.remove(requesterId);
+
+  @override
+  Future<void> declineFollowRequest(String requesterId) async =>
+      _followRequests.remove(requesterId);
 
   @override
   Future<void> block(String userId) async {}
@@ -947,16 +1017,14 @@ class _MockUserRepository extends UserRepository {
     String userId, {
     int page = 0,
     int size = 20,
-  }) async =>
-      _singlePage(page > 0 ? [] : _profiles.values.toList());
+  }) async => _singlePage(page > 0 ? [] : _profiles.values.toList());
 
   @override
   Future<PageResponse<UserProfileModel>> getFollowing(
     String userId, {
     int page = 0,
     int size = 20,
-  }) async =>
-      _singlePage(page > 0 ? [] : _profiles.values.toList());
+  }) async => _singlePage(page > 0 ? [] : _profiles.values.toList());
 
   /// Offline account search: display name contains the term, most followed
   /// first — the same order user-service answers in.
@@ -1070,7 +1138,10 @@ class _MockCommentRepository extends CommentRepository {
   /// The offline catalogue's comments all start at zero likes, so the tally
   /// after one tap is exactly one.
   @override
-  Future<CommentLikeResult> likeComment(String videoId, String commentId) async {
+  Future<CommentLikeResult> likeComment(
+    String videoId,
+    String commentId,
+  ) async {
     await _latency();
     return const CommentLikeResult(liked: true, likeCount: 1);
   }
@@ -1092,18 +1163,12 @@ class _MockCommentRepository extends CommentRepository {
     String videoId,
     String commentId,
     String reason,
-  ) =>
-      _latency();
+  ) => _latency();
 
   @override
-  Future<void> reportComment(
-    String videoId,
-    String commentId,
-    String reason,
-  ) =>
+  Future<void> reportComment(String videoId, String commentId, String reason) =>
       _latency();
 }
-
 
 /// Offline search. The mock catalogue carries no `tags` field, so a hashtag
 /// is matched against the caption text the same way a free-text query is —
@@ -1140,7 +1205,6 @@ class _MockSearchRepository extends SearchRepository {
     );
   }
 }
-
 
 /// Offline inbox. Holds the rows in memory so marking one read survives a tab
 /// switch, the way the real service does.
@@ -1213,7 +1277,6 @@ class _MockNotificationRepository extends NotificationRepository {
   }
 }
 
-
 /// Offline chat. One thread with one other person, kept in memory so a sent
 /// message survives leaving the screen. No socket: [liveMessages] is an empty
 /// stream, and the thread still shows what it sends because the send path adds
@@ -1253,9 +1316,24 @@ class _MockChatRepository extends ChatRepository {
         lastMessageAt: _messages.first.sentAt,
         createdAt: DateTime.now().subtract(const Duration(days: 2)),
         hasUnread: _messages.first.senderId != _meId,
+        muteMode: _muteMode,
+        mutedUntil: _mutedUntil,
+        pinnedAt: _pinnedAt,
       ),
     ];
   }
+
+  // Offline nobody new writes in, so the request box stays empty.
+  @override
+  Future<List<ConversationModel>> listRequests() async => const [];
+
+  @override
+  Future<ConversationModel> acceptRequest(String conversationId) async =>
+      (await listConversations()).first;
+
+  @override
+  Future<ConversationModel> declineRequest(String conversationId) async =>
+      (await listConversations()).first;
 
   @override
   Future<ConversationModel> openConversation(String participantId) async =>
@@ -1280,7 +1358,11 @@ class _MockChatRepository extends ChatRepository {
   }
 
   @override
-  Future<MessageModel> sendMessage(String conversationId, String content) async {
+  Future<MessageModel> sendMessage(
+    String conversationId,
+    String content, {
+    String? clientRequestId,
+  }) async {
     await _latency();
     final message = MessageModel(
       id: 'm${_messages.length + 1}',
@@ -1313,7 +1395,88 @@ class _MockChatRepository extends ChatRepository {
   }
 
   @override
-  Future<void> markRead(String conversationId) async {}
+  Future<void> markRead(String conversationId, {String? messageId}) async {}
+
+  @override
+  Future<void> markDelivered(
+    String conversationId,
+    List<String> messageIds,
+  ) async {}
+
+  // Offline the other person never reads anything: everything sent stays
+  // "Sent", and so can always be taken back.
+  @override
+  Future<ReceiptView> receipts(String conversationId) async =>
+      ReceiptView(conversationId: conversationId, userId: _otherId);
+
+  @override
+  Future<MessageUpdate> recall(String conversationId, String messageId) async {
+    await _latency();
+    final at = _messages.indexWhere((m) => m.id == messageId);
+    final update = MessageUpdate(
+      messageId: messageId,
+      conversationId: conversationId,
+      revision: (at < 0 ? 0 : _messages[at].revision) + 1,
+      recalledAt: DateTime.now(),
+    );
+    if (at >= 0) _messages[at] = _messages[at].applying(update);
+    return update;
+  }
+
+  @override
+  Future<void> hide(String conversationId, String messageId) async {
+    await _latency();
+    _messages.removeWhere((m) => m.id == messageId);
+  }
+
+  MuteMode _muteMode = MuteMode.none;
+  DateTime? _mutedUntil;
+
+  @override
+  Future<ConversationModel> mute(
+    String conversationId,
+    MuteLength length,
+  ) async {
+    await _latency();
+    final span = switch (length) {
+      MuteLength.oneHour => const Duration(hours: 1),
+      MuteLength.eightHours => const Duration(hours: 8),
+      MuteLength.oneDay => const Duration(hours: 24),
+      MuteLength.indefinite => null,
+    };
+    _muteMode = span == null ? MuteMode.indefinite : MuteMode.timed;
+    _mutedUntil = span == null ? null : DateTime.now().add(span);
+    return (await listConversations()).first;
+  }
+
+  @override
+  Future<ConversationModel> unmute(String conversationId) async {
+    _muteMode = MuteMode.none;
+    _mutedUntil = null;
+    return (await listConversations()).first;
+  }
+
+  DateTime? _pinnedAt;
+
+  @override
+  Future<ConversationModel> pin(String conversationId) async {
+    _pinnedAt ??= DateTime.now();
+    return (await listConversations()).first;
+  }
+
+  @override
+  Future<ConversationModel> unpin(String conversationId) async {
+    _pinnedAt = null;
+    return (await listConversations()).first;
+  }
+
+  @override
+  Future<void> reportConversation({
+    required String conversationId,
+    required String reason,
+    required List<String> messageIds,
+    required String requestId,
+  }) => _latency();
 
   @override
   Stream<MessageModel> liveMessages(String conversationId) =>
@@ -1400,17 +1563,34 @@ class _MockStoryRepository extends StoryRepository {
   }
 
   final _stories = <StoryModel>[
-    _story('s1', '2002', 'https://picsum.photos/id/1011/1080/1920',
-        caption: 'sáng nay ở Đà Lạt ☁️', age: const Duration(hours: 5)),
-    _story('s2', '2002', 'https://picsum.photos/id/1015/1080/1920',
-        age: const Duration(hours: 2)),
-    _story('s3', '3003',
-        'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-        type: StoryMediaType.video,
-        caption: 'cuối tuần 🔥',
-        age: const Duration(hours: 1)),
-    _story('s4', '4004', 'https://picsum.photos/id/40/1080/1920',
-        caption: 'mèo nhà ai đây', age: const Duration(minutes: 30)),
+    _story(
+      's1',
+      '2002',
+      'https://picsum.photos/id/1011/1080/1920',
+      caption: 'sáng nay ở Đà Lạt ☁️',
+      age: const Duration(hours: 5),
+    ),
+    _story(
+      's2',
+      '2002',
+      'https://picsum.photos/id/1015/1080/1920',
+      age: const Duration(hours: 2),
+    ),
+    _story(
+      's3',
+      '3003',
+      'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+      type: StoryMediaType.video,
+      caption: 'cuối tuần 🔥',
+      age: const Duration(hours: 1),
+    ),
+    _story(
+      's4',
+      '4004',
+      'https://picsum.photos/id/40/1080/1920',
+      caption: 'mèo nhà ai đây',
+      age: const Duration(minutes: 30),
+    ),
   ];
   final _reactions = <String, StoryReaction>{};
   final _viewed = <String>{};
@@ -1422,7 +1602,10 @@ class _MockStoryRepository extends StoryRepository {
           viewCount: 2,
           reactionCounts: const {StoryReaction.love: 1},
         )
-      : s.copyWith(viewedByMe: _viewed.contains(s.id), myReaction: _reactions[s.id]);
+      : s.copyWith(
+          viewedByMe: _viewed.contains(s.id),
+          myReaction: _reactions[s.id],
+        );
 
   @override
   Future<StoryModel> uploadAndCreate({
@@ -1550,3 +1733,374 @@ class _MockStoryRepository extends StoryRepository {
   Future<void> delete(String storyId) async =>
       _stories.removeWhere((s) => s.id == storyId);
 }
+
+/// Settings, filter keywords and screen time kept in memory. The week is
+/// made up, so the summary chart has something to draw offline.
+class _MockSettingsRepository extends SettingsRepository {
+  _MockSettingsRepository(super.remoteDatasource);
+
+  var _settings = const UserSettings();
+  final _filters = <KeywordFilter>[
+    const KeywordFilter(id: '1', keyword: 'spoiler', following: false),
+  ];
+  var _nextFilterId = 2;
+  String? _passcode;
+
+  @override
+  Future<UserSettings> getSettings() async {
+    await _latency();
+    return _settings;
+  }
+
+  @override
+  Future<UserSettings> updateSettings(Map<String, dynamic> changes) async {
+    await _latency();
+    final json = {..._settings.toJson(), ...changes}
+      ..remove('screenTimePasscode');
+    if (changes.containsKey('screenTimePasscode')) {
+      _passcode = changes['screenTimePasscode'] as String;
+    }
+    final limitOn =
+        json['screenTimeLimitMinutes'] != null ||
+        json['screenTimeLimitsByDay'] != null;
+    if (!limitOn) _passcode = null;
+    final start = json['sleepHoursStart'] as String?;
+    if (start != null) {
+      final h = (int.parse(start.split(':')[0]) + 8) % 24;
+      json['sleepHoursEnd'] =
+          '${h.toString().padLeft(2, '0')}:${start.split(':')[1]}';
+    } else {
+      json['sleepHoursEnd'] = null;
+    }
+    json['hasScreenTimePasscode'] = _passcode != null;
+    _settings = UserSettings.fromJson(json);
+    return _settings;
+  }
+
+  @override
+  Future<List<KeywordFilter>> listKeywordFilters() async {
+    await _latency();
+    return List.of(_filters);
+  }
+
+  @override
+  Future<KeywordFilter> createKeywordFilter({
+    required String keyword,
+    required bool forYou,
+    required bool following,
+    required bool friends,
+  }) async {
+    final filter = KeywordFilter(
+      id: '${_nextFilterId++}',
+      keyword: keyword,
+      forYou: forYou,
+      following: following,
+      friends: friends,
+    );
+    _filters.insert(0, filter);
+    return filter;
+  }
+
+  @override
+  Future<KeywordFilter> updateKeywordFilter(KeywordFilter filter) async {
+    final i = _filters.indexWhere((f) => f.id == filter.id);
+    if (i >= 0) _filters[i] = filter;
+    return filter;
+  }
+
+  @override
+  Future<void> deleteKeywordFilter(String id) async =>
+      _filters.removeWhere((f) => f.id == id);
+
+  @override
+  Future<void> sendScreenTimeHeartbeat(int seconds, String timeZone) async {}
+
+  @override
+  Future<ScreenTimeWeek> getScreenTimeWeek(String weekStart) async {
+    await _latency();
+    final monday = DateTime.parse(weekStart);
+    return ScreenTimeWeek(
+      weekStart: weekStart,
+      days: [
+        for (var i = 0; i < 7; i++)
+          ScreenTimeDay(
+            date: DateTime(
+              monday.year,
+              monday.month,
+              monday.day + i,
+            ).toIso8601String().substring(0, 10),
+            daySeconds: 600 + i * 420,
+            nightSeconds: 120 * (i % 3),
+          ),
+      ],
+    );
+  }
+
+  @override
+  Future<bool> verifyScreenTimePasscode(String passcode) async =>
+      passcode == _passcode;
+}
+
+/// Nowa Studio offline: numbers made up from the mock catalogue, so every
+/// Studio screen has something to draw. Deterministic, so screenshots and
+/// tests see the same figures each run.
+class _MockStudioRepository extends StudioRepository {
+  _MockStudioRepository(super.remoteDatasource, this._feed);
+
+  final _MockFeedRepository _feed;
+
+  List<VideoModel> get _mine => [
+        for (final v in _feed._live)
+          if (v.userId == _meId) v,
+      ];
+
+  List<CreatorDailyStats> _daily(int days, int seed) {
+    final today = DateTime(2026, 11, 7);
+    String two(int n) => n.toString().padLeft(2, '0');
+    return [
+      for (var i = days - 1; i >= 0; i--)
+        _day(today.subtract(Duration(days: i)), (seed + i * 7) % 11, two),
+    ];
+  }
+
+  CreatorDailyStats _day(DateTime day, int wave, String Function(int) two) =>
+      CreatorDailyStats(
+        day: '${day.year}-${two(day.month)}-${two(day.day)}',
+        views: 40 + wave * 13,
+        likes: 6 + wave * 2,
+        comments: wave ~/ 2,
+        shares: wave ~/ 3,
+        saves: wave ~/ 4,
+        followersGained: wave ~/ 3,
+        followersLost: wave ~/ 9,
+      );
+
+  CreatorTotals _sum(List<CreatorDailyStats> days) => CreatorTotals(
+        views: days.fold(0, (s, d) => s + d.views),
+        likes: days.fold(0, (s, d) => s + d.likes),
+        comments: days.fold(0, (s, d) => s + d.comments),
+        shares: days.fold(0, (s, d) => s + d.shares),
+        saves: days.fold(0, (s, d) => s + d.saves),
+        netFollowers:
+            days.fold(0, (s, d) => s + d.followersGained - d.followersLost),
+      );
+
+  @override
+  Future<CreatorOverview> getOverview(int days) async {
+    await _latency();
+    final current = _daily(days, 3);
+    return CreatorOverview(
+      current: _sum(current),
+      previous: _sum(_daily(days, 5)),
+      daily: current,
+    );
+  }
+
+  @override
+  Future<List<CreatorVideoStats>> getTopVideos(
+    int days,
+    CreatorVideoSort sort, {
+    int limit = 10,
+  }) async {
+    await _latency();
+    final rows = [
+      for (final (i, v) in _mine.indexed)
+        CreatorVideoStats(
+          videoId: v.id,
+          views: v.viewCount ~/ 4 + days * (i + 1),
+          viewers: v.viewCount ~/ 6 + days,
+          newViewers: v.viewCount ~/ 20 + i,
+          likes: v.likeCount ~/ 4,
+          comments: v.commentCount ~/ 4,
+          shares: i * 3,
+          saves: i * 2,
+        ),
+    ];
+    int key(CreatorVideoStats r) => switch (sort) {
+          CreatorVideoSort.views => r.views,
+          CreatorVideoSort.viewers => r.viewers,
+          CreatorVideoSort.newViewers => r.newViewers,
+          CreatorVideoSort.likes => r.likes,
+          CreatorVideoSort.comments => r.comments,
+          CreatorVideoSort.shares => r.shares,
+        };
+    rows.sort((a, b) => key(b).compareTo(key(a)));
+    return rows.take(limit).toList();
+  }
+
+  @override
+  Future<CreatorVideoDetail> getVideoDetail(String videoId, int days) async {
+    await _latency();
+    final daily = _daily(days, videoId.hashCode % 7);
+    final current = _sum(daily);
+    final previous = _sum(_daily(days, 1));
+    CreatorVideoTotals totals(CreatorTotals t) => CreatorVideoTotals(
+          views: t.views,
+          likes: t.likes,
+          comments: t.comments,
+          shares: t.shares,
+          saves: t.saves,
+          newFollowers: t.netFollowers,
+        );
+    return CreatorVideoDetail(
+      videoId: videoId,
+      views: current.views * 3,
+      viewers: current.views * 2,
+      totalWatchMs: current.views * 3 * 6400,
+      avgWatchMs: 6400,
+      completionRate: 0.38,
+      likes: current.likes * 3,
+      comments: current.comments * 3,
+      shares: current.shares * 3,
+      saves: current.saves * 3,
+      newFollowers: current.netFollowers,
+      // A steady fall with one sharp drop at 20%, the hook that lost people.
+      retention: [
+        for (var i = 0; i <= 20; i++)
+          i == 0 ? 1.0 : 0.95 - i * 0.025 - (i >= 4 ? 0.15 : 0),
+      ],
+      daily: daily,
+      current: totals(current),
+      previous: totals(previous),
+      trafficSources: const [
+        TrafficSourceRow(source: TrafficSource.forYou, views: 320),
+        TrafficSourceRow(source: TrafficSource.following, views: 74),
+        TrafficSourceRow(source: TrafficSource.search, views: 41),
+        TrafficSourceRow(source: TrafficSource.profile, views: 22),
+      ],
+      searchQueries: const [
+        SearchQueryRow(query: 'street food', views: 18),
+        SearchQueryRow(query: 'saigon night', views: 9),
+      ],
+      audience: const CreatorVideoViewers(
+        total: 240,
+        newViewers: 90,
+        previousTotal: 180,
+        previousNewViewers: 60,
+        breakdownAvailable: true,
+        returning: 150,
+        followers: 70,
+        nonFollowers: 170,
+        ageGroups: {
+          '13-17': 12,
+          '18-24': 110,
+          '25-34': 70,
+          '35-44': 20,
+          '45-54': 6,
+          '55+': 0,
+          'UNKNOWN': 22,
+        },
+      ),
+    );
+  }
+
+  @override
+  Future<CreatorViewers> getViewers(int days) async {
+    await _latency();
+    return CreatorViewers(
+      totalViewers: 60 * days,
+      newViewers: 18 * days,
+      previousTotalViewers: 52 * days,
+      previousNewViewers: 20 * days,
+      breakdownAvailable: true,
+      activeHours: [
+        for (var h = 0; h < 24; h++) (h >= 18 ? 40 : 8) + (h * 7) % 13,
+      ],
+      activeDays: const [30, 26, 28, 35, 44, 58, 51],
+    );
+  }
+
+  @override
+  Future<PageResponse<VideoModel>> listMyVideos(
+    StudioPostQuery query, {
+    int page = 0,
+    int size = 20,
+  }) async {
+    await _latency();
+    final q = query.q.trim().toLowerCase();
+    final rows = [
+      for (final v in _mine)
+        if (q.isEmpty || v.title.toLowerCase().contains(q))
+          if (query.visibilities.isEmpty ||
+              query.visibilities.contains(v.visibility.name.toUpperCase()))
+            v,
+    ];
+    int key(VideoModel v) => switch (query.sort) {
+          StudioPostSort.newest => v.createdAt.millisecondsSinceEpoch,
+          StudioPostSort.views => v.viewCount,
+          StudioPostSort.likes => v.likeCount,
+          StudioPostSort.comments => v.commentCount,
+        };
+    rows.sort((a, b) =>
+        query.descending ? key(b).compareTo(key(a)) : key(a).compareTo(key(b)));
+    return PageResponse(
+      content: rows.skip(page * size).take(size).toList(),
+      size: size,
+      number: page,
+      totalElements: rows.length,
+      totalPages: rows.isEmpty ? 1 : (rows.length / size).ceil(),
+    );
+  }
+
+  @override
+  Future<VideoModel> updateCaption(
+    String videoId, {
+    required String title,
+    String? description,
+  }) async {
+    await _latency();
+    return _feed._edit(
+      videoId,
+      (v) => v.copyWith(title: title, description: description),
+    );
+  }
+
+  @override
+  Future<VideoModel> setPinned(String videoId, bool pinned) async {
+    await _latency();
+    if (pinned && _mine.where((v) => v.pinnedAt != null).length >= 3) {
+      throw const ServerException(409, 'Pin limit reached',
+          code: 'PIN_LIMIT_REACHED');
+    }
+    return _feed._edit(
+      videoId,
+      (v) => v.copyWith(pinnedAt: pinned ? DateTime.now() : null),
+    );
+  }
+
+  /// Every fifth comment comes back held, so the review queue has rows.
+  @override
+  Future<CommentPage> listInbox(
+    InboxQuery query, {
+    String? cursor,
+    int size = 20,
+  }) async {
+    await _latency();
+    if (cursor != null) return const CommentPage(items: [], hasMore: false);
+    final videos = query.videoId != null
+        ? [query.videoId!]
+        : [for (final v in _mine) v.id];
+    final q = query.q.trim().toLowerCase();
+    final items = [
+      for (final id in videos)
+        for (final c in _commentPage(id, null).items)
+          if (q.isEmpty || c.text.toLowerCase().contains(q)) c,
+    ];
+    final shaped = [
+      for (final (i, c) in items.indexed)
+        if (!query.heldOnly || i % 5 == 0)
+          i % 5 == 0 ? c.copyWith(status: CommentStatus.held) : c,
+    ];
+    return CommentPage(items: shaped.take(size).toList(), hasMore: false);
+  }
+
+  @override
+  Future<void> approveComment(String videoId, String commentId) => _latency();
+}
+
+/// Ids of the signed-in mock account's own videos, for tests that open one in
+/// Studio.
+List<String> get mockMyVideoIds => [
+      for (final v in _videos)
+        if (v.userId == _meId) v.id,
+    ];

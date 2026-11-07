@@ -34,7 +34,10 @@ mixin _$UserModel {
   UserStatus get status => throw _privateConstructorUsedError; // Always false right after /register; /login keeps returning
   // 403 EMAIL_NOT_VERIFIED until the OTP is confirmed (auth doc 3.1/3.2).
   bool get emailVerified => throw _privateConstructorUsedError;
-  DateTime get createdAt => throw _privateConstructorUsedError;
+  DateTime get createdAt =>
+      throw _privateConstructorUsedError; // When the handle may change again (once every 30 days); null when it may
+  // change now. Edit profile shows the field read-only until then.
+  DateTime? get usernameChangeableAt => throw _privateConstructorUsedError;
 
   /// Serializes this UserModel to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -59,6 +62,7 @@ abstract class $UserModelCopyWith<$Res> {
     @JsonKey(unknownEnumValue: UserStatus.unknown) UserStatus status,
     bool emailVerified,
     DateTime createdAt,
+    DateTime? usernameChangeableAt,
   });
 }
 
@@ -84,6 +88,7 @@ class _$UserModelCopyWithImpl<$Res, $Val extends UserModel>
     Object? status = null,
     Object? emailVerified = null,
     Object? createdAt = null,
+    Object? usernameChangeableAt = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -115,6 +120,10 @@ class _$UserModelCopyWithImpl<$Res, $Val extends UserModel>
                 ? _value.createdAt
                 : createdAt // ignore: cast_nullable_to_non_nullable
                       as DateTime,
+            usernameChangeableAt: freezed == usernameChangeableAt
+                ? _value.usernameChangeableAt
+                : usernameChangeableAt // ignore: cast_nullable_to_non_nullable
+                      as DateTime?,
           )
           as $Val,
     );
@@ -138,6 +147,7 @@ abstract class _$$UserModelImplCopyWith<$Res>
     @JsonKey(unknownEnumValue: UserStatus.unknown) UserStatus status,
     bool emailVerified,
     DateTime createdAt,
+    DateTime? usernameChangeableAt,
   });
 }
 
@@ -162,6 +172,7 @@ class __$$UserModelImplCopyWithImpl<$Res>
     Object? status = null,
     Object? emailVerified = null,
     Object? createdAt = null,
+    Object? usernameChangeableAt = freezed,
   }) {
     return _then(
       _$UserModelImpl(
@@ -193,6 +204,10 @@ class __$$UserModelImplCopyWithImpl<$Res>
             ? _value.createdAt
             : createdAt // ignore: cast_nullable_to_non_nullable
                   as DateTime,
+        usernameChangeableAt: freezed == usernameChangeableAt
+            ? _value.usernameChangeableAt
+            : usernameChangeableAt // ignore: cast_nullable_to_non_nullable
+                  as DateTime?,
       ),
     );
   }
@@ -209,6 +224,7 @@ class _$UserModelImpl implements _UserModel {
     @JsonKey(unknownEnumValue: UserStatus.unknown) required this.status,
     required this.emailVerified,
     required this.createdAt,
+    this.usernameChangeableAt,
   });
 
   factory _$UserModelImpl.fromJson(Map<String, dynamic> json) =>
@@ -236,10 +252,14 @@ class _$UserModelImpl implements _UserModel {
   final bool emailVerified;
   @override
   final DateTime createdAt;
+  // When the handle may change again (once every 30 days); null when it may
+  // change now. Edit profile shows the field read-only until then.
+  @override
+  final DateTime? usernameChangeableAt;
 
   @override
   String toString() {
-    return 'UserModel(id: $id, username: $username, email: $email, role: $role, status: $status, emailVerified: $emailVerified, createdAt: $createdAt)';
+    return 'UserModel(id: $id, username: $username, email: $email, role: $role, status: $status, emailVerified: $emailVerified, createdAt: $createdAt, usernameChangeableAt: $usernameChangeableAt)';
   }
 
   @override
@@ -256,7 +276,9 @@ class _$UserModelImpl implements _UserModel {
             (identical(other.emailVerified, emailVerified) ||
                 other.emailVerified == emailVerified) &&
             (identical(other.createdAt, createdAt) ||
-                other.createdAt == createdAt));
+                other.createdAt == createdAt) &&
+            (identical(other.usernameChangeableAt, usernameChangeableAt) ||
+                other.usernameChangeableAt == usernameChangeableAt));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -270,6 +292,7 @@ class _$UserModelImpl implements _UserModel {
     status,
     emailVerified,
     createdAt,
+    usernameChangeableAt,
   );
 
   /// Create a copy of UserModel
@@ -296,6 +319,7 @@ abstract class _UserModel implements UserModel {
     required final UserStatus status,
     required final bool emailVerified,
     required final DateTime createdAt,
+    final DateTime? usernameChangeableAt,
   }) = _$UserModelImpl;
 
   factory _UserModel.fromJson(Map<String, dynamic> json) =
@@ -320,7 +344,10 @@ abstract class _UserModel implements UserModel {
   @override
   bool get emailVerified;
   @override
-  DateTime get createdAt;
+  DateTime get createdAt; // When the handle may change again (once every 30 days); null when it may
+  // change now. Edit profile shows the field read-only until then.
+  @override
+  DateTime? get usernameChangeableAt;
 
   /// Create a copy of UserModel
   /// with the given fields replaced by the non-null parameter values.

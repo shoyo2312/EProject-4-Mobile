@@ -5,6 +5,7 @@ import 'package:tiktok_mobile/core/constants/env.dart';
 import 'package:tiktok_mobile/mock/mock_backend.dart';
 import 'package:tiktok_mobile/core/router/app_router.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
+import 'package:tiktok_mobile/features/settings/presentation/screen_time_guard.dart';
 
 void main() {
   // The whole app is a dark, edge-to-edge surface — keep the status bar icons
@@ -29,6 +30,8 @@ class TikTokMobileApp extends ConsumerWidget {
       theme: AppTheme.dark,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
+      // Above the navigator, so the screen-time covers sit over every route.
+      builder: (_, child) => ScreenTimeGuard(router: router, child: child!),
     );
   }
 }

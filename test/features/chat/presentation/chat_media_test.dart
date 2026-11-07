@@ -74,12 +74,25 @@ void main() {
     users = MockUserRepository();
     when(() => users.getProfiles(any()))
         .thenAnswer((_) async => <String, UserProfileModel>{});
-    when(() => repository.markRead(any())).thenAnswer((_) async {});
+    when(() => users.getMyProfile()).thenAnswer((_) async =>
+        const UserProfileModel(
+            userId: '1001',
+            displayName: 'Me',
+            avatarUrl: 'http://localhost:9000/avatars/me.jpg',
+            followerCount: 0,
+            followingCount: 0));
+    when(() => repository.markRead(any(),
+        messageId: any(named: 'messageId'))).thenAnswer((_) async {});
+    when(() => repository.markDelivered(any(), any()))
+        .thenAnswer((_) async {});
+    when(() => repository.receipts(any()))
+        .thenAnswer((_) async => const ReceiptView(conversationId: 'c1'));
     when(() => repository.liveMessages(any()))
         .thenAnswer((_) => const Stream.empty());
     when(() => repository.inboxEvents())
         .thenAnswer((_) => const Stream.empty());
     when(() => repository.listConversations()).thenAnswer((_) async => []);
+    when(() => repository.listRequests()).thenAnswer((_) async => []);
     when(() => repository.listMessages('c1', size: any(named: 'size')))
         .thenAnswer((_) async => const MessagePage(items: [], hasMore: false));
     when(() => repository.rememberImage(any(), any())).thenReturn(null);

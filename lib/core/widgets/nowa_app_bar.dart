@@ -3,9 +3,17 @@ import 'package:tiktok_mobile/core/theme/app_theme.dart';
 
 /// Flat dark header used by the pushed pages (edit profile, user lists).
 class NowaAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const NowaAppBar({super.key, required this.title, this.actions});
+  const NowaAppBar({
+    super.key,
+    required this.title,
+    this.titleWidget,
+    this.actions,
+  });
 
   final String title;
+
+  /// Drawn instead of [title] when set — a header with an avatar, say.
+  final Widget? titleWidget;
   final List<Widget>? actions;
 
   @override
@@ -19,7 +27,7 @@ class NowaAppBar extends StatelessWidget implements PreferredSizeWidget {
       elevation: 0,
       centerTitle: true,
       iconTheme: const IconThemeData(color: Colors.white, size: 20),
-      title: Text(title, style: sora(size: 15.5, spacing: -0.2)),
+      title: titleWidget ?? Text(title, style: sora(size: 15.5, spacing: -0.2)),
       actions: actions,
       shape: const Border(bottom: BorderSide(color: NowaColors.hairline)),
     );

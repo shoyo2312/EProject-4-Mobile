@@ -31,6 +31,33 @@ mixin _$ConversationModel {
   DateTime get createdAt => throw _privateConstructorUsedError;
   bool get hasUnread => throw _privateConstructorUsedError;
 
+  /// The viewer's own choice, as of when the server answered. A timed mute
+  /// that has since run out is still TIMED here — [mutedAt] reads the clock.
+  @JsonKey(unknownEnumValue: MuteMode.none)
+  MuteMode get muteMode => throw _privateConstructorUsedError;
+  DateTime? get mutedUntil => throw _privateConstructorUsedError;
+
+  /// When the viewer pinned it; `null` when not pinned. A later pin sits
+  /// above an earlier one.
+  DateTime? get pinnedAt => throw _privateConstructorUsedError;
+
+  /// `null` for an ordinary conversation; set while it is a message request
+  /// (started by someone the other side does not follow back).
+  @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
+  MessageRequestState? get requestState => throw _privateConstructorUsedError;
+
+  /// Who opened the thread; `null` on conversations older than requests.
+  @JsonKey(fromJson: _nullableIdFromJson)
+  String? get initiatorId => throw _privateConstructorUsedError;
+
+  /// What the viewer may send right now, decided by the server for them.
+  @JsonKey(unknownEnumValue: SendPermission.allowed)
+  SendPermission get sendPermission => throw _privateConstructorUsedError;
+
+  /// While the viewer's own request message waits: when they may send one
+  /// more.
+  DateTime? get retryAvailableAt => throw _privateConstructorUsedError;
+
   /// Serializes this ConversationModel to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -56,6 +83,15 @@ abstract class $ConversationModelCopyWith<$Res> {
     DateTime? lastMessageAt,
     DateTime createdAt,
     bool hasUnread,
+    @JsonKey(unknownEnumValue: MuteMode.none) MuteMode muteMode,
+    DateTime? mutedUntil,
+    DateTime? pinnedAt,
+    @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
+    MessageRequestState? requestState,
+    @JsonKey(fromJson: _nullableIdFromJson) String? initiatorId,
+    @JsonKey(unknownEnumValue: SendPermission.allowed)
+    SendPermission sendPermission,
+    DateTime? retryAvailableAt,
   });
 }
 
@@ -81,6 +117,13 @@ class _$ConversationModelCopyWithImpl<$Res, $Val extends ConversationModel>
     Object? lastMessageAt = freezed,
     Object? createdAt = null,
     Object? hasUnread = null,
+    Object? muteMode = null,
+    Object? mutedUntil = freezed,
+    Object? pinnedAt = freezed,
+    Object? requestState = freezed,
+    Object? initiatorId = freezed,
+    Object? sendPermission = null,
+    Object? retryAvailableAt = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -112,6 +155,34 @@ class _$ConversationModelCopyWithImpl<$Res, $Val extends ConversationModel>
                 ? _value.hasUnread
                 : hasUnread // ignore: cast_nullable_to_non_nullable
                       as bool,
+            muteMode: null == muteMode
+                ? _value.muteMode
+                : muteMode // ignore: cast_nullable_to_non_nullable
+                      as MuteMode,
+            mutedUntil: freezed == mutedUntil
+                ? _value.mutedUntil
+                : mutedUntil // ignore: cast_nullable_to_non_nullable
+                      as DateTime?,
+            pinnedAt: freezed == pinnedAt
+                ? _value.pinnedAt
+                : pinnedAt // ignore: cast_nullable_to_non_nullable
+                      as DateTime?,
+            requestState: freezed == requestState
+                ? _value.requestState
+                : requestState // ignore: cast_nullable_to_non_nullable
+                      as MessageRequestState?,
+            initiatorId: freezed == initiatorId
+                ? _value.initiatorId
+                : initiatorId // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            sendPermission: null == sendPermission
+                ? _value.sendPermission
+                : sendPermission // ignore: cast_nullable_to_non_nullable
+                      as SendPermission,
+            retryAvailableAt: freezed == retryAvailableAt
+                ? _value.retryAvailableAt
+                : retryAvailableAt // ignore: cast_nullable_to_non_nullable
+                      as DateTime?,
           )
           as $Val,
     );
@@ -135,6 +206,15 @@ abstract class _$$ConversationModelImplCopyWith<$Res>
     DateTime? lastMessageAt,
     DateTime createdAt,
     bool hasUnread,
+    @JsonKey(unknownEnumValue: MuteMode.none) MuteMode muteMode,
+    DateTime? mutedUntil,
+    DateTime? pinnedAt,
+    @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
+    MessageRequestState? requestState,
+    @JsonKey(fromJson: _nullableIdFromJson) String? initiatorId,
+    @JsonKey(unknownEnumValue: SendPermission.allowed)
+    SendPermission sendPermission,
+    DateTime? retryAvailableAt,
   });
 }
 
@@ -159,6 +239,13 @@ class __$$ConversationModelImplCopyWithImpl<$Res>
     Object? lastMessageAt = freezed,
     Object? createdAt = null,
     Object? hasUnread = null,
+    Object? muteMode = null,
+    Object? mutedUntil = freezed,
+    Object? pinnedAt = freezed,
+    Object? requestState = freezed,
+    Object? initiatorId = freezed,
+    Object? sendPermission = null,
+    Object? retryAvailableAt = freezed,
   }) {
     return _then(
       _$ConversationModelImpl(
@@ -190,6 +277,34 @@ class __$$ConversationModelImplCopyWithImpl<$Res>
             ? _value.hasUnread
             : hasUnread // ignore: cast_nullable_to_non_nullable
                   as bool,
+        muteMode: null == muteMode
+            ? _value.muteMode
+            : muteMode // ignore: cast_nullable_to_non_nullable
+                  as MuteMode,
+        mutedUntil: freezed == mutedUntil
+            ? _value.mutedUntil
+            : mutedUntil // ignore: cast_nullable_to_non_nullable
+                  as DateTime?,
+        pinnedAt: freezed == pinnedAt
+            ? _value.pinnedAt
+            : pinnedAt // ignore: cast_nullable_to_non_nullable
+                  as DateTime?,
+        requestState: freezed == requestState
+            ? _value.requestState
+            : requestState // ignore: cast_nullable_to_non_nullable
+                  as MessageRequestState?,
+        initiatorId: freezed == initiatorId
+            ? _value.initiatorId
+            : initiatorId // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        sendPermission: null == sendPermission
+            ? _value.sendPermission
+            : sendPermission // ignore: cast_nullable_to_non_nullable
+                  as SendPermission,
+        retryAvailableAt: freezed == retryAvailableAt
+            ? _value.retryAvailableAt
+            : retryAvailableAt // ignore: cast_nullable_to_non_nullable
+                  as DateTime?,
       ),
     );
   }
@@ -206,6 +321,15 @@ class _$ConversationModelImpl extends _ConversationModel {
     this.lastMessageAt,
     required this.createdAt,
     this.hasUnread = false,
+    @JsonKey(unknownEnumValue: MuteMode.none) this.muteMode = MuteMode.none,
+    this.mutedUntil,
+    this.pinnedAt,
+    @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
+    this.requestState,
+    @JsonKey(fromJson: _nullableIdFromJson) this.initiatorId,
+    @JsonKey(unknownEnumValue: SendPermission.allowed)
+    this.sendPermission = SendPermission.allowed,
+    this.retryAvailableAt,
   }) : _participantIds = participantIds,
        super._();
 
@@ -236,9 +360,43 @@ class _$ConversationModelImpl extends _ConversationModel {
   @JsonKey()
   final bool hasUnread;
 
+  /// The viewer's own choice, as of when the server answered. A timed mute
+  /// that has since run out is still TIMED here — [mutedAt] reads the clock.
+  @override
+  @JsonKey(unknownEnumValue: MuteMode.none)
+  final MuteMode muteMode;
+  @override
+  final DateTime? mutedUntil;
+
+  /// When the viewer pinned it; `null` when not pinned. A later pin sits
+  /// above an earlier one.
+  @override
+  final DateTime? pinnedAt;
+
+  /// `null` for an ordinary conversation; set while it is a message request
+  /// (started by someone the other side does not follow back).
+  @override
+  @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
+  final MessageRequestState? requestState;
+
+  /// Who opened the thread; `null` on conversations older than requests.
+  @override
+  @JsonKey(fromJson: _nullableIdFromJson)
+  final String? initiatorId;
+
+  /// What the viewer may send right now, decided by the server for them.
+  @override
+  @JsonKey(unknownEnumValue: SendPermission.allowed)
+  final SendPermission sendPermission;
+
+  /// While the viewer's own request message waits: when they may send one
+  /// more.
+  @override
+  final DateTime? retryAvailableAt;
+
   @override
   String toString() {
-    return 'ConversationModel(id: $id, participantIds: $participantIds, lastMessageContent: $lastMessageContent, lastMessageSenderId: $lastMessageSenderId, lastMessageAt: $lastMessageAt, createdAt: $createdAt, hasUnread: $hasUnread)';
+    return 'ConversationModel(id: $id, participantIds: $participantIds, lastMessageContent: $lastMessageContent, lastMessageSenderId: $lastMessageSenderId, lastMessageAt: $lastMessageAt, createdAt: $createdAt, hasUnread: $hasUnread, muteMode: $muteMode, mutedUntil: $mutedUntil, pinnedAt: $pinnedAt, requestState: $requestState, initiatorId: $initiatorId, sendPermission: $sendPermission, retryAvailableAt: $retryAvailableAt)';
   }
 
   @override
@@ -260,7 +418,21 @@ class _$ConversationModelImpl extends _ConversationModel {
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt) &&
             (identical(other.hasUnread, hasUnread) ||
-                other.hasUnread == hasUnread));
+                other.hasUnread == hasUnread) &&
+            (identical(other.muteMode, muteMode) ||
+                other.muteMode == muteMode) &&
+            (identical(other.mutedUntil, mutedUntil) ||
+                other.mutedUntil == mutedUntil) &&
+            (identical(other.pinnedAt, pinnedAt) ||
+                other.pinnedAt == pinnedAt) &&
+            (identical(other.requestState, requestState) ||
+                other.requestState == requestState) &&
+            (identical(other.initiatorId, initiatorId) ||
+                other.initiatorId == initiatorId) &&
+            (identical(other.sendPermission, sendPermission) ||
+                other.sendPermission == sendPermission) &&
+            (identical(other.retryAvailableAt, retryAvailableAt) ||
+                other.retryAvailableAt == retryAvailableAt));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -274,6 +446,13 @@ class _$ConversationModelImpl extends _ConversationModel {
     lastMessageAt,
     createdAt,
     hasUnread,
+    muteMode,
+    mutedUntil,
+    pinnedAt,
+    requestState,
+    initiatorId,
+    sendPermission,
+    retryAvailableAt,
   );
 
   /// Create a copy of ConversationModel
@@ -302,6 +481,15 @@ abstract class _ConversationModel extends ConversationModel {
     final DateTime? lastMessageAt,
     required final DateTime createdAt,
     final bool hasUnread,
+    @JsonKey(unknownEnumValue: MuteMode.none) final MuteMode muteMode,
+    final DateTime? mutedUntil,
+    final DateTime? pinnedAt,
+    @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
+    final MessageRequestState? requestState,
+    @JsonKey(fromJson: _nullableIdFromJson) final String? initiatorId,
+    @JsonKey(unknownEnumValue: SendPermission.allowed)
+    final SendPermission sendPermission,
+    final DateTime? retryAvailableAt,
   }) = _$ConversationModelImpl;
   const _ConversationModel._() : super._();
 
@@ -324,6 +512,40 @@ abstract class _ConversationModel extends ConversationModel {
   DateTime get createdAt;
   @override
   bool get hasUnread;
+
+  /// The viewer's own choice, as of when the server answered. A timed mute
+  /// that has since run out is still TIMED here — [mutedAt] reads the clock.
+  @override
+  @JsonKey(unknownEnumValue: MuteMode.none)
+  MuteMode get muteMode;
+  @override
+  DateTime? get mutedUntil;
+
+  /// When the viewer pinned it; `null` when not pinned. A later pin sits
+  /// above an earlier one.
+  @override
+  DateTime? get pinnedAt;
+
+  /// `null` for an ordinary conversation; set while it is a message request
+  /// (started by someone the other side does not follow back).
+  @override
+  @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
+  MessageRequestState? get requestState;
+
+  /// Who opened the thread; `null` on conversations older than requests.
+  @override
+  @JsonKey(fromJson: _nullableIdFromJson)
+  String? get initiatorId;
+
+  /// What the viewer may send right now, decided by the server for them.
+  @override
+  @JsonKey(unknownEnumValue: SendPermission.allowed)
+  SendPermission get sendPermission;
+
+  /// While the viewer's own request message waits: when they may send one
+  /// more.
+  @override
+  DateTime? get retryAvailableAt;
 
   /// Create a copy of ConversationModel
   /// with the given fields replaced by the non-null parameter values.
@@ -1062,6 +1284,14 @@ mixin _$MessageModel {
   ChatImageModel? get image => throw _privateConstructorUsedError;
   DateTime? get recalledAt => throw _privateConstructorUsedError;
 
+  /// Orders updates to this message: one is applied only if it is newer.
+  int get revision => throw _privateConstructorUsedError;
+
+  /// A message of the caller's still on its way to the server: drawn at
+  /// once, with "Sending…", and swapped for the server's copy when it lands.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  bool get pending => throw _privateConstructorUsedError;
+
   /// Serializes this MessageModel to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -1089,6 +1319,8 @@ abstract class $MessageModelCopyWith<$Res> {
     StickerModel? sticker,
     ChatImageModel? image,
     DateTime? recalledAt,
+    int revision,
+    @JsonKey(includeFromJson: false, includeToJson: false) bool pending,
   });
 
   $StickerModelCopyWith<$Res>? get sticker;
@@ -1119,6 +1351,8 @@ class _$MessageModelCopyWithImpl<$Res, $Val extends MessageModel>
     Object? sticker = freezed,
     Object? image = freezed,
     Object? recalledAt = freezed,
+    Object? revision = null,
+    Object? pending = null,
   }) {
     return _then(
       _value.copyWith(
@@ -1158,6 +1392,14 @@ class _$MessageModelCopyWithImpl<$Res, $Val extends MessageModel>
                 ? _value.recalledAt
                 : recalledAt // ignore: cast_nullable_to_non_nullable
                       as DateTime?,
+            revision: null == revision
+                ? _value.revision
+                : revision // ignore: cast_nullable_to_non_nullable
+                      as int,
+            pending: null == pending
+                ? _value.pending
+                : pending // ignore: cast_nullable_to_non_nullable
+                      as bool,
           )
           as $Val,
     );
@@ -1211,6 +1453,8 @@ abstract class _$$MessageModelImplCopyWith<$Res>
     StickerModel? sticker,
     ChatImageModel? image,
     DateTime? recalledAt,
+    int revision,
+    @JsonKey(includeFromJson: false, includeToJson: false) bool pending,
   });
 
   @override
@@ -1242,6 +1486,8 @@ class __$$MessageModelImplCopyWithImpl<$Res>
     Object? sticker = freezed,
     Object? image = freezed,
     Object? recalledAt = freezed,
+    Object? revision = null,
+    Object? pending = null,
   }) {
     return _then(
       _$MessageModelImpl(
@@ -1281,6 +1527,14 @@ class __$$MessageModelImplCopyWithImpl<$Res>
             ? _value.recalledAt
             : recalledAt // ignore: cast_nullable_to_non_nullable
                   as DateTime?,
+        revision: null == revision
+            ? _value.revision
+            : revision // ignore: cast_nullable_to_non_nullable
+                  as int,
+        pending: null == pending
+            ? _value.pending
+            : pending // ignore: cast_nullable_to_non_nullable
+                  as bool,
       ),
     );
   }
@@ -1300,6 +1554,8 @@ class _$MessageModelImpl extends _MessageModel {
     this.sticker,
     this.image,
     this.recalledAt,
+    this.revision = 0,
+    @JsonKey(includeFromJson: false, includeToJson: false) this.pending = false,
   }) : super._();
 
   factory _$MessageModelImpl.fromJson(Map<String, dynamic> json) =>
@@ -1326,9 +1582,20 @@ class _$MessageModelImpl extends _MessageModel {
   @override
   final DateTime? recalledAt;
 
+  /// Orders updates to this message: one is applied only if it is newer.
+  @override
+  @JsonKey()
+  final int revision;
+
+  /// A message of the caller's still on its way to the server: drawn at
+  /// once, with "Sending…", and swapped for the server's copy when it lands.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  final bool pending;
+
   @override
   String toString() {
-    return 'MessageModel(id: $id, conversationId: $conversationId, senderId: $senderId, content: $content, sentAt: $sentAt, type: $type, sticker: $sticker, image: $image, recalledAt: $recalledAt)';
+    return 'MessageModel(id: $id, conversationId: $conversationId, senderId: $senderId, content: $content, sentAt: $sentAt, type: $type, sticker: $sticker, image: $image, recalledAt: $recalledAt, revision: $revision, pending: $pending)';
   }
 
   @override
@@ -1347,7 +1614,10 @@ class _$MessageModelImpl extends _MessageModel {
             (identical(other.sticker, sticker) || other.sticker == sticker) &&
             (identical(other.image, image) || other.image == image) &&
             (identical(other.recalledAt, recalledAt) ||
-                other.recalledAt == recalledAt));
+                other.recalledAt == recalledAt) &&
+            (identical(other.revision, revision) ||
+                other.revision == revision) &&
+            (identical(other.pending, pending) || other.pending == pending));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1363,6 +1633,8 @@ class _$MessageModelImpl extends _MessageModel {
     sticker,
     image,
     recalledAt,
+    revision,
+    pending,
   );
 
   /// Create a copy of MessageModel
@@ -1390,6 +1662,8 @@ abstract class _MessageModel extends MessageModel {
     final StickerModel? sticker,
     final ChatImageModel? image,
     final DateTime? recalledAt,
+    final int revision,
+    @JsonKey(includeFromJson: false, includeToJson: false) final bool pending,
   }) = _$MessageModelImpl;
   const _MessageModel._() : super._();
 
@@ -1416,6 +1690,16 @@ abstract class _MessageModel extends MessageModel {
   ChatImageModel? get image;
   @override
   DateTime? get recalledAt;
+
+  /// Orders updates to this message: one is applied only if it is newer.
+  @override
+  int get revision;
+
+  /// A message of the caller's still on its way to the server: drawn at
+  /// once, with "Sending…", and swapped for the server's copy when it lands.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  bool get pending;
 
   /// Create a copy of MessageModel
   /// with the given fields replaced by the non-null parameter values.

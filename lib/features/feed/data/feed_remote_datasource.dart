@@ -12,10 +12,10 @@ import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 /// from the server — nothing sends it — so PUBLIC is the safe read of anything
 /// but the two named cases.
 String wireVisibility(VideoVisibility visibility) => switch (visibility) {
-      VideoVisibility.private => 'PRIVATE',
-      VideoVisibility.friends => 'FRIENDS',
-      VideoVisibility.public || VideoVisibility.unknown => 'PUBLIC',
-    };
+  VideoVisibility.private => 'PRIVATE',
+  VideoVisibility.friends => 'FRIENDS',
+  VideoVisibility.public || VideoVisibility.unknown => 'PUBLIC',
+};
 
 /// One `/feed` page. Cursor pagination: [nextCursor] is an opaque server
 /// string — pass it back verbatim, never parse or display it. `null` means the
@@ -55,14 +55,17 @@ class UploadTicket {
 /// 3.3/3.4). The ApiClient interceptor attaches it whenever one is stored.
 class FeedRemoteDatasource {
   FeedRemoteDatasource(this._apiClient, {Dio? uploadDio})
-      : _uploadDio = uploadDio ??
-            Dio(BaseOptions(
+    : _uploadDio =
+          uploadDio ??
+          Dio(
+            BaseOptions(
               // The bytes of a whole video, over a phone connection: the 10s
               // timeouts ApiClient uses would kill every upload but the
               // shortest. 0 means "no timeout".
               sendTimeout: Duration.zero,
               receiveTimeout: const Duration(seconds: 60),
-            ));
+            ),
+          );
 
   final ApiClient _apiClient;
 
@@ -106,14 +109,16 @@ class FeedRemoteDatasource {
     ticket.formFields.forEach((name, value) {
       form.fields.add(MapEntry(name, value));
     });
-    form.files.add(MapEntry(
-      'file',
-      await MultipartFile.fromFile(
-        file.path,
-        filename: file.uri.pathSegments.last,
-        contentType: DioMediaType.parse(contentType),
+    form.files.add(
+      MapEntry(
+        'file',
+        await MultipartFile.fromFile(
+          file.path,
+          filename: file.uri.pathSegments.last,
+          contentType: DioMediaType.parse(contentType),
+        ),
       ),
-    ));
+    );
 
     await _uploadDio.post<void>(
       // Local dev signs for localhost:9000, which the emulator cannot reach.
@@ -183,10 +188,14 @@ class FeedRemoteDatasource {
   /// PUBLISHED + PUBLIC videos only, newest first. Ordering is fixed
   /// server-side, so there is no `sort` parameter to pass. Unlike
   /// [getUserVideos] this is cursor-paginated: no `page`/`totalPages`.
+  ///
+  /// This is For You's chronological fallback, so it names that feed: the
+  /// server only applies the viewer's filter keywords to reads that say which
+  /// feed they are for (settings doc 4.3b).
   Future<VideoPage> fetchFeed({String? cursor, int size = 20}) async {
     final response = await _apiClient.get<Map<String, dynamic>>(
       '/videos/feed',
-      queryParameters: {'cursor': ?cursor, 'size': size},
+      queryParameters: {'cursor': ?cursor, 'size': size, 'feed': 'FOR_YOU'},
     );
     final body = response.data!['data'] as Map<String, dynamic>;
     final items = (body['items'] as List)
@@ -274,11 +283,14 @@ class FeedRemoteDatasource {
   /// Ids that no longer resolve are simply absent from the result: a video
   /// deleted between ranking and hydration is the normal case, so the list
   /// coming back shorter is not an error (video doc 3.4b).
-  Future<List<VideoModel>> fetchByIds(List<String> ids) async {
+  ///
+  /// [feed] is `FOR_YOU` when hydrating the ranked For You page, so the
+  /// viewer's filter keywords apply; histories and search leave it out.
+  Future<List<VideoModel>> fetchByIds(List<String> ids, {String? feed}) async {
     if (ids.isEmpty) return [];
     final response = await _apiClient.get<Map<String, dynamic>>(
       '/videos/batch',
-      queryParameters: {'ids': ids.join(',')},
+      queryParameters: {'ids': ids.join(','), 'feed': ?feed},
     );
     return (response.data!['data'] as List)
         .map((e) => VideoModel.fromJson(e as Map<String, dynamic>))
@@ -301,7 +313,9 @@ class FeedRemoteDatasource {
   }
 
   Future<VideoModel> getVideo(String videoId) async {
-    final response = await _apiClient.get<Map<String, dynamic>>('/videos/$videoId');
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/videos/$videoId',
+    );
     final envelope = ApiResponse<VideoModel>.fromJson(
       response.data!,
       (json) => VideoModel.fromJson(json as Map<String, dynamic>),
@@ -318,9 +332,7 @@ class FeedRemoteDatasource {
   ) async {
     final response = await _apiClient.patch<Map<String, dynamic>>(
       '/videos/$videoId/visibility',
-      data: {
-        'visibility': wireVisibility(visibility),
-      },
+      data: {'visibility': wireVisibility(visibility)},
     );
     return _unwrapVideo(response.data!);
   }

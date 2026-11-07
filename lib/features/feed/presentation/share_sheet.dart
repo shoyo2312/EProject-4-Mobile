@@ -22,17 +22,15 @@ Future<bool> showShareSheet(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (_) => _ShareSheet(
-      video: video,
-      saved: saved,
-      onToggleSave: onToggleSave,
-    ),
+    builder: (_) =>
+        _ShareSheet(video: video, saved: saved, onToggleSave: onToggleSave),
   );
   return shared ?? false;
 }
 
 /// The page on the web app that plays this video.
-String videoShareLink(VideoModel video) => '${Env.webBaseUrl}/video/${video.id}';
+String videoShareLink(VideoModel video) =>
+    '${Env.webBaseUrl}/video/${video.id}';
 
 class _Target {
   const _Target({
@@ -193,14 +191,16 @@ class _ShareSheet extends StatelessWidget {
             onTap: () async {
               await Clipboard.setData(ClipboardData(text: _link));
               if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Link copied')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Link copied')));
               Navigator.of(context).pop(true);
             },
           ),
           _Row(
-            icon: saved ? Icons.bookmark_remove_outlined : Icons.bookmark_add_outlined,
+            icon: saved
+                ? Icons.bookmark_remove_outlined
+                : Icons.bookmark_add_outlined,
             label: saved ? 'Remove from favorites' : 'Add to favorites',
             onTap: onToggleSave == null
                 ? null

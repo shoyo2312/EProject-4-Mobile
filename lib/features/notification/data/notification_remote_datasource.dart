@@ -15,7 +15,9 @@ class NotificationRemoteDatasource {
   /// grows with the account. Fine while notifications are rare; the day they
   /// are not, paging has to be added server-side first.
   Future<List<NotificationModel>> list() async {
-    final response = await _apiClient.get<Map<String, dynamic>>('/notifications');
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/notifications',
+    );
     return (response.data!['data'] as List)
         .map((e) => NotificationModel.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -24,9 +26,11 @@ class NotificationRemoteDatasource {
   /// Just the badge number, without pulling the whole inbox down — the nav bar
   /// needs it before the Inbox tab has ever been opened.
   Future<int> unreadCount() async {
-    final response =
-        await _apiClient.get<Map<String, dynamic>>('/notifications/unread-count');
-    return (response.data!['data'] as Map<String, dynamic>)['unreadCount'] as int;
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/notifications/unread-count',
+    );
+    return (response.data!['data'] as Map<String, dynamic>)['unreadCount']
+        as int;
   }
 
   /// 204, no body. Marking one that is already read is not an error.

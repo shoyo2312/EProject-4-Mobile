@@ -36,5 +36,8 @@ const _$NotificationKindEnumMap = {
   NotificationKind.share: 'SHARE',
   NotificationKind.newFollower: 'NEW_FOLLOWER',
   NotificationKind.story: 'STORY',
+  NotificationKind.followRequest: 'FOLLOW_REQUEST',
+  NotificationKind.followRequestAccepted: 'FOLLOW_REQUEST_ACCEPTED',
+  NotificationKind.screenTime: 'SCREEN_TIME',
   NotificationKind.system: 'SYSTEM',
 };

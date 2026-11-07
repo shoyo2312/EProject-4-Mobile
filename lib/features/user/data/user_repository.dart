@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
 import 'package:tiktok_mobile/features/user/data/comment_filter_settings.dart';
+import 'package:tiktok_mobile/features/user/data/follow_models.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/data/user_remote_datasource.dart';
 
@@ -24,7 +25,8 @@ class UserRepository {
         return await _remoteDatasource.getMyProfile();
       } on DioException catch (e) {
         final exception = AppException.fromDioException(e);
-        final isMissingProfile = exception is ServerException &&
+        final isMissingProfile =
+            exception is ServerException &&
             exception.statusCode == 404 &&
             exception.code == 'USER_PROFILE_NOT_FOUND';
         if (!isMissingProfile || attempt == maxAttempts) {
@@ -50,7 +52,10 @@ class UserRepository {
     required String contentType,
   }) async {
     try {
-      return await _remoteDatasource.uploadAvatar(file, contentType: contentType);
+      return await _remoteDatasource.uploadAvatar(
+        file,
+        contentType: contentType,
+      );
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }
@@ -75,8 +80,10 @@ class UserRepository {
     final result = <String, UserProfileModel>{};
     try {
       for (var start = 0; start < unique.length; start += 100) {
-        final chunk =
-            unique.sublist(start, start + 100 > unique.length ? unique.length : start + 100);
+        final chunk = unique.sublist(
+          start,
+          start + 100 > unique.length ? unique.length : start + 100,
+        );
         for (final profile in await _remoteDatasource.getProfiles(chunk)) {
           result[profile.userId] = profile;
         }
@@ -99,9 +106,44 @@ class UserRepository {
     }
   }
 
-  Future<void> follow(String userId) async {
+  Future<FollowStatus> follow(String userId) async {
     try {
-      await _remoteDatasource.follow(userId);
+      return await _remoteDatasource.follow(userId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<Friendship> getFriendship(String userId) async {
+    try {
+      return await _remoteDatasource.getFriendship(userId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<PageResponse<UserProfileModel>> getFollowRequests({
+    int page = 0,
+    int size = 20,
+  }) async {
+    try {
+      return await _remoteDatasource.getFollowRequests(page: page, size: size);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<void> approveFollowRequest(String requesterId) async {
+    try {
+      await _remoteDatasource.approveFollowRequest(requesterId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<void> declineFollowRequest(String requesterId) async {
+    try {
+      await _remoteDatasource.declineFollowRequest(requesterId);
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }
@@ -121,7 +163,11 @@ class UserRepository {
     int size = 20,
   }) async {
     try {
-      return await _remoteDatasource.getFollowers(userId, page: page, size: size);
+      return await _remoteDatasource.getFollowers(
+        userId,
+        page: page,
+        size: size,
+      );
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }
@@ -133,7 +179,11 @@ class UserRepository {
     int size = 20,
   }) async {
     try {
-      return await _remoteDatasource.getFollowing(userId, page: page, size: size);
+      return await _remoteDatasource.getFollowing(
+        userId,
+        page: page,
+        size: size,
+      );
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }

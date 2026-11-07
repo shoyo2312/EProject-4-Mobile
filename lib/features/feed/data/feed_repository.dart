@@ -100,7 +100,7 @@ class FeedRepository {
     try {
       final ids = await _remoteDatasource.fetchRankedIds(limit: limit);
       if (ids.isEmpty) return [];
-      return await _remoteDatasource.fetchByIds(ids);
+      return await _remoteDatasource.fetchByIds(ids, feed: 'FOR_YOU');
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }
@@ -142,7 +142,11 @@ class FeedRepository {
     int size = 20,
   }) async {
     try {
-      return await _remoteDatasource.getUserVideos(userId, page: page, size: size);
+      return await _remoteDatasource.getUserVideos(
+        userId,
+        page: page,
+        size: size,
+      );
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }

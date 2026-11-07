@@ -22,7 +22,10 @@ FeedRepository feedRepository(Ref ref) =>
 /// `/videos/users/{userId}` is offset-paginated over a list that grows at the
 /// front, so a video uploaded between two page loads pushes older rows down
 /// and they come back a second time on the following page (video doc 2).
-List<VideoModel> _appendDistinct(List<VideoModel> current, List<VideoModel> next) {
+List<VideoModel> _appendDistinct(
+  List<VideoModel> current,
+  List<VideoModel> next,
+) {
   final seen = current.map((v) => v.id).toSet();
   return [...current, ...next.where((v) => seen.add(v.id))];
 }
@@ -115,22 +118,22 @@ class FeedNotifier extends _$FeedNotifier {
   }
 
   Future<void> loadMore() => _more.run(() async {
-        var videos = state.value ?? [];
+    var videos = state.value ?? [];
 
-        // A page that adds no rows stalls the feed for good: the PageView does
-        // not grow, so it never reaches the load trigger again. Both cases are
-        // real — a ranked page whose ids all hydrate to videos already on
-        // screen, and a chronological page of the same. Try a couple more
-        // times before giving up on this scroll.
-        for (var attempt = 0; attempt < 3; attempt++) {
-          final before = videos.length;
-          videos = _appendDistinct(videos, await _loadPage());
-          _more.done = _rankingSpent && _chronologicalSpent;
-          if (videos.length > before || _more.done) break;
-        }
+    // A page that adds no rows stalls the feed for good: the PageView does
+    // not grow, so it never reaches the load trigger again. Both cases are
+    // real — a ranked page whose ids all hydrate to videos already on
+    // screen, and a chronological page of the same. Try a couple more
+    // times before giving up on this scroll.
+    for (var attempt = 0; attempt < 3; attempt++) {
+      final before = videos.length;
+      videos = _appendDistinct(videos, await _loadPage());
+      _more.done = _rankingSpent && _chronologicalSpent;
+      if (videos.length > before || _more.done) break;
+    }
 
-        state = AsyncData(videos);
-      });
+    state = AsyncData(videos);
+  });
 }
 
 /// One user's videos. For the caller's own id the server also returns
@@ -149,14 +152,14 @@ class UserVideosNotifier extends _$UserVideosNotifier {
   }
 
   Future<void> loadMore() => _more.run(() async {
-        final nextPage = _page + 1;
-        final page = await ref
-            .read(feedRepositoryProvider)
-            .getUserVideos(userId, page: nextPage);
-        _page = nextPage;
-        _more.done = page.last;
-        state = AsyncData(_appendDistinct(state.value ?? [], page.content));
-      });
+    final nextPage = _page + 1;
+    final page = await ref
+        .read(feedRepositoryProvider)
+        .getUserVideos(userId, page: nextPage);
+    _page = nextPage;
+    _more.done = page.last;
+    state = AsyncData(_appendDistinct(state.value ?? [], page.content));
+  });
 
   /// Owner-only, and answered with the updated video — the row is replaced
   /// from the response rather than patched locally, so a field the server
@@ -228,7 +231,9 @@ mixin _AuthorFeed on AutoDisposeAsyncNotifier<List<VideoModel>> {
   }
 
   Future<List<VideoModel>> _loadPage() async {
-    final page = await ref.read(feedRepositoryProvider).fetchFollowingFeed(
+    final page = await ref
+        .read(feedRepositoryProvider)
+        .fetchFollowingFeed(
           followedUserIds: _authorIds,
           cursor: _cursor,
           size: _pageSize,
@@ -261,8 +266,8 @@ mixin _AuthorFeed on AutoDisposeAsyncNotifier<List<VideoModel>> {
   }
 
   Future<void> loadMore() => _more.run(() async {
-        state = AsyncData(_appendDistinct(state.value ?? [], await _loadPage()));
-      });
+    state = AsyncData(_appendDistinct(state.value ?? [], await _loadPage()));
+  });
 }
 
 /// The Following tab: only the accounts the viewer follows, newest first.
@@ -275,12 +280,13 @@ class FollowingFeedNotifier extends _$FollowingFeedNotifier with _AuthorFeed {
   FutureOr<List<VideoModel>> build() => _start();
 
   @override
-  Future<List<String>> _resolveAuthors(String viewerId) async => (await ref
-          .read(userRepositoryProvider)
-          .getFollowing(viewerId, size: _followedIdLimit))
-      .content
-      .map((profile) => profile.userId)
-      .toList();
+  Future<List<String>> _resolveAuthors(String viewerId) async =>
+      (await ref
+              .read(userRepositoryProvider)
+              .getFollowing(viewerId, size: _followedIdLimit))
+          .content
+          .map((profile) => profile.userId)
+          .toList();
 }
 
 /// How many followers the Friends tab reads to find who follows back. Wider
@@ -302,10 +308,10 @@ class FriendsFeedNotifier extends _$FriendsFeedNotifier with _AuthorFeed {
   @override
   Future<List<String>> _resolveAuthors(String viewerId) async {
     final users = ref.read(userRepositoryProvider);
-    final following = (await users.getFollowing(viewerId, size: _followedIdLimit))
-        .content
-        .map((profile) => profile.userId)
-        .toList();
+    final following = (await users.getFollowing(
+      viewerId,
+      size: _followedIdLimit,
+    )).content.map((profile) => profile.userId).toList();
     if (following.isEmpty) return const [];
 
     final followers = <String>{};

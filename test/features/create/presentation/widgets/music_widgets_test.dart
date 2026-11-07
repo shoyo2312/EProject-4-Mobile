@@ -94,5 +94,37 @@ void main() {
       expect(changes.last.volume, 1);
       expect(changes.last.trackId, '42');
     });
+
+    testWidgets('the speaker mutes the original in one tap, and brings it back', (tester) async {
+      final changes = await show(tester, const EditMusic(trackId: '42', track: _calm));
+
+      await tester.tap(find.byKey(const Key('music_original_mute')));
+      await tester.pump();
+      expect(changes.last.originalVolume, 0);
+      expect(changes.last.volume, 1);
+
+      final again = await show(tester, const EditMusic(trackId: '42', track: _calm, originalVolume: 0));
+      await tester.tap(find.byKey(const Key('music_original_mute')));
+      await tester.pump();
+      expect(again.last.originalVolume, 1);
+    });
+
+    testWidgets('no speaker over a photo, which has no sound of its own', (tester) async {
+      final changes = <EditMusic>[];
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: MusicPanel(
+            music: const EditMusic(trackId: '42', track: _calm),
+            videoSeconds: 15,
+            hasOriginalSound: false,
+            onChanged: (m, {seek = false}) => changes.add(m),
+            onChange: () {},
+            onRemove: () {},
+            onDone: () {},
+          ),
+        ),
+      ));
+      expect(find.byKey(const Key('music_original_mute')), findsNothing);
+    });
   });
 }

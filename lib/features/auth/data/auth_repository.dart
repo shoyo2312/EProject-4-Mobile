@@ -153,6 +153,14 @@ class AuthRepository {
     }
   }
 
+  Future<UserModel> changeUsername(String username) async {
+    try {
+      return await _remoteDatasource.changeUsername(username);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
   Future<void> verifyEmail({required String email, required String otp}) async {
     try {
       await _remoteDatasource.verifyEmail(email: email, otp: otp);

@@ -11,21 +11,18 @@ class CommentFilters extends _$CommentFilters {
   Future<CommentFilterSettings> build() =>
       ref.read(userRepositoryProvider).getCommentFilters();
 
-  Future<void> setFilterSpamOffensive(bool value) => _save(
-        {'filterSpamOffensive': value},
-        (s) => s.copyWith(filterSpamOffensive: value),
-      );
+  Future<void> setFilterSpamOffensive(bool value) => _save({
+    'filterSpamOffensive': value,
+  }, (s) => s.copyWith(filterSpamOffensive: value));
 
-  Future<void> setFilterAllComments(bool value) => _save(
-        {'filterAllComments': value},
-        (s) => s.copyWith(filterAllComments: value),
-      );
+  Future<void> setFilterAllComments(bool value) => _save({
+    'filterAllComments': value,
+  }, (s) => s.copyWith(filterAllComments: value));
 
   /// The server replaces the whole list, so the whole list goes up.
-  Future<void> setKeywords(List<String> keywords) => _save(
-        {'commentKeywords': keywords},
-        (s) => s.copyWith(commentKeywords: keywords),
-      );
+  Future<void> setKeywords(List<String> keywords) => _save({
+    'commentKeywords': keywords,
+  }, (s) => s.copyWith(commentKeywords: keywords));
 
   /// Shows the change at once and puts the old value back if the server
   /// refuses it; the caller gets the error to show. Afterwards the state is
@@ -38,8 +35,9 @@ class CommentFilters extends _$CommentFilters {
     if (previous == null) return;
     state = AsyncData(apply(previous));
     try {
-      final saved =
-          await ref.read(userRepositoryProvider).updateCommentFilters(changes);
+      final saved = await ref
+          .read(userRepositoryProvider)
+          .updateCommentFilters(changes);
       state = AsyncData(saved);
     } catch (_) {
       state = AsyncData(previous);

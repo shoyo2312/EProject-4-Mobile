@@ -19,6 +19,9 @@ final _privateConstructorUsedError = UnsupportedError(
 mixin _$ProfileState {
   UserProfileModel get profile => throw _privateConstructorUsedError;
   bool? get isFollowing => throw _privateConstructorUsedError;
+
+  /// A follow request is waiting for this private account to approve it.
+  bool? get isRequested => throw _privateConstructorUsedError;
   bool? get isBlocked => throw _privateConstructorUsedError;
   bool? get isMuted => throw _privateConstructorUsedError;
 
@@ -39,6 +42,7 @@ abstract class $ProfileStateCopyWith<$Res> {
   $Res call({
     UserProfileModel profile,
     bool? isFollowing,
+    bool? isRequested,
     bool? isBlocked,
     bool? isMuted,
   });
@@ -63,6 +67,7 @@ class _$ProfileStateCopyWithImpl<$Res, $Val extends ProfileState>
   $Res call({
     Object? profile = null,
     Object? isFollowing = freezed,
+    Object? isRequested = freezed,
     Object? isBlocked = freezed,
     Object? isMuted = freezed,
   }) {
@@ -75,6 +80,10 @@ class _$ProfileStateCopyWithImpl<$Res, $Val extends ProfileState>
             isFollowing: freezed == isFollowing
                 ? _value.isFollowing
                 : isFollowing // ignore: cast_nullable_to_non_nullable
+                      as bool?,
+            isRequested: freezed == isRequested
+                ? _value.isRequested
+                : isRequested // ignore: cast_nullable_to_non_nullable
                       as bool?,
             isBlocked: freezed == isBlocked
                 ? _value.isBlocked
@@ -112,6 +121,7 @@ abstract class _$$ProfileStateImplCopyWith<$Res>
   $Res call({
     UserProfileModel profile,
     bool? isFollowing,
+    bool? isRequested,
     bool? isBlocked,
     bool? isMuted,
   });
@@ -136,6 +146,7 @@ class __$$ProfileStateImplCopyWithImpl<$Res>
   $Res call({
     Object? profile = null,
     Object? isFollowing = freezed,
+    Object? isRequested = freezed,
     Object? isBlocked = freezed,
     Object? isMuted = freezed,
   }) {
@@ -148,6 +159,10 @@ class __$$ProfileStateImplCopyWithImpl<$Res>
         isFollowing: freezed == isFollowing
             ? _value.isFollowing
             : isFollowing // ignore: cast_nullable_to_non_nullable
+                  as bool?,
+        isRequested: freezed == isRequested
+            ? _value.isRequested
+            : isRequested // ignore: cast_nullable_to_non_nullable
                   as bool?,
         isBlocked: freezed == isBlocked
             ? _value.isBlocked
@@ -168,6 +183,7 @@ class _$ProfileStateImpl implements _ProfileState {
   const _$ProfileStateImpl({
     required this.profile,
     this.isFollowing,
+    this.isRequested,
     this.isBlocked,
     this.isMuted,
   });
@@ -176,6 +192,10 @@ class _$ProfileStateImpl implements _ProfileState {
   final UserProfileModel profile;
   @override
   final bool? isFollowing;
+
+  /// A follow request is waiting for this private account to approve it.
+  @override
+  final bool? isRequested;
   @override
   final bool? isBlocked;
   @override
@@ -183,7 +203,7 @@ class _$ProfileStateImpl implements _ProfileState {
 
   @override
   String toString() {
-    return 'ProfileState(profile: $profile, isFollowing: $isFollowing, isBlocked: $isBlocked, isMuted: $isMuted)';
+    return 'ProfileState(profile: $profile, isFollowing: $isFollowing, isRequested: $isRequested, isBlocked: $isBlocked, isMuted: $isMuted)';
   }
 
   @override
@@ -194,14 +214,22 @@ class _$ProfileStateImpl implements _ProfileState {
             (identical(other.profile, profile) || other.profile == profile) &&
             (identical(other.isFollowing, isFollowing) ||
                 other.isFollowing == isFollowing) &&
+            (identical(other.isRequested, isRequested) ||
+                other.isRequested == isRequested) &&
             (identical(other.isBlocked, isBlocked) ||
                 other.isBlocked == isBlocked) &&
             (identical(other.isMuted, isMuted) || other.isMuted == isMuted));
   }
 
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, profile, isFollowing, isBlocked, isMuted);
+  int get hashCode => Object.hash(
+    runtimeType,
+    profile,
+    isFollowing,
+    isRequested,
+    isBlocked,
+    isMuted,
+  );
 
   /// Create a copy of ProfileState
   /// with the given fields replaced by the non-null parameter values.
@@ -216,6 +244,7 @@ abstract class _ProfileState implements ProfileState {
   const factory _ProfileState({
     required final UserProfileModel profile,
     final bool? isFollowing,
+    final bool? isRequested,
     final bool? isBlocked,
     final bool? isMuted,
   }) = _$ProfileStateImpl;
@@ -224,6 +253,10 @@ abstract class _ProfileState implements ProfileState {
   UserProfileModel get profile;
   @override
   bool? get isFollowing;
+
+  /// A follow request is waiting for this private account to approve it.
+  @override
+  bool? get isRequested;
   @override
   bool? get isBlocked;
   @override

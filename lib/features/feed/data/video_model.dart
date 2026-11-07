@@ -9,6 +9,14 @@ enum VideoStatus {
   @JsonValue('PROCESSING')
   processing,
 
+  /// Transcoded, waiting on the automatic content check. Owner only.
+  @JsonValue('PENDING_MODERATION')
+  pendingModeration,
+
+  /// The automatic check was unsure; waiting on a moderator. Owner only.
+  @JsonValue('PENDING_REVIEW')
+  pendingReview,
+
   /// Playable, and the only status that appears on /feed.
   @JsonValue('PUBLISHED')
   published,
@@ -16,6 +24,10 @@ enum VideoStatus {
   /// Transcode failed. Visible to the owner only.
   @JsonValue('FAILED')
   failed,
+
+  /// Refused by the automatic content check. Owner only.
+  @JsonValue('REJECTED')
+  rejected,
 
   /// Removed by moderation. Visible to the owner only.
   @JsonValue('TAKEN_DOWN')
@@ -52,6 +64,7 @@ class VideoModel with _$VideoModel {
     @JsonKey(unknownEnumValue: VideoStatus.unknown) required VideoStatus status,
     @JsonKey(unknownEnumValue: VideoVisibility.unknown)
     required VideoVisibility visibility,
+
     /// Set by the owner. New comments are refused while it is true; the ones
     /// already posted stay readable.
     @Default(false) bool commentsDisabled,
@@ -72,6 +85,15 @@ class VideoModel with _$VideoModel {
 
     /// The song under the video and its credit; null without one.
     MusicCredit? music,
+
+    /// When the owner pinned it to the top of their profile; null when not
+    /// pinned. At most three are pinned at once.
+    DateTime? pinnedAt,
+
+    /// Why transcoding failed (FAILED) or why a moderator removed it
+    /// (TAKEN_DOWN). Sent to the owner only.
+    String? failureReason,
+    String? takedownReason,
   }) = _VideoModel;
 
   factory VideoModel.fromJson(Map<String, dynamic> json) =>
@@ -92,5 +114,6 @@ class MusicCredit with _$MusicCredit {
     String? shareUrl,
   }) = _MusicCredit;
 
-  factory MusicCredit.fromJson(Map<String, dynamic> json) => _$MusicCreditFromJson(json);
+  factory MusicCredit.fromJson(Map<String, dynamic> json) =>
+      _$MusicCreditFromJson(json);
 }

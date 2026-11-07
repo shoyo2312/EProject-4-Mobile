@@ -11,7 +11,8 @@ import 'package:tiktok_mobile/features/notification/data/notification_repository
 part 'notification_provider.g.dart';
 
 @Riverpod(keepAlive: true)
-NotificationRepository notificationRepository(Ref ref) => NotificationRepository(
+NotificationRepository notificationRepository(Ref ref) =>
+    NotificationRepository(
       NotificationRemoteDatasource(ref.watch(apiClientProvider)),
     );
 

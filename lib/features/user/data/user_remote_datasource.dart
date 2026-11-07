@@ -5,6 +5,7 @@ import 'package:tiktok_mobile/core/network/api_client.dart';
 import 'package:tiktok_mobile/core/network/api_response.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
 import 'package:tiktok_mobile/features/user/data/comment_filter_settings.dart';
+import 'package:tiktok_mobile/features/user/data/follow_models.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 
 class UserRemoteDatasource {
@@ -52,7 +53,9 @@ class UserRemoteDatasource {
   }
 
   Future<UserProfileModel> getProfile(String userId) async {
-    final response = await _apiClient.get<Map<String, dynamic>>('/users/$userId');
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/users/$userId',
+    );
     return _unwrap(response.data!, UserProfileModel.fromJson);
   }
 
@@ -89,8 +92,50 @@ class UserRemoteDatasource {
     return _unwrapPage(response.data!);
   }
 
-  Future<void> follow(String userId) {
-    return _apiClient.post<void>('/users/$userId/follow');
+  /// `REQUESTED` when [userId] is a private account: a request was left for
+  /// them to approve, nobody is followed yet (user doc 3.4).
+  Future<FollowStatus> follow(String userId) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/users/$userId/follow',
+    );
+    final data = response.data?['data'];
+    final status = data is Map ? data['status'] : null;
+    return switch (status) {
+      'FOLLOWING' => FollowStatus.following,
+      'REQUESTED' => FollowStatus.requested,
+      _ => FollowStatus.unknown,
+    };
+  }
+
+  Future<Friendship> getFriendship(String userId) async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/users/$userId/friendship',
+    );
+    return _unwrap(response.data!, Friendship.fromJson);
+  }
+
+  /// People asking to follow this private account, newest first
+  /// (user doc 3.16).
+  Future<PageResponse<UserProfileModel>> getFollowRequests({
+    int page = 0,
+    int size = 20,
+  }) async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/users/me/follow-requests',
+      queryParameters: {'page': page, 'size': size},
+    );
+    return _unwrapPage(response.data!);
+  }
+
+  Future<void> approveFollowRequest(String requesterId) {
+    return _apiClient.post<void>(
+      '/users/me/follow-requests/$requesterId/approve',
+    );
+  }
+
+  /// Silent: the requester is not told.
+  Future<void> declineFollowRequest(String requesterId) {
+    return _apiClient.delete<void>('/users/me/follow-requests/$requesterId');
   }
 
   Future<void> unfollow(String userId) {
@@ -162,8 +207,9 @@ class UserRemoteDatasource {
   /// Never 404: an account that never changed a setting gets the defaults
   /// (user doc 3.14).
   Future<CommentFilterSettings> getCommentFilters() async {
-    final response =
-        await _apiClient.get<Map<String, dynamic>>('/users/me/settings');
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/users/me/settings',
+    );
     return _unwrap(response.data!, CommentFilterSettings.fromJson);
   }
 

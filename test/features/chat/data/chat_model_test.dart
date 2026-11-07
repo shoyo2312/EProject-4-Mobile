@@ -98,4 +98,46 @@ void main() {
       expect(ChatInboxEvent.fromServer({'type': 'MESSAGE'}), isNull);
     });
   });
+
+  group('ConversationModel.compare', () {
+    ConversationModel row(String id, {DateTime? pinnedAt, DateTime? lastAt}) =>
+        ConversationModel(
+          id: id,
+          participantIds: const ['1', '2'],
+          createdAt: DateTime(2026, 1, 1),
+          pinnedAt: pinnedAt,
+          lastMessageAt: lastAt,
+        );
+
+    test('pins first, the latest pin on top, then the newest message', () {
+      final rows = [
+        row('old-chat', lastAt: DateTime(2026, 9, 1)),
+        row('first-pin', pinnedAt: DateTime(2026, 9, 1)),
+        row('new-chat', lastAt: DateTime(2026, 9, 5)),
+        row('latest-pin', pinnedAt: DateTime(2026, 9, 3)),
+        row('empty-chat'),
+      ]..sort(ConversationModel.compare);
+
+      expect(rows.map((c) => c.id), [
+        'latest-pin',
+        'first-pin',
+        'new-chat',
+        'old-chat',
+        'empty-chat',
+      ]);
+    });
+
+    test('a pinned thread is not moved by a newer message', () {
+      final rows = [
+        row('chatty', lastAt: DateTime(2026, 9, 9)),
+        row(
+          'pinned',
+          pinnedAt: DateTime(2026, 9, 1),
+          lastAt: DateTime(2026, 1, 1),
+        ),
+      ]..sort(ConversationModel.compare);
+
+      expect(rows.first.id, 'pinned');
+    });
+  });
 }

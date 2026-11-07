@@ -15,6 +15,9 @@ _$UserProfileModelImpl _$$UserProfileModelImplFromJson(
   avatarUrl: json['avatarUrl'] as String?,
   followerCount: (json['followerCount'] as num).toInt(),
   followingCount: (json['followingCount'] as num).toInt(),
+  displayNameChangeableAt: json['displayNameChangeableAt'] == null
+      ? null
+      : DateTime.parse(json['displayNameChangeableAt'] as String),
 );
 
 Map<String, dynamic> _$$UserProfileModelImplToJson(
@@ -26,4 +29,6 @@ Map<String, dynamic> _$$UserProfileModelImplToJson(
   'avatarUrl': instance.avatarUrl,
   'followerCount': instance.followerCount,
   'followingCount': instance.followingCount,
+  'displayNameChangeableAt': instance.displayNameChangeableAt
+      ?.toIso8601String(),
 };

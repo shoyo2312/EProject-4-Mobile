@@ -25,10 +25,8 @@ class VideoViewerScreen extends StatefulWidget {
   }) {
     return Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => VideoViewerScreen(
-          videos: videos,
-          initialIndex: initialIndex,
-        ),
+        builder: (_) =>
+            VideoViewerScreen(videos: videos, initialIndex: initialIndex),
       ),
     );
   }
@@ -38,8 +36,9 @@ class VideoViewerScreen extends StatefulWidget {
 }
 
 class _VideoViewerScreenState extends State<VideoViewerScreen> {
-  late final PageController _pageController =
-      PageController(initialPage: widget.initialIndex);
+  late final PageController _pageController = PageController(
+    initialPage: widget.initialIndex,
+  );
   late int _activeIndex = widget.initialIndex;
 
   @override

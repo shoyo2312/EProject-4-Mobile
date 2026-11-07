@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
+import 'package:tiktok_mobile/features/user/data/follow_models.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/data/user_repository.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
@@ -9,11 +10,11 @@ import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 class MockUserRepository extends Mock implements UserRepository {}
 
 UserProfileModel profile({int followerCount = 10}) => UserProfileModel(
-      userId: 'u1',
-      displayName: 'Jane',
-      followerCount: followerCount,
-      followingCount: 3,
-    );
+  userId: 'u1',
+  displayName: 'Jane',
+  followerCount: followerCount,
+  followingCount: 3,
+);
 
 void main() {
   late MockUserRepository repository;
@@ -35,11 +36,14 @@ void main() {
   }
 
   test('follow flips the flag and picks up the refreshed counters', () async {
-    when(() => repository.follow('u1')).thenAnswer((_) async {});
+    when(
+      () => repository.follow('u1'),
+    ).thenAnswer((_) async => FollowStatus.following);
     final notifier = await loadedNotifier();
     // The refresh that follows the action sees the incremented count.
-    when(() => repository.getProfile('u1'))
-        .thenAnswer((_) async => profile(followerCount: 11));
+    when(
+      () => repository.getProfile('u1'),
+    ).thenAnswer((_) async => profile(followerCount: 11));
 
     await notifier.toggleFollow();
 
@@ -49,33 +53,78 @@ void main() {
   });
 
   test('unfollows when the flag is already set', () async {
-    when(() => repository.follow('u1')).thenAnswer((_) async {});
+    when(
+      () => repository.follow('u1'),
+    ).thenAnswer((_) async => FollowStatus.following);
     when(() => repository.unfollow('u1')).thenAnswer((_) async {});
     final notifier = await loadedNotifier();
 
     await notifier.toggleFollow();
     await notifier.toggleFollow();
 
-    expect(container.read(profileNotifierProvider('u1')).value!.isFollowing, false);
+    expect(
+      container.read(profileNotifierProvider('u1')).value!.isFollowing,
+      false,
+    );
     verify(() => repository.unfollow('u1')).called(1);
   });
 
-  test('ALREADY_FOLLOWING means the server is right and the flag was stale',
-      () async {
-    // The flag starts unknown, so the first tap guesses "follow" — the server
-    // says that already happened. Trust it rather than surfacing an error.
-    when(() => repository.follow('u1'))
-        .thenThrow(const ServerException(409, 'already', code: 'ALREADY_FOLLOWING'));
+  test(
+    'ALREADY_FOLLOWING means the server is right and the flag was stale',
+    () async {
+      // The flag starts unknown, so the first tap guesses "follow" — the server
+      // says that already happened. Trust it rather than surfacing an error.
+      when(() => repository.follow('u1')).thenThrow(
+        const ServerException(409, 'already', code: 'ALREADY_FOLLOWING'),
+      );
+      final notifier = await loadedNotifier();
+
+      await notifier.toggleFollow();
+
+      expect(
+        container.read(profileNotifierProvider('u1')).value!.isFollowing,
+        true,
+      );
+    },
+  );
+
+  test('a private account answers with a request, and a second tap '
+      'withdraws it', () async {
+    when(
+      () => repository.follow('u1'),
+    ).thenAnswer((_) async => FollowStatus.requested);
+    when(() => repository.unfollow('u1')).thenAnswer((_) async {});
+    final notifier = await loadedNotifier();
+
+    await notifier.toggleFollow();
+    var state = container.read(profileNotifierProvider('u1')).value!;
+    expect(state.isRequested, true);
+    expect(state.isFollowing, false);
+
+    await notifier.toggleFollow();
+    state = container.read(profileNotifierProvider('u1')).value!;
+    expect(state.isRequested, false);
+    verify(() => repository.unfollow('u1')).called(1);
+  });
+
+  test('ALREADY_REQUESTED settles on Requested', () async {
+    when(() => repository.follow('u1')).thenThrow(
+      const ServerException(409, 'already', code: 'ALREADY_REQUESTED'),
+    );
     final notifier = await loadedNotifier();
 
     await notifier.toggleFollow();
 
-    expect(container.read(profileNotifierProvider('u1')).value!.isFollowing, true);
+    expect(
+      container.read(profileNotifierProvider('u1')).value!.isRequested,
+      true,
+    );
   });
 
   test('NOT_MUTED settles the flag to false', () async {
-    when(() => repository.mute('u1'))
-        .thenThrow(const ServerException(409, 'not muted', code: 'NOT_MUTED'));
+    when(
+      () => repository.mute('u1'),
+    ).thenThrow(const ServerException(409, 'not muted', code: 'NOT_MUTED'));
     final notifier = await loadedNotifier();
 
     await notifier.toggleMute();
@@ -84,8 +133,9 @@ void main() {
   });
 
   test('an unrelated server error is not swallowed', () async {
-    when(() => repository.block('u1'))
-        .thenThrow(const ServerException(500, 'boom', code: 'INTERNAL_ERROR'));
+    when(
+      () => repository.block('u1'),
+    ).thenThrow(const ServerException(500, 'boom', code: 'INTERNAL_ERROR'));
     final notifier = await loadedNotifier();
 
     await expectLater(notifier.toggleBlock(), throwsA(isA<ServerException>()));
@@ -95,8 +145,9 @@ void main() {
     when(() => repository.block('u1')).thenAnswer((_) async {});
     final notifier = await loadedNotifier();
     // Blocking hides the profile, so re-reading it legitimately fails.
-    when(() => repository.getProfile('u1'))
-        .thenThrow(const ServerException(404, 'gone', code: 'USER_NOT_FOUND'));
+    when(
+      () => repository.getProfile('u1'),
+    ).thenThrow(const ServerException(404, 'gone', code: 'USER_NOT_FOUND'));
 
     await notifier.toggleBlock();
 
@@ -107,14 +158,15 @@ void main() {
 
   group('profile cache', () {
     test('loadMissing only asks for ids it does not hold yet', () async {
-      when(() => repository.getProfiles(['u1', 'u2'])).thenAnswer(
-        (_) async => {'u1': profile(), 'u2': profile()},
-      );
+      when(
+        () => repository.getProfiles(['u1', 'u2']),
+      ).thenAnswer((_) async => {'u1': profile(), 'u2': profile()});
       final cache = container.read(profileCacheProvider.notifier);
 
       await cache.loadMissing(['u1', 'u2', 'u1']);
-      when(() => repository.getProfiles(['u3']))
-          .thenAnswer((_) async => {'u3': profile()});
+      when(
+        () => repository.getProfiles(['u3']),
+      ).thenAnswer((_) async => {'u3': profile()});
       await cache.loadMissing(['u1', 'u2', 'u3']);
 
       verify(() => repository.getProfiles(['u1', 'u2'])).called(1);
@@ -123,8 +175,9 @@ void main() {
     });
 
     test('a cached profile spares the per-user request', () async {
-      when(() => repository.getProfiles(['u1']))
-          .thenAnswer((_) async => {'u1': profile()});
+      when(
+        () => repository.getProfiles(['u1']),
+      ).thenAnswer((_) async => {'u1': profile()});
       await container.read(profileCacheProvider.notifier).loadMissing(['u1']);
 
       final state = await container.read(profileNotifierProvider('u1').future);

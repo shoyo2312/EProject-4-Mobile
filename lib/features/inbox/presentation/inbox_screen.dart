@@ -1,204 +1,301 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/utils/time_ago.dart';
-import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/error_view.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
-import 'package:tiktok_mobile/features/notification/data/notification_model.dart';
+import 'package:tiktok_mobile/features/chat/presentation/widgets/conversation_row.dart';
 import 'package:tiktok_mobile/features/notification/presentation/notification_provider.dart';
-import 'package:tiktok_mobile/features/story/presentation/story_flow.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_provider.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_tray.dart';
 
-/// The activity list, from notification-service.
-///
-/// What actually arrives today is narrower than the tabs suggest: the service
-/// only listens to `auth.user-events`, so a real account sees the welcome
-/// notification and nothing else until consumers for likes, comments and
-/// follows exist. The filters are written against the types the API already
-/// defines, so they start working the moment those land.
-class InboxScreen extends ConsumerStatefulWidget {
+/// The Inbox tab: one "Activity" entry on top that opens the notification
+/// list, a "Message requests" entry while any wait, then the direct-message
+/// threads, most recently active first.
+class InboxScreen extends ConsumerWidget {
   const InboxScreen({super.key});
 
   @override
-  ConsumerState<InboxScreen> createState() => _InboxScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final me = ref.watch(authStateProvider).valueOrNull;
+    final top = MediaQuery.of(context).padding.top;
 
-/// Label → the types it keeps. `null` is "everything".
-const _filters = <String, Set<NotificationKind>?>{
-  'All': null,
-  'Likes': {NotificationKind.like},
-  'Comments': {NotificationKind.comment},
-  'Follows': {NotificationKind.newFollower},
-};
+    final header = SliverPadding(
+      padding: EdgeInsets.fromLTRB(16, top + 14, 16, 14),
+      sliver: SliverToBoxAdapter(
+        child: Text('Inbox', style: sora(size: 26, spacing: -0.6)),
+      ),
+    );
 
-class _InboxScreenState extends ConsumerState<InboxScreen> {
-  String _tab = 'All';
-
-  Future<void> _markAllRead() async {
-    try {
-      await ref.read(inboxProvider.notifier).markAllRead();
-    } on AppException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message)));
+    if (me == null) {
+      return CustomScrollView(
+        slivers: [
+          header,
+          SliverToBoxAdapter(
+            child: _Empty(
+              message: 'Sign in to see your messages and activity',
+              action: TextButton(
+                onPressed: () => context.push('/login'),
+                child: Text(
+                  'Sign in',
+                  style: work(size: 13, color: NowaColors.accent),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
     }
-  }
 
-  /// Tapping a row clears its dot and opens what it is about: a follower's
-  /// profile, a story owner's stories, or — for a comment or a reply, whose
-  /// `referenceId` is the videoId — that video with its comments open.
-  Future<void> _open(NotificationModel notification) async {
-    if (notification.type == NotificationKind.newFollower &&
-        notification.referenceId != null) {
-      context.push('/profile/${notification.referenceId}');
-    } else if (notification.type == NotificationKind.story &&
-        notification.referenceId != null) {
-      // The owner's stories, fetched fresh: the one announced may have
-      // expired, been deleted, or been joined by newer ones.
-      unawaited(openUserStories(context, ref, notification.referenceId!));
-    } else if (notification.type == NotificationKind.comment &&
-        notification.referenceId != null) {
-      context.push('/video/${notification.referenceId}?comments=1');
-    }
-    try {
-      await ref.read(inboxProvider.notifier).markRead(notification.id);
-    } on AppException {
-      // The row stays unread and the next tap retries; nothing to say.
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final inbox = ref.watch(inboxProvider);
-    final signedIn = ref.watch(authStateProvider).valueOrNull != null;
+    final conversations = ref.watch(conversationsProvider);
 
     return RefreshIndicator(
       onRefresh: () async {
         ref.invalidate(inboxProvider);
+        ref.invalidate(conversationsProvider);
+        ref.invalidate(messageRequestsProvider);
         ref.invalidate(storyTrayProvider);
       },
-      child: ListView(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          MediaQuery.of(context).padding.top + 14,
-          16,
-          130,
-        ),
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('Inbox', style: sora(size: 26, spacing: -0.6)),
-              const SizedBox(width: 10),
-              GestureDetector(
-                key: const Key('inbox_open_messages'),
-                behavior: HitTestBehavior.opaque,
-                onTap: () => context.push('/messages'),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Icon(
-                      Icons.send_outlined,
-                      size: 18,
-                      color: NowaColors.text.withValues(alpha: 0.7),
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          header,
+          const SliverPadding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
+            sliver: SliverToBoxAdapter(child: StoryTrayRow()),
+          ),
+          const SliverPadding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverToBoxAdapter(child: _ActivityEntry()),
+          ),
+          const SliverPadding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverToBoxAdapter(child: _RequestsEntry()),
+          ),
+          ...conversations.when(
+            loading: () => const [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 48),
+                  child: LoadingView(),
+                ),
+              ),
+            ],
+            error: (error, _) => [
+              SliverToBoxAdapter(
+                child: ErrorView(
+                  message: error.toString(),
+                  onRetry: () => ref.invalidate(conversationsProvider),
+                ),
+              ),
+            ],
+            data: (rows) => rows.isEmpty
+                ? const [
+                    SliverToBoxAdapter(
+                      child: _Empty(message: 'No conversations yet'),
                     ),
-                    if (ref.watch(unreadConversationsProvider) > 0)
-                      Positioned(
-                        key: const Key('inbox_messages_unread'),
-                        right: -3,
-                        top: -3,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: NowaColors.accent,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
+                  ]
+                : [
+                    SliverPadding(
+                      // Clears the floating nav bar.
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 130),
+                      sliver: SliverList.builder(
+                        itemCount: rows.length,
+                        itemBuilder: (_, i) =>
+                            ConversationRow(conversation: rows[i], me: me.id),
                       ),
+                    ),
                   ],
-                ),
-              ),
-              const Spacer(),
-              if (inbox.valueOrNull?.any((n) => !n.read) ?? false)
-                GestureDetector(
-                  key: const Key('inbox_mark_all_read'),
-                  behavior: HitTestBehavior.opaque,
-                  onTap: _markAllRead,
-                  child: Text(
-                    'Mark all read',
-                    style: work(size: 12, height: 1, color: NowaColors.accent),
-                  ),
-                ),
-            ],
           ),
-          const SizedBox(height: 14),
-          if (signedIn) ...[
-            const StoryTrayRow(),
-            const SizedBox(height: 10),
-          ],
-          Row(
-            children: [
-              for (final label in _filters.keys)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: Chip2(
-                    label: label,
-                    active: label == _tab,
-                    onTap: () => setState(() => _tab = label),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          if (!signedIn)
-            _Empty(
-              message: 'Sign in to see your notifications',
-              action: TextButton(
-                onPressed: () => context.push('/login'),
-                child: Text('Sign in',
-                    style: work(size: 13, color: NowaColors.accent)),
-              ),
-            )
-          else
-            inbox.when(
-              loading: () => const Padding(
-                padding: EdgeInsets.symmetric(vertical: 48),
-                child: LoadingView(),
-              ),
-              error: (error, _) => ErrorView(message: error.toString()),
-              data: (all) {
-                final kinds = _filters[_tab];
-                final rows = kinds == null
-                    ? all
-                    : [
-                        for (final n in all)
-                          if (kinds.contains(n.type)) n,
-                      ];
-                if (rows.isEmpty) {
-                  return _Empty(
-                    message: _tab == 'All'
-                        ? 'Nothing here yet'
-                        : 'No ${_tab.toLowerCase()} yet',
-                  );
-                }
-                return Column(
-                  children: [
-                    for (final n in rows)
-                      _Row(notification: n, onTap: () => _open(n)),
-                  ],
-                );
-              },
-            ),
         ],
+      ),
+    );
+  }
+}
+
+/// The single row standing in for every notification, like TikTok's
+/// "Activity": the newest one as a preview and how many are still unread.
+class _ActivityEntry extends ConsumerWidget {
+  const _ActivityEntry();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final all = ref.watch(inboxProvider).valueOrNull ?? const [];
+    final unread = all.where((n) => !n.read).length;
+    final latest = all.isEmpty ? null : all.first;
+
+    return GestureDetector(
+      key: const Key('inbox_open_activity'),
+      behavior: HitTestBehavior.opaque,
+      onTap: () => context.push('/notifications'),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: NowaColors.accent,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.notifications_rounded,
+                size: 22,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Activity', style: sora(size: 13.5, height: 1.3)),
+                  const SizedBox(height: 3),
+                  Text(
+                    latest == null
+                        ? 'No activity yet'
+                        : '${latest.title} · ${timeAgo(latest.createdAt)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: work(
+                      size: 12.5,
+                      height: 1.4,
+                      color: NowaColors.text.withValues(
+                        alpha: unread > 0 ? 0.9 : 0.55,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            if (unread > 0)
+              Container(
+                key: const Key('inbox_activity_unread'),
+                constraints: const BoxConstraints(minWidth: 20),
+                height: 20,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: NowaColors.accent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  unread > 99 ? '99+' : '$unread',
+                  style: work(size: 11, height: 1, color: Colors.white),
+                ),
+              )
+            else
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: NowaColors.text.withValues(alpha: 0.35),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The door to the message-request box, shown only while something waits in
+/// it. The subtitle counts the requests; the badge, the ones not opened yet.
+class _RequestsEntry extends ConsumerWidget {
+  const _RequestsEntry();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final counts = ref.watch(requestCountsProvider);
+    if (counts.pending == 0) return const SizedBox.shrink();
+
+    return GestureDetector(
+      key: const Key('inbox_open_requests'),
+      behavior: HitTestBehavior.opaque,
+      onTap: () => context.push('/messages/requests'),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: NowaColors.surfaceHigh,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.mark_chat_unread_outlined,
+                size: 22,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Message requests',
+                    style: sora(size: 13.5, height: 1.3),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'You have ${counts.pending} '
+                    '${counts.pending == 1 ? 'request' : 'requests'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: work(
+                      size: 12.5,
+                      height: 1.4,
+                      color: NowaColors.text.withValues(
+                        alpha: counts.unread > 0 ? 0.9 : 0.55,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            if (counts.unread > 0)
+              Container(
+                key: const Key('inbox_requests_unread'),
+                constraints: const BoxConstraints(minWidth: 20),
+                height: 20,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: NowaColors.accent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  counts.unread > 99 ? '99+' : '${counts.unread}',
+                  style: work(size: 11, height: 1, color: Colors.white),
+                ),
+              )
+            else
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: NowaColors.text.withValues(alpha: 0.35),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -218,117 +315,13 @@ class _Empty extends StatelessWidget {
         children: [
           Text(
             message,
-            style: work(size: 13, color: NowaColors.text.withValues(alpha: 0.45)),
+            style: work(
+              size: 13,
+              color: NowaColors.text.withValues(alpha: 0.45),
+            ),
           ),
           ?action,
         ],
-      ),
-    );
-  }
-}
-
-const _badges = {
-  NotificationKind.like: '♥',
-  NotificationKind.comment: '💬',
-  NotificationKind.share: '↗',
-  NotificationKind.newFollower: '+',
-  NotificationKind.story: '◎',
-  NotificationKind.system: '★',
-};
-
-class _Row extends StatelessWidget {
-  const _Row({required this.notification, required this.onTap});
-
-  final NotificationModel notification;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final n = notification;
-    final accent = n.type == NotificationKind.like ||
-        n.type == NotificationKind.system;
-    return GestureDetector(
-      key: Key('inbox_row_${n.id}'),
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 13),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
-          ),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 46,
-              height: 46,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  const StripedPlaceholder(radius: 23, band: 5),
-                  Positioned(
-                    right: -2,
-                    bottom: -2,
-                    child: Container(
-                      width: 20,
-                      height: 20,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: accent ? NowaColors.accent : NowaColors.support,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: NowaColors.bg, width: 2),
-                      ),
-                      child: Text(
-                        _badges[n.type] ?? '★',
-                        style: sora(size: 10, color: Colors.white),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(n.title, style: sora(size: 13.5, height: 1.3)),
-                  const SizedBox(height: 3),
-                  Text(
-                    n.body,
-                    style: work(
-                      size: 12.5,
-                      height: 1.4,
-                      color: NowaColors.text.withValues(alpha: 0.55),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              timeAgo(n.createdAt),
-              style: work(
-                size: 11,
-                height: 1,
-                color: NowaColors.text.withValues(alpha: 0.35),
-              ),
-            ),
-            // The one thing the row has to say at a glance: read or not.
-            if (!n.read) ...[
-              const SizedBox(width: 10),
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: NowaColors.accent,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ],
-          ],
-        ),
       ),
     );
   }

@@ -602,6 +602,19 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
                               style: sora(size: 12, weight: FontWeight.w600, color: Colors.white),
                             ),
                           ),
+                          // Always in sight once a song is on: the clip's own
+                          // sound off, so only the song is heard.
+                          if (widget.collectDetails) ...[
+                            const SizedBox(width: 6),
+                            Container(width: 1, height: 14, color: Colors.white24),
+                            const SizedBox(width: 2),
+                            OriginalSoundToggle(
+                              key: const Key('preview_original_mute'),
+                              music: music,
+                              onChanged: _setMusic,
+                              size: 16,
+                            ),
+                          ],
                         ],
                       ),
                     ),

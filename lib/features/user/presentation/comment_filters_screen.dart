@@ -30,7 +30,9 @@ class _CommentFiltersScreenState extends ConsumerState<CommentFiltersScreen> {
 
   /// Every change is saved straight away; a refusal puts the old value back
   /// (see [CommentFilters]) and says why.
-  Future<void> _run(Future<void> Function(CommentFilters notifier) action) async {
+  Future<void> _run(
+    Future<void> Function(CommentFilters notifier) action,
+  ) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await action(ref.read(commentFiltersProvider.notifier));
@@ -44,8 +46,9 @@ class _CommentFiltersScreenState extends ConsumerState<CommentFiltersScreen> {
     if (keyword.isEmpty) return;
     final problem = _keywordProblem(keyword, settings.commentKeywords);
     if (problem != null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(problem)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(problem)));
       return;
     }
     _keywordController.clear();

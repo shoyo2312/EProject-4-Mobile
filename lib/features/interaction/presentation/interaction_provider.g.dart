@@ -223,7 +223,7 @@ final likeStatusCacheProvider =
     );
 
 typedef _$LikeStatusCache = Notifier<Map<String, LikeStatus>>;
-String _$likeNotifierHash() => r'3e7221742ee6cb46a8e2f0d1260cfa16b6075bd1';
+String _$likeNotifierHash() => r'c307e86006b3e63cc5ef3461f399e94032b7a861';
 
 abstract class _$LikeNotifier
     extends BuildlessAutoDisposeAsyncNotifier<LikeStatus> {
@@ -391,7 +391,7 @@ class _LikeNotifierProviderElement
   String get videoId => (origin as LikeNotifierProvider).videoId;
 }
 
-String _$saveNotifierHash() => r'a69f3dcf4c7c2ce02385d05e78c0c418005a089a';
+String _$saveNotifierHash() => r'e6ee1dcb017ea79fc1dd3d871fd99ad928461861';
 
 abstract class _$SaveNotifier
     extends BuildlessAutoDisposeAsyncNotifier<SaveStatus> {

@@ -34,6 +34,11 @@ _$VideoModelImpl _$$VideoModelImplFromJson(Map<String, dynamic> json) =>
       music: json['music'] == null
           ? null
           : MusicCredit.fromJson(json['music'] as Map<String, dynamic>),
+      pinnedAt: json['pinnedAt'] == null
+          ? null
+          : DateTime.parse(json['pinnedAt'] as String),
+      failureReason: json['failureReason'] as String?,
+      takedownReason: json['takedownReason'] as String?,
     );
 
 Map<String, dynamic> _$$VideoModelImplToJson(_$VideoModelImpl instance) =>
@@ -54,12 +59,18 @@ Map<String, dynamic> _$$VideoModelImplToJson(_$VideoModelImpl instance) =>
       'shareCount': instance.shareCount,
       'createdAt': instance.createdAt.toIso8601String(),
       'music': instance.music,
+      'pinnedAt': instance.pinnedAt?.toIso8601String(),
+      'failureReason': instance.failureReason,
+      'takedownReason': instance.takedownReason,
     };
 
 const _$VideoStatusEnumMap = {
   VideoStatus.processing: 'PROCESSING',
+  VideoStatus.pendingModeration: 'PENDING_MODERATION',
+  VideoStatus.pendingReview: 'PENDING_REVIEW',
   VideoStatus.published: 'PUBLISHED',
   VideoStatus.failed: 'FAILED',
+  VideoStatus.rejected: 'REJECTED',
   VideoStatus.takenDown: 'TAKEN_DOWN',
   VideoStatus.unknown: 'unknown',
 };

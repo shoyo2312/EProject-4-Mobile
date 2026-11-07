@@ -18,6 +18,35 @@ _$ConversationModelImpl _$$ConversationModelImplFromJson(
       : DateTime.parse(json['lastMessageAt'] as String),
   createdAt: DateTime.parse(json['createdAt'] as String),
   hasUnread: json['hasUnread'] as bool? ?? false,
+  muteMode:
+      $enumDecodeNullable(
+        _$MuteModeEnumMap,
+        json['muteMode'],
+        unknownValue: MuteMode.none,
+      ) ??
+      MuteMode.none,
+  mutedUntil: json['mutedUntil'] == null
+      ? null
+      : DateTime.parse(json['mutedUntil'] as String),
+  pinnedAt: json['pinnedAt'] == null
+      ? null
+      : DateTime.parse(json['pinnedAt'] as String),
+  requestState: $enumDecodeNullable(
+    _$MessageRequestStateEnumMap,
+    json['requestState'],
+    unknownValue: JsonKey.nullForUndefinedEnumValue,
+  ),
+  initiatorId: _nullableIdFromJson(json['initiatorId']),
+  sendPermission:
+      $enumDecodeNullable(
+        _$SendPermissionEnumMap,
+        json['sendPermission'],
+        unknownValue: SendPermission.allowed,
+      ) ??
+      SendPermission.allowed,
+  retryAvailableAt: json['retryAvailableAt'] == null
+      ? null
+      : DateTime.parse(json['retryAvailableAt'] as String),
 );
 
 Map<String, dynamic> _$$ConversationModelImplToJson(
@@ -30,6 +59,32 @@ Map<String, dynamic> _$$ConversationModelImplToJson(
   'lastMessageAt': instance.lastMessageAt?.toIso8601String(),
   'createdAt': instance.createdAt.toIso8601String(),
   'hasUnread': instance.hasUnread,
+  'muteMode': _$MuteModeEnumMap[instance.muteMode]!,
+  'mutedUntil': instance.mutedUntil?.toIso8601String(),
+  'pinnedAt': instance.pinnedAt?.toIso8601String(),
+  'requestState': _$MessageRequestStateEnumMap[instance.requestState],
+  'initiatorId': instance.initiatorId,
+  'sendPermission': _$SendPermissionEnumMap[instance.sendPermission]!,
+  'retryAvailableAt': instance.retryAvailableAt?.toIso8601String(),
+};
+
+const _$MuteModeEnumMap = {
+  MuteMode.none: 'NONE',
+  MuteMode.timed: 'TIMED',
+  MuteMode.indefinite: 'INDEFINITE',
+};
+
+const _$MessageRequestStateEnumMap = {
+  MessageRequestState.pending: 'PENDING',
+  MessageRequestState.declined: 'DECLINED',
+};
+
+const _$SendPermissionEnumMap = {
+  SendPermission.allowed: 'ALLOWED',
+  SendPermission.firstMessageOnly: 'FIRST_MESSAGE_ONLY',
+  SendPermission.requestSent: 'REQUEST_SENT',
+  SendPermission.awaitingAccept: 'AWAITING_ACCEPT',
+  SendPermission.reopenOnSend: 'REOPEN_ON_SEND',
 };
 
 _$StickerModelImpl _$$StickerModelImplFromJson(Map<String, dynamic> json) =>
@@ -112,6 +167,7 @@ _$MessageModelImpl _$$MessageModelImplFromJson(Map<String, dynamic> json) =>
       recalledAt: json['recalledAt'] == null
           ? null
           : DateTime.parse(json['recalledAt'] as String),
+      revision: (json['revision'] as num?)?.toInt() ?? 0,
     );
 
 Map<String, dynamic> _$$MessageModelImplToJson(_$MessageModelImpl instance) =>
@@ -125,6 +181,7 @@ Map<String, dynamic> _$$MessageModelImplToJson(_$MessageModelImpl instance) =>
       'sticker': instance.sticker,
       'image': instance.image,
       'recalledAt': instance.recalledAt?.toIso8601String(),
+      'revision': instance.revision,
     };
 
 const _$MessageTypeEnumMap = {

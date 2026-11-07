@@ -76,6 +76,11 @@ class MusicPanel extends StatelessWidget {
             if (hasOriginalSound)
               _Row(
                 label: 'Original',
+                trailing: OriginalSoundToggle(
+                  key: const Key('music_original_mute'),
+                  music: music,
+                  onChanged: onChanged,
+                ),
                 child: Slider(
                   key: const Key('music_original_volume_slider'),
                   value: music.originalVolume,
@@ -123,11 +128,51 @@ class MusicPanel extends StatelessWidget {
   }
 }
 
+/// The video's own sound off, or back on at full: what a slider dragged
+/// all the way down does, in one tap. The server then mixes only the song.
+EditMusic toggleOriginalSound(EditMusic music) =>
+    music.copyWith(originalVolume: music.originalVolume > 0 ? 0 : 1);
+
+/// A speaker that mutes or restores the video's own sound under the song.
+class OriginalSoundToggle extends StatelessWidget {
+  const OriginalSoundToggle({
+    super.key,
+    required this.music,
+    required this.onChanged,
+    this.size = 18,
+  });
+
+  final EditMusic music;
+  final void Function(EditMusic music, {bool seek}) onChanged;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = music.originalVolume == 0;
+    return Tooltip(
+      message: muted ? 'Turn original sound on' : 'Turn original sound off',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => onChanged(toggleOriginalSound(music)),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Icon(
+            muted ? Icons.volume_off : Icons.volume_up,
+            size: size,
+            color: muted ? NowaColors.danger : Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _Row extends StatelessWidget {
-  const _Row({required this.label, required this.child});
+  const _Row({required this.label, required this.child, this.trailing});
 
   final String label;
   final Widget child;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -135,6 +180,7 @@ class _Row extends StatelessWidget {
       children: [
         SizedBox(width: 74, child: Text(label, style: sora(size: 11, color: NowaColors.dim))),
         Expanded(child: child),
+        ?trailing,
       ],
     );
   }

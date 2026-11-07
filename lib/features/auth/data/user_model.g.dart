@@ -23,6 +23,9 @@ _$UserModelImpl _$$UserModelImplFromJson(Map<String, dynamic> json) =>
       ),
       emailVerified: json['emailVerified'] as bool,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      usernameChangeableAt: json['usernameChangeableAt'] == null
+          ? null
+          : DateTime.parse(json['usernameChangeableAt'] as String),
     );
 
 Map<String, dynamic> _$$UserModelImplToJson(_$UserModelImpl instance) =>
@@ -34,6 +37,7 @@ Map<String, dynamic> _$$UserModelImplToJson(_$UserModelImpl instance) =>
       'status': _$UserStatusEnumMap[instance.status]!,
       'emailVerified': instance.emailVerified,
       'createdAt': instance.createdAt.toIso8601String(),
+      'usernameChangeableAt': instance.usernameChangeableAt?.toIso8601String(),
     };
 
 const _$UserRoleEnumMap = {

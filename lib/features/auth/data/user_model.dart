@@ -38,6 +38,9 @@ class UserModel with _$UserModel {
     // 403 EMAIL_NOT_VERIFIED until the OTP is confirmed (auth doc 3.1/3.2).
     required bool emailVerified,
     required DateTime createdAt,
+    // When the handle may change again (once every 30 days); null when it may
+    // change now. Edit profile shows the field read-only until then.
+    DateTime? usernameChangeableAt,
   }) = _UserModel;
 
   factory UserModel.fromJson(Map<String, dynamic> json) =>

@@ -60,11 +60,17 @@ void main() {
     userRepository = MockUserRepository();
     when(() => userRepository.getProfiles(any()))
         .thenAnswer((_) async => <String, UserProfileModel>{});
-    when(() => repository.markRead(any())).thenAnswer((_) async {});
+    when(() => repository.markRead(any(),
+        messageId: any(named: 'messageId'))).thenAnswer((_) async {});
+    when(() => repository.markDelivered(any(), any()))
+        .thenAnswer((_) async {});
+    when(() => repository.receipts(any()))
+        .thenAnswer((_) async => const ReceiptView(conversationId: 'c1'));
     when(() => repository.liveMessages(any()))
         .thenAnswer((_) => const Stream.empty());
     when(() => repository.inboxEvents())
         .thenAnswer((_) => const Stream.empty());
+    when(() => repository.listRequests()).thenAnswer((_) async => []);
   });
 
   ProviderContainer containerFor({bool signedIn = true}) {
@@ -145,7 +151,8 @@ void main() {
         .thenAnswer((_) async => const MessagePage(items: [], hasMore: false));
     when(() => repository.listConversations())
         .thenAnswer((_) async => [conversation()]);
-    when(() => repository.sendMessage('c1', 'hello'))
+    when(() => repository.sendMessage('c1', 'hello',
+            clientRequestId: any(named: 'clientRequestId')))
         .thenAnswer((_) async => message('m9', sender: '1001'));
 
     final container = containerFor();
@@ -230,6 +237,44 @@ void main() {
       expect(container.read(unreadConversationsProvider), 1);
       // Updated in place, not refetched.
       verify(() => repository.listConversations()).called(1);
+    });
+
+    test('a new message stops below the pinned threads', () async {
+      when(() => repository.listConversations()).thenAnswer((_) async => [
+            conversation(id: 'c1').copyWith(pinnedAt: DateTime(2026, 9, 1)),
+            conversation(id: 'c2'),
+            conversation(id: 'c3'),
+          ]);
+      final container = await listening();
+
+      inbox.add(arrived(inThread('c3', 'm7')));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(container.read(conversationsProvider).value!.map((c) => c.id),
+          ['c1', 'c3', 'c2']);
+    });
+
+    test('pinning moves the thread to the top, unpinning puts it back',
+        () async {
+      final c1 = conversation(id: 'c1')
+          .copyWith(lastMessageAt: DateTime(2026, 9, 5));
+      final c2 = conversation(id: 'c2')
+          .copyWith(lastMessageAt: DateTime(2026, 9, 1));
+      when(() => repository.listConversations())
+          .thenAnswer((_) async => [c1, c2]);
+      when(() => repository.pin('c2')).thenAnswer(
+          (_) async => c2.copyWith(pinnedAt: DateTime(2026, 9, 6)));
+      when(() => repository.unpin('c2')).thenAnswer((_) async => c2);
+      final container = await listening();
+      final notifier = container.read(conversationsProvider.notifier);
+
+      await notifier.pin('c2');
+      expect(container.read(conversationsProvider).value!.map((c) => c.id),
+          ['c2', 'c1']);
+
+      await notifier.unpin('c2');
+      expect(container.read(conversationsProvider).value!.map((c) => c.id),
+          ['c1', 'c2']);
     });
 
     test('the caller\'s own message does not mark the thread unread',
@@ -331,7 +376,9 @@ void main() {
     socket.add(message('m4', sender: '1001'));
     await Future<void>.delayed(Duration.zero);
 
-    // Once, for the other person's message; the caller's own needs nothing.
-    verify(() => repository.markRead('c1')).called(1);
+    // Once, for the other person's message, up to that message; the
+    // caller's own needs nothing.
+    verify(() => repository.markRead('c1', messageId: 'm3')).called(1);
+    verifyNever(() => repository.markRead('c1', messageId: 'm4'));
   });
 }

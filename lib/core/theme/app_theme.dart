@@ -17,6 +17,10 @@ class NowaColors {
   static const hairline = Color(0x1AFFFFFF);
   static const glass = Color(0x8C141218); // rgba(20,18,24,.55)
   static const danger = Color(0xFFFF6B81);
+
+  // Screen time summary: day time (06:00–22:00) and night time bars.
+  static const screenDay = Color(0xFF20D5EC);
+  static const screenNight = Color(0xFF10A2C5);
 }
 
 /// Sora — names, counts, labels.

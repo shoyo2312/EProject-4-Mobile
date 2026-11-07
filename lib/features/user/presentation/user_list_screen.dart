@@ -75,7 +75,12 @@ class _UserListScreenState extends ConsumerState<UserListScreen> {
                 onTap: () => context.push('/profile/${user.userId}'),
                 child: Row(
                   children: [
-                    NowaAvatar(url: user.avatarUrl, size: 46, radius: 16, border: false),
+                    NowaAvatar(
+                      url: user.avatarUrl,
+                      size: 46,
+                      radius: 16,
+                      border: false,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(

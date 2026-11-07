@@ -16,6 +16,9 @@ class UserProfileModel with _$UserProfileModel {
     String? avatarUrl,
     required int followerCount,
     required int followingCount,
+    // When the display name may change again (once every 7 days). Only sent
+    // to the owner, and null when it may change now.
+    DateTime? displayNameChangeableAt,
   }) = _UserProfileModel;
 
   factory UserProfileModel.fromJson(Map<String, dynamic> json) =>

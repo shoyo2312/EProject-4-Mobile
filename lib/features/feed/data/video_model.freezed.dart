@@ -56,6 +56,15 @@ mixin _$VideoModel {
   /// The song under the video and its credit; null without one.
   MusicCredit? get music => throw _privateConstructorUsedError;
 
+  /// When the owner pinned it to the top of their profile; null when not
+  /// pinned. At most three are pinned at once.
+  DateTime? get pinnedAt => throw _privateConstructorUsedError;
+
+  /// Why transcoding failed (FAILED) or why a moderator removed it
+  /// (TAKEN_DOWN). Sent to the owner only.
+  String? get failureReason => throw _privateConstructorUsedError;
+  String? get takedownReason => throw _privateConstructorUsedError;
+
   /// Serializes this VideoModel to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -91,6 +100,9 @@ abstract class $VideoModelCopyWith<$Res> {
     int shareCount,
     DateTime createdAt,
     MusicCredit? music,
+    DateTime? pinnedAt,
+    String? failureReason,
+    String? takedownReason,
   });
 
   $MusicCreditCopyWith<$Res>? get music;
@@ -127,6 +139,9 @@ class _$VideoModelCopyWithImpl<$Res, $Val extends VideoModel>
     Object? shareCount = null,
     Object? createdAt = null,
     Object? music = freezed,
+    Object? pinnedAt = freezed,
+    Object? failureReason = freezed,
+    Object? takedownReason = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -194,6 +209,18 @@ class _$VideoModelCopyWithImpl<$Res, $Val extends VideoModel>
                 ? _value.music
                 : music // ignore: cast_nullable_to_non_nullable
                       as MusicCredit?,
+            pinnedAt: freezed == pinnedAt
+                ? _value.pinnedAt
+                : pinnedAt // ignore: cast_nullable_to_non_nullable
+                      as DateTime?,
+            failureReason: freezed == failureReason
+                ? _value.failureReason
+                : failureReason // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            takedownReason: freezed == takedownReason
+                ? _value.takedownReason
+                : takedownReason // ignore: cast_nullable_to_non_nullable
+                      as String?,
           )
           as $Val,
     );
@@ -241,6 +268,9 @@ abstract class _$$VideoModelImplCopyWith<$Res>
     int shareCount,
     DateTime createdAt,
     MusicCredit? music,
+    DateTime? pinnedAt,
+    String? failureReason,
+    String? takedownReason,
   });
 
   @override
@@ -277,6 +307,9 @@ class __$$VideoModelImplCopyWithImpl<$Res>
     Object? shareCount = null,
     Object? createdAt = null,
     Object? music = freezed,
+    Object? pinnedAt = freezed,
+    Object? failureReason = freezed,
+    Object? takedownReason = freezed,
   }) {
     return _then(
       _$VideoModelImpl(
@@ -344,6 +377,18 @@ class __$$VideoModelImplCopyWithImpl<$Res>
             ? _value.music
             : music // ignore: cast_nullable_to_non_nullable
                   as MusicCredit?,
+        pinnedAt: freezed == pinnedAt
+            ? _value.pinnedAt
+            : pinnedAt // ignore: cast_nullable_to_non_nullable
+                  as DateTime?,
+        failureReason: freezed == failureReason
+            ? _value.failureReason
+            : failureReason // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        takedownReason: freezed == takedownReason
+            ? _value.takedownReason
+            : takedownReason // ignore: cast_nullable_to_non_nullable
+                  as String?,
       ),
     );
   }
@@ -370,6 +415,9 @@ class _$VideoModelImpl implements _VideoModel {
     this.shareCount = 0,
     required this.createdAt,
     this.music,
+    this.pinnedAt,
+    this.failureReason,
+    this.takedownReason,
   });
 
   factory _$VideoModelImpl.fromJson(Map<String, dynamic> json) =>
@@ -429,9 +477,21 @@ class _$VideoModelImpl implements _VideoModel {
   @override
   final MusicCredit? music;
 
+  /// When the owner pinned it to the top of their profile; null when not
+  /// pinned. At most three are pinned at once.
+  @override
+  final DateTime? pinnedAt;
+
+  /// Why transcoding failed (FAILED) or why a moderator removed it
+  /// (TAKEN_DOWN). Sent to the owner only.
+  @override
+  final String? failureReason;
+  @override
+  final String? takedownReason;
+
   @override
   String toString() {
-    return 'VideoModel(id: $id, userId: $userId, title: $title, description: $description, thumbnailUrl: $thumbnailUrl, hlsUrl: $hlsUrl, durationSeconds: $durationSeconds, status: $status, visibility: $visibility, commentsDisabled: $commentsDisabled, viewCount: $viewCount, likeCount: $likeCount, commentCount: $commentCount, shareCount: $shareCount, createdAt: $createdAt, music: $music)';
+    return 'VideoModel(id: $id, userId: $userId, title: $title, description: $description, thumbnailUrl: $thumbnailUrl, hlsUrl: $hlsUrl, durationSeconds: $durationSeconds, status: $status, visibility: $visibility, commentsDisabled: $commentsDisabled, viewCount: $viewCount, likeCount: $likeCount, commentCount: $commentCount, shareCount: $shareCount, createdAt: $createdAt, music: $music, pinnedAt: $pinnedAt, failureReason: $failureReason, takedownReason: $takedownReason)';
   }
 
   @override
@@ -464,12 +524,18 @@ class _$VideoModelImpl implements _VideoModel {
                 other.shareCount == shareCount) &&
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt) &&
-            (identical(other.music, music) || other.music == music));
+            (identical(other.music, music) || other.music == music) &&
+            (identical(other.pinnedAt, pinnedAt) ||
+                other.pinnedAt == pinnedAt) &&
+            (identical(other.failureReason, failureReason) ||
+                other.failureReason == failureReason) &&
+            (identical(other.takedownReason, takedownReason) ||
+                other.takedownReason == takedownReason));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     runtimeType,
     id,
     userId,
@@ -487,7 +553,10 @@ class _$VideoModelImpl implements _VideoModel {
     shareCount,
     createdAt,
     music,
-  );
+    pinnedAt,
+    failureReason,
+    takedownReason,
+  ]);
 
   /// Create a copy of VideoModel
   /// with the given fields replaced by the non-null parameter values.
@@ -523,6 +592,9 @@ abstract class _VideoModel implements VideoModel {
     final int shareCount,
     required final DateTime createdAt,
     final MusicCredit? music,
+    final DateTime? pinnedAt,
+    final String? failureReason,
+    final String? takedownReason,
   }) = _$VideoModelImpl;
 
   factory _VideoModel.fromJson(Map<String, dynamic> json) =
@@ -575,6 +647,18 @@ abstract class _VideoModel implements VideoModel {
   /// The song under the video and its credit; null without one.
   @override
   MusicCredit? get music;
+
+  /// When the owner pinned it to the top of their profile; null when not
+  /// pinned. At most three are pinned at once.
+  @override
+  DateTime? get pinnedAt;
+
+  /// Why transcoding failed (FAILED) or why a moderator removed it
+  /// (TAKEN_DOWN). Sent to the owner only.
+  @override
+  String? get failureReason;
+  @override
+  String? get takedownReason;
 
   /// Create a copy of VideoModel
   /// with the given fields replaced by the non-null parameter values.

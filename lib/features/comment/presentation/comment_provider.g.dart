@@ -44,7 +44,7 @@ final commentStickerPacksProvider = FutureProvider<List<StickerPack>>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef CommentStickerPacksRef = FutureProviderRef<List<StickerPack>>;
-String _$commentNotifierHash() => r'6944a5746ba628570092ab09f7bb433430e932a1';
+String _$commentNotifierHash() => r'72d8f6ed1012a46d634431f7b7362de17a80c8d8';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -74,7 +74,9 @@ abstract class _$CommentNotifier
   FutureOr<List<CommentModel>> build(String videoId);
 }
 
-/// The top-level comments of one video, newest first. Replies live in
+/// The top-level comments of one video, most liked and replied first — the
+/// server ranks them. Your own new comment still goes on top so you see it
+/// land. Replies live in
 /// [CommentReplies]; this notifier keeps the two in step (a reply posted or
 /// deleted moves its thread's `replyCount` here).
 ///
@@ -82,20 +84,26 @@ abstract class _$CommentNotifier
 @ProviderFor(CommentNotifier)
 const commentNotifierProvider = CommentNotifierFamily();
 
-/// The top-level comments of one video, newest first. Replies live in
+/// The top-level comments of one video, most liked and replied first — the
+/// server ranks them. Your own new comment still goes on top so you see it
+/// land. Replies live in
 /// [CommentReplies]; this notifier keeps the two in step (a reply posted or
 /// deleted moves its thread's `replyCount` here).
 ///
 /// Copied from [CommentNotifier].
 class CommentNotifierFamily extends Family<AsyncValue<List<CommentModel>>> {
-  /// The top-level comments of one video, newest first. Replies live in
+  /// The top-level comments of one video, most liked and replied first — the
+  /// server ranks them. Your own new comment still goes on top so you see it
+  /// land. Replies live in
   /// [CommentReplies]; this notifier keeps the two in step (a reply posted or
   /// deleted moves its thread's `replyCount` here).
   ///
   /// Copied from [CommentNotifier].
   const CommentNotifierFamily();
 
-  /// The top-level comments of one video, newest first. Replies live in
+  /// The top-level comments of one video, most liked and replied first — the
+  /// server ranks them. Your own new comment still goes on top so you see it
+  /// land. Replies live in
   /// [CommentReplies]; this notifier keeps the two in step (a reply posted or
   /// deleted moves its thread's `replyCount` here).
   ///
@@ -126,7 +134,9 @@ class CommentNotifierFamily extends Family<AsyncValue<List<CommentModel>>> {
   String? get name => r'commentNotifierProvider';
 }
 
-/// The top-level comments of one video, newest first. Replies live in
+/// The top-level comments of one video, most liked and replied first — the
+/// server ranks them. Your own new comment still goes on top so you see it
+/// land. Replies live in
 /// [CommentReplies]; this notifier keeps the two in step (a reply posted or
 /// deleted moves its thread's `replyCount` here).
 ///
@@ -137,7 +147,9 @@ class CommentNotifierProvider
           CommentNotifier,
           List<CommentModel>
         > {
-  /// The top-level comments of one video, newest first. Replies live in
+  /// The top-level comments of one video, most liked and replied first — the
+  /// server ranks them. Your own new comment still goes on top so you see it
+  /// land. Replies live in
   /// [CommentReplies]; this notifier keeps the two in step (a reply posted or
   /// deleted moves its thread's `replyCount` here).
   ///

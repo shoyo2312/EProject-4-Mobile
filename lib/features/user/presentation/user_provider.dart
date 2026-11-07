@@ -8,6 +8,7 @@ import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
 import 'package:tiktok_mobile/core/utils/paging.dart';
+import 'package:tiktok_mobile/features/user/data/follow_models.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/data/user_remote_datasource.dart';
 import 'package:tiktok_mobile/features/user/data/user_repository.dart';
@@ -30,7 +31,9 @@ class MyProfile extends _$MyProfile {
   }
 
   Future<void> updateProfile(Map<String, dynamic> changes) async {
-    final updated = await ref.read(userRepositoryProvider).updateMyProfile(changes);
+    final updated = await ref
+        .read(userRepositoryProvider)
+        .updateMyProfile(changes);
     _publish(updated);
   }
 
@@ -70,7 +73,10 @@ class ProfileCache extends _$ProfileCache {
         if (!state.containsKey(id)) id,
     ];
     if (missing.isEmpty) return;
-    state = {...state, ...await ref.read(userRepositoryProvider).getProfiles(missing)};
+    state = {
+      ...state,
+      ...await ref.read(userRepositoryProvider).getProfiles(missing),
+    };
   }
 
   void put(UserProfileModel profile) =>
@@ -88,6 +94,9 @@ class ProfileState with _$ProfileState {
   const factory ProfileState({
     required UserProfileModel profile,
     bool? isFollowing,
+
+    /// A follow request is waiting for this private account to approve it.
+    bool? isRequested,
     bool? isBlocked,
     bool? isMuted,
   }) = _ProfileState;
@@ -95,49 +104,120 @@ class ProfileState with _$ProfileState {
 
 @riverpod
 class ProfileNotifier extends _$ProfileNotifier {
+  bool _disposed = false;
+
   @override
   FutureOr<ProfileState> build(String userId) async {
+    _disposed = false;
+    ref.onDispose(() => _disposed = true);
     // Read, not watch: `put` below writes to the cache, and watching it here
     // would rebuild this provider straight back over its own result.
     final cached = ref.read(profileCacheProvider)[userId];
-    if (cached != null) return ProfileState(profile: cached);
-
-    final profile = await ref.read(userRepositoryProvider).getProfile(userId);
-    ref.read(profileCacheProvider.notifier).put(profile);
+    final profile =
+        cached ?? await ref.read(userRepositoryProvider).getProfile(userId);
+    if (cached == null) ref.read(profileCacheProvider.notifier).put(profile);
+    // Not awaited: the card or page shows at once, and the button settles to
+    // Following / Requested a moment later.
+    unawaited(_seedFollowState());
     return ProfileState(profile: profile);
   }
 
-  Future<void> toggleFollow() => _toggle(
-        current: (s) => s.isFollowing,
-        apply: (s, value) => s.copyWith(isFollowing: value),
-        doAction: (repo, wasActive) =>
-            wasActive ? repo.unfollow(userId) : repo.follow(userId),
-        alreadyCode: 'ALREADY_FOLLOWING',
-        notActiveCode: 'NOT_FOLLOWING',
+  /// One `GET /friendship` for the Follow button (user doc 3.17). Only for
+  /// someone else and only when signed in — the endpoint needs a token.
+  Future<void> _seedFollowState() async {
+    final me = ref.read(authStateProvider).valueOrNull;
+    if (me == null || me.id == userId) return;
+    try {
+      final friendship = await ref
+          .read(userRepositoryProvider)
+          .getFriendship(userId);
+      final current = state.valueOrNull;
+      if (_disposed || current == null) return;
+      // A tap that already answered wins over this older read.
+      if (current.isFollowing != null || current.isRequested != null) return;
+      state = AsyncData(
+        current.copyWith(
+          isFollowing: friendship.following,
+          isRequested: friendship.requested,
+        ),
       );
+    } on AppException {
+      // The button stays "Follow"; a tap still gets the server's answer.
+    }
+  }
+
+  /// Follow, or — when following or a request is waiting — unfollow, which on
+  /// the server also withdraws a request (user doc 3.5).
+  Future<void> toggleFollow() async {
+    final existing = state.valueOrNull;
+    if (existing == null) return;
+    final active =
+        (existing.isFollowing ?? false) || (existing.isRequested ?? false);
+    final repo = ref.read(userRepositoryProvider);
+    try {
+      if (active) {
+        await repo.unfollow(userId);
+        state = AsyncData(
+          existing.copyWith(isFollowing: false, isRequested: false),
+        );
+      } else {
+        final status = await repo.follow(userId);
+        state = AsyncData(
+          existing.copyWith(
+            isFollowing: status != FollowStatus.requested,
+            isRequested: status == FollowStatus.requested,
+          ),
+        );
+      }
+    } on ServerException catch (e) {
+      switch (e.code) {
+        case 'ALREADY_FOLLOWING':
+          state = AsyncData(
+            existing.copyWith(isFollowing: true, isRequested: false),
+          );
+        case 'ALREADY_REQUESTED':
+          state = AsyncData(
+            existing.copyWith(isFollowing: false, isRequested: true),
+          );
+        case 'NOT_FOLLOWING':
+          state = AsyncData(
+            existing.copyWith(isFollowing: false, isRequested: false),
+          );
+        default:
+          rethrow;
+      }
+    }
+    await _refreshProfile(repo);
+  }
 
   Future<void> toggleBlock() => _toggle(
-        current: (s) => s.isBlocked,
-        apply: (s, value) => s.copyWith(isBlocked: value),
-        doAction: (repo, wasActive) =>
-            wasActive ? repo.unblock(userId) : repo.block(userId),
-        alreadyCode: 'ALREADY_BLOCKED',
-        notActiveCode: 'NOT_BLOCKED',
-      );
+    current: (s) => s.isBlocked,
+    // Blocking also ends any follow or request between the two.
+    apply: (s, value) => s.copyWith(
+      isBlocked: value,
+      isFollowing: value ? false : s.isFollowing,
+      isRequested: value ? false : s.isRequested,
+    ),
+    doAction: (repo, wasActive) =>
+        wasActive ? repo.unblock(userId) : repo.block(userId),
+    alreadyCode: 'ALREADY_BLOCKED',
+    notActiveCode: 'NOT_BLOCKED',
+  );
 
   Future<void> toggleMute() => _toggle(
-        current: (s) => s.isMuted,
-        apply: (s, value) => s.copyWith(isMuted: value),
-        doAction: (repo, wasActive) =>
-            wasActive ? repo.unmute(userId) : repo.mute(userId),
-        alreadyCode: 'ALREADY_MUTED',
-        notActiveCode: 'NOT_MUTED',
-      );
+    current: (s) => s.isMuted,
+    apply: (s, value) => s.copyWith(isMuted: value),
+    doAction: (repo, wasActive) =>
+        wasActive ? repo.unmute(userId) : repo.mute(userId),
+    alreadyCode: 'ALREADY_MUTED',
+    notActiveCode: 'NOT_MUTED',
+  );
 
   Future<void> _toggle({
     required bool? Function(ProfileState) current,
     required ProfileState Function(ProfileState, bool) apply,
-    required Future<void> Function(UserRepository repo, bool wasActive) doAction,
+    required Future<void> Function(UserRepository repo, bool wasActive)
+    doAction,
     required String alreadyCode,
     required String notActiveCode,
   }) async {
@@ -157,9 +237,13 @@ class ProfileNotifier extends _$ProfileNotifier {
         rethrow;
       }
     }
-    // Follow/block both affect counters on both sides; block also hides the
-    // profile entirely (doc 3.8) so refreshing may legitimately 404 — that's
-    // fine, just keep the last-known counts rather than surfacing an error.
+    await _refreshProfile(repo);
+  }
+
+  // Follow/block both affect counters on both sides; block also hides the
+  // profile entirely (doc 3.8) so refreshing may legitimately 404 — that's
+  // fine, just keep the last-known counts rather than surfacing an error.
+  Future<void> _refreshProfile(UserRepository repo) async {
     try {
       final refreshed = await repo.getProfile(userId);
       ref.read(profileCacheProvider.notifier).put(refreshed);
@@ -174,7 +258,7 @@ class ProfileNotifier extends _$ProfileNotifier {
   }
 }
 
-enum UserListType { followers, following, blocked, muted }
+enum UserListType { followers, following, blocked, muted, followRequests }
 
 class UserListArgs {
   const UserListArgs(this.type, [this.userId]);
@@ -204,13 +288,13 @@ class UserListNotifier extends _$UserListNotifier {
   }
 
   Future<void> loadMore() => _more.run(() async {
-        final nextPage = _page + 1;
-        final page = await _fetchPage(nextPage);
-        _page = nextPage;
-        _more.done = page.last;
-        final current = state.value ?? [];
-        state = AsyncData([...current, ...page.content]);
-      });
+    final nextPage = _page + 1;
+    final page = await _fetchPage(nextPage);
+    _page = nextPage;
+    _more.done = page.last;
+    final current = state.value ?? [];
+    state = AsyncData([...current, ...page.content]);
+  });
 
   Future<PageResponse<UserProfileModel>> _fetchPage(int page) {
     final repo = ref.read(userRepositoryProvider);
@@ -223,6 +307,19 @@ class UserListNotifier extends _$UserListNotifier {
         return repo.getBlocked(page: page);
       case UserListType.muted:
         return repo.getMuted(page: page);
+      case UserListType.followRequests:
+        return repo.getFollowRequests(page: page);
     }
+  }
+
+  /// Drops a row once it has been dealt with — an approved or declined
+  /// follow request — without reloading the list.
+  void remove(String userId) {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    state = AsyncData([
+      for (final u in current)
+        if (u.userId != userId) u,
+    ]);
   }
 }

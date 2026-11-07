@@ -194,6 +194,9 @@ class UploadNotifier extends _$UploadNotifier {
           );
           return;
         case VideoStatus.processing:
+        case VideoStatus.pendingModeration:
+        case VideoStatus.pendingReview:
+        case VideoStatus.rejected:
         case VideoStatus.takenDown:
         case VideoStatus.unknown:
           state = UploadState(phase: UploadPhase.processing, progress: 1, video: video);

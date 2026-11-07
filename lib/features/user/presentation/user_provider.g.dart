@@ -62,7 +62,7 @@ final profileCacheProvider =
     );
 
 typedef _$ProfileCache = Notifier<Map<String, UserProfileModel>>;
-String _$profileNotifierHash() => r'eeb1dc0d165896eb3adeb47b0d5e420547af7ec3';
+String _$profileNotifierHash() => r'0cee71a54d9da3b12ee00b6bc01a3203c6bae996';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -217,7 +217,7 @@ class _ProfileNotifierProviderElement
   String get userId => (origin as ProfileNotifierProvider).userId;
 }
 
-String _$userListNotifierHash() => r'3f739705117ebbf2de2a2c73d0edaa2f8b2f66c7';
+String _$userListNotifierHash() => r'f8b95cb89040e93c73fbbcfbd49a099fe38594c9';
 
 abstract class _$UserListNotifier
     extends BuildlessAutoDisposeAsyncNotifier<List<UserProfileModel>> {

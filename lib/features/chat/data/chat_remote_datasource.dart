@@ -17,11 +17,41 @@ class ChatRemoteDatasource {
 
   /// The caller's threads, most recently active first.
   Future<List<ConversationModel>> listConversations() async {
-    final response =
-        await _apiClient.get<Map<String, dynamic>>('/conversations');
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/conversations',
+    );
     return (response.data!['data'] as List)
         .map((e) => conversationFromServer(e as Map<String, dynamic>))
         .toList();
+  }
+
+  /// Message requests waiting on the caller, newest first. They are not part
+  /// of [listConversations] until accepted.
+  Future<List<ConversationModel>> listRequests() async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/conversations/requests',
+    );
+    return (response.data!['data'] as List)
+        .map((e) => conversationFromServer(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Recipient only. Safe to repeat: accepting an accepted request answers it
+  /// unchanged. `MESSAGE_REQUEST_NOT_PENDING` once it was deleted.
+  Future<ConversationModel> acceptRequest(String conversationId) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/conversations/$conversationId/accept',
+    );
+    return _unwrapConversation(response.data!);
+  }
+
+  /// Recipient only. The thread and its message are kept; only the request
+  /// goes, and the sender is not told.
+  Future<ConversationModel> declineRequest(String conversationId) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/conversations/$conversationId/decline',
+    );
+    return _unwrapConversation(response.data!);
   }
 
   /// Get-or-create: asking twice for the same person answers the same thread
@@ -36,8 +66,9 @@ class ChatRemoteDatasource {
   }
 
   Future<ConversationModel> getConversation(String conversationId) async {
-    final response = await _apiClient
-        .get<Map<String, dynamic>>('/conversations/$conversationId');
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/conversations/$conversationId',
+    );
     return _unwrapConversation(response.data!);
   }
 
@@ -65,25 +96,24 @@ class ChatRemoteDatasource {
   /// The REST half of sending. The socket carries the same message back to
   /// everyone subscribed, sender included, so a client that is connected sees
   /// its own message twice unless it de-duplicates by id.
+  ///
+  /// [clientRequestId] makes a retry after a lost response answer with the
+  /// first message instead of posting a second one.
   Future<MessageModel> sendMessage(
     String conversationId,
-    String content,
-  ) async {
-    final response = await _apiClient.post<Map<String, dynamic>>(
-      '/conversations/$conversationId/messages',
-      data: {'content': content},
-    );
-    return ApiResponse<MessageModel>.fromJson(
-      response.data!,
-      (json) => messageFromServer(json as Map<String, dynamic>),
-    ).data!;
-  }
+    String content, {
+    String? clientRequestId,
+  }) => _send(conversationId, {
+    'content': content,
+    'clientRequestId': ?clientRequestId,
+  });
 
   /// The sticker catalog. Every pack the server offers; a sticker that is no
   /// longer offered still renders in old messages, from the message itself.
   Future<List<StickerPack>> listStickerPacks() async {
-    final response =
-        await _apiClient.get<Map<String, dynamic>>('/conversations/stickers');
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/conversations/stickers',
+    );
     return (response.data!['data'] as List)
         .map((e) => StickerPack.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -96,12 +126,11 @@ class ChatRemoteDatasource {
     String conversationId,
     String stickerId, {
     required String clientRequestId,
-  }) =>
-      _send(conversationId, {
-        'type': 'STICKER',
-        'stickerId': stickerId,
-        'clientRequestId': clientRequestId,
-      });
+  }) => _send(conversationId, {
+    'type': 'STICKER',
+    'stickerId': stickerId,
+    'clientRequestId': clientRequestId,
+  });
 
   /// A reply to somebody's story, delivered to their direct messages. The
   /// server finds (or opens) the thread itself, so the conversation id comes
@@ -156,13 +185,12 @@ class ChatRemoteDatasource {
     String imageId, {
     String? caption,
     required String clientRequestId,
-  }) =>
-      _send(conversationId, {
-        'type': 'IMAGE',
-        'imageId': imageId,
-        if (caption != null && caption.isNotEmpty) 'content': caption,
-        'clientRequestId': clientRequestId,
-      });
+  }) => _send(conversationId, {
+    'type': 'IMAGE',
+    'imageId': imageId,
+    if (caption != null && caption.isNotEmpty) 'content': caption,
+    'clientRequestId': clientRequestId,
+  });
 
   /// A chat picture's bytes. [url] is the path the server put in the message
   /// (`/api/v1/conversations/...`), which answers only with the viewer's
@@ -190,9 +218,112 @@ class ChatRemoteDatasource {
     ).data!;
   }
 
-  /// 204, no body. Clears this thread's unread flag for the caller only.
-  Future<void> markRead(String conversationId) {
-    return _apiClient.post<void>('/conversations/$conversationId/messages/read');
+  /// The caller has looked at the thread up to [messageId], the newest
+  /// message of the other side on screen. Without one, the server reads
+  /// through the other side's newest message as of now. Clears the unread
+  /// flag, and moves the delivered mark along with the read one.
+  Future<void> markRead(String conversationId, {String? messageId}) {
+    return _apiClient.post<void>(
+      '/conversations/$conversationId/messages/read',
+      data: messageId == null ? null : {'messageId': messageId},
+    );
+  }
+
+  /// The caller's client now holds these messages of the other side. The
+  /// server moves the delivered mark only across messages that are all
+  /// named, so acknowledging a later one never covers one never received.
+  Future<void> markDelivered(String conversationId, List<String> messageIds) {
+    return _apiClient.post<void>(
+      '/conversations/$conversationId/messages/delivered',
+      data: {'messageIds': messageIds},
+    );
+  }
+
+  /// How far the other participant has got: what turns the caller's own
+  /// messages into Delivered and Seen.
+  Future<ReceiptView> receipts(String conversationId) async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/conversations/$conversationId/messages/receipts',
+    );
+    return ReceiptView.fromJson(response.data!['data'] as Map<String, dynamic>);
+  }
+
+  /// Takes one of the caller's messages back for everyone. Refused with
+  /// `MESSAGE_ALREADY_SEEN` once the other side has read it, and with
+  /// `NOT_MESSAGE_AUTHOR` for somebody else's.
+  Future<MessageUpdate> recall(String conversationId, String messageId) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/conversations/$conversationId/messages/$messageId/recall',
+    );
+    return MessageUpdate.fromJson(
+      response.data!['data'] as Map<String, dynamic>,
+    );
+  }
+
+  /// Deletes a message from the caller's side only; the other person keeps
+  /// it. 204.
+  Future<void> hide(String conversationId, String messageId) {
+    return _apiClient.post<void>(
+      '/conversations/$conversationId/messages/$messageId/hide',
+    );
+  }
+
+  /// Silences the conversation for the caller. Calling again changes the
+  /// length. Answers with the conversation as the caller now sees it.
+  Future<ConversationModel> mute(
+    String conversationId,
+    MuteLength length,
+  ) async {
+    final response = await _apiClient.put<Map<String, dynamic>>(
+      '/conversations/$conversationId/mute',
+      data: {'duration': length.wire},
+    );
+    return _unwrapConversation(response.data!);
+  }
+
+  Future<ConversationModel> unmute(String conversationId) async {
+    final response = await _apiClient.delete<Map<String, dynamic>>(
+      '/conversations/$conversationId/mute',
+    );
+    return _unwrapConversation(response.data!);
+  }
+
+  /// Pins the conversation above the caller's others. 409
+  /// `PIN_LIMIT_REACHED` when [ConversationModel.maxPins] are already pinned;
+  /// pinning a pinned one changes nothing.
+  Future<ConversationModel> pin(String conversationId) async {
+    final response = await _apiClient.put<Map<String, dynamic>>(
+      '/conversations/$conversationId/pin',
+    );
+    return _unwrapConversation(response.data!);
+  }
+
+  Future<ConversationModel> unpin(String conversationId) async {
+    final response = await _apiClient.delete<Map<String, dynamic>>(
+      '/conversations/$conversationId/pin',
+    );
+    return _unwrapConversation(response.data!);
+  }
+
+  /// A report filed from a conversation (admin-service). Who is reported and
+  /// what each message said are read by the server from the conversation;
+  /// the client names only the messages. [requestId] makes a resubmit after a
+  /// lost response the same report.
+  Future<void> reportConversation({
+    required String conversationId,
+    required String reason,
+    required List<String> messageIds,
+    required String requestId,
+  }) {
+    return _apiClient.post<void>(
+      '/admin/reports/direct-message',
+      data: {
+        'conversationId': conversationId,
+        'reason': reason,
+        'messageIds': messageIds,
+        'requestId': requestId,
+      },
+    );
   }
 
   ConversationModel _unwrapConversation(Map<String, dynamic> body) {

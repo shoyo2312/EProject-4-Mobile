@@ -20,6 +20,30 @@ class ChatRepository {
     }
   }
 
+  Future<List<ConversationModel>> listRequests() async {
+    try {
+      return await _remoteDatasource.listRequests();
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<ConversationModel> acceptRequest(String conversationId) async {
+    try {
+      return await _remoteDatasource.acceptRequest(conversationId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<ConversationModel> declineRequest(String conversationId) async {
+    try {
+      return await _remoteDatasource.declineRequest(conversationId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
   Future<ConversationModel> openConversation(String participantId) async {
     try {
       return await _remoteDatasource.openConversation(participantId);
@@ -52,9 +76,17 @@ class ChatRepository {
     }
   }
 
-  Future<MessageModel> sendMessage(String conversationId, String content) async {
+  Future<MessageModel> sendMessage(
+    String conversationId,
+    String content, {
+    String? clientRequestId,
+  }) async {
     try {
-      return await _remoteDatasource.sendMessage(conversationId, content);
+      return await _remoteDatasource.sendMessage(
+        conversationId,
+        content,
+        clientRequestId: clientRequestId,
+      );
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }
@@ -162,9 +194,97 @@ class ChatRepository {
     if (_images.length > _imageCacheSize) _images.remove(_images.keys.first);
   }
 
-  Future<void> markRead(String conversationId) async {
+  Future<void> markRead(String conversationId, {String? messageId}) async {
     try {
-      await _remoteDatasource.markRead(conversationId);
+      await _remoteDatasource.markRead(conversationId, messageId: messageId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<void> markDelivered(
+    String conversationId,
+    List<String> messageIds,
+  ) async {
+    try {
+      await _remoteDatasource.markDelivered(conversationId, messageIds);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<ReceiptView> receipts(String conversationId) async {
+    try {
+      return await _remoteDatasource.receipts(conversationId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<MessageUpdate> recall(String conversationId, String messageId) async {
+    try {
+      return await _remoteDatasource.recall(conversationId, messageId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<void> hide(String conversationId, String messageId) async {
+    try {
+      await _remoteDatasource.hide(conversationId, messageId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<ConversationModel> mute(
+    String conversationId,
+    MuteLength length,
+  ) async {
+    try {
+      return await _remoteDatasource.mute(conversationId, length);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<ConversationModel> unmute(String conversationId) async {
+    try {
+      return await _remoteDatasource.unmute(conversationId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<ConversationModel> pin(String conversationId) async {
+    try {
+      return await _remoteDatasource.pin(conversationId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<ConversationModel> unpin(String conversationId) async {
+    try {
+      return await _remoteDatasource.unpin(conversationId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<void> reportConversation({
+    required String conversationId,
+    required String reason,
+    required List<String> messageIds,
+    required String requestId,
+  }) async {
+    try {
+      await _remoteDatasource.reportConversation(
+        conversationId: conversationId,
+        reason: reason,
+        messageIds: messageIds,
+        requestId: requestId,
+      );
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }

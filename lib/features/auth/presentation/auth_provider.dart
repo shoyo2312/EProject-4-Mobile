@@ -125,6 +125,16 @@ class AuthState extends _$AuthState {
   // account still needs email verification), so it never yields a signed-in
   // state. RegisterScreen calls AuthRepository.register directly.
 
+  /// A new handle for the signed-in account. Throws on failure (taken, too
+  /// soon) without touching [state], so the session is never lost to a
+  /// refused rename; on success the account the server answers with replaces
+  /// it — new handle and the date it may change again.
+  Future<void> changeUsername(String username) async {
+    final account =
+        await ref.read(authRepositoryProvider).changeUsername(username);
+    state = AsyncData(account);
+  }
+
   Future<void> logout() async {
     await ref.read(authRepositoryProvider).logout();
     state = const AsyncData(null);

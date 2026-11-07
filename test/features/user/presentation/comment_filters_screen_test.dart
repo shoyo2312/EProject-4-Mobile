@@ -55,14 +55,16 @@ void main() {
     await tester.tap(find.byKey(const Key('comment_filters_all_switch')));
     await tester.pumpAndSettle();
 
-    verify(() => repository.updateCommentFilters({'filterAllComments': true}))
-        .called(1);
+    verify(
+      () => repository.updateCommentFilters({'filterAllComments': true}),
+    ).called(1);
     expect(switchOf(tester, 'comment_filters_all_switch').value, isTrue);
   });
 
   testWidgets('a refused change flips the switch back', (tester) async {
-    when(() => repository.updateCommentFilters(any()))
-        .thenThrow(const NetworkException());
+    when(
+      () => repository.updateCommentFilters(any()),
+    ).thenThrow(const NetworkException());
     await pumpScreen(tester);
 
     await tester.tap(find.byKey(const Key('comment_filters_spam_switch')));
@@ -74,29 +76,35 @@ void main() {
 
   testWidgets('adding a keyword sends the whole list', (tester) async {
     when(() => repository.updateCommentFilters(any())).thenAnswer(
-      (_) async => const CommentFilterSettings(
-        commentKeywords: ['spoiler', 'giảm giá'],
-      ),
+      (_) async =>
+          const CommentFilterSettings(commentKeywords: ['spoiler', 'giảm giá']),
     );
     await pumpScreen(tester);
 
     await tester.enterText(
-        find.byKey(const Key('comment_filters_keyword_field')), '  giảm giá ');
+      find.byKey(const Key('comment_filters_keyword_field')),
+      '  giảm giá ',
+    );
     await tester.tap(find.byKey(const Key('comment_filters_add_keyword')));
     await tester.pumpAndSettle();
 
-    verify(() => repository.updateCommentFilters({
-          'commentKeywords': ['spoiler', 'giảm giá'],
-        })).called(1);
+    verify(
+      () => repository.updateCommentFilters({
+        'commentKeywords': ['spoiler', 'giảm giá'],
+      }),
+    ).called(1);
     expect(find.text('giảm giá'), findsOneWidget);
   });
 
-  testWidgets('a duplicate keyword is caught before it is sent',
-      (tester) async {
+  testWidgets('a duplicate keyword is caught before it is sent', (
+    tester,
+  ) async {
     await pumpScreen(tester);
 
     await tester.enterText(
-        find.byKey(const Key('comment_filters_keyword_field')), 'SPOILER');
+      find.byKey(const Key('comment_filters_keyword_field')),
+      'SPOILER',
+    );
     await tester.tap(find.byKey(const Key('comment_filters_add_keyword')));
     await tester.pumpAndSettle();
 
@@ -105,16 +113,17 @@ void main() {
   });
 
   testWidgets('removing a keyword sends the list without it', (tester) async {
-    when(() => repository.updateCommentFilters(any()))
-        .thenAnswer((_) async => const CommentFilterSettings());
+    when(
+      () => repository.updateCommentFilters(any()),
+    ).thenAnswer((_) async => const CommentFilterSettings());
     await pumpScreen(tester);
 
     await tester.tap(find.byKey(const Key('comment_filters_remove_spoiler')));
     await tester.pumpAndSettle();
 
-    verify(() => repository.updateCommentFilters({
-          'commentKeywords': <String>[],
-        })).called(1);
+    verify(
+      () => repository.updateCommentFilters({'commentKeywords': <String>[]}),
+    ).called(1);
     expect(find.text('spoiler'), findsNothing);
   });
 }

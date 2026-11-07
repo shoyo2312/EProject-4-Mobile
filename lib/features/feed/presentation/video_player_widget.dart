@@ -67,16 +67,18 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
       ..setLooping(true)
       ..addListener(_onPlaybackChanged)
-      ..initialize().then((_) {
-        if (!mounted) return;
-        setState(() => _initialized = true);
-        widget.controllerSink?.value = _controller;
-        _syncPlayback();
-      }).catchError((_) {
-        // Swallow initialization errors (e.g. no platform implementation in
-        // widget tests, network failures) so the widget just keeps showing
-        // its loading state instead of crashing.
-      });
+      ..initialize()
+          .then((_) {
+            if (!mounted) return;
+            setState(() => _initialized = true);
+            widget.controllerSink?.value = _controller;
+            _syncPlayback();
+          })
+          .catchError((_) {
+            // Swallow initialization errors (e.g. no platform implementation in
+            // widget tests, network failures) so the widget just keeps showing
+            // its loading state instead of crashing.
+          });
     // video_player resumes any clip that was playing when the app went to the
     // background (Google sign-in opens its own activity, for one), even if
     // this widget has gone inactive in the meantime. Re-apply our own rule
@@ -279,8 +281,10 @@ class _FeedSeekBarState extends State<FeedSeekBar> {
             ? 0.0
             : value.position.inMilliseconds / total.inMilliseconds;
         final fraction =
-            (_dragging ? _dragFraction : _pendingFraction ?? played)
-                .clamp(0.0, 1.0);
+            (_dragging ? _dragFraction : _pendingFraction ?? played).clamp(
+              0.0,
+              1.0,
+            );
         final elapsed = total * fraction;
         final knob = _dragging || widget.showKnob;
         final labelStyle = sora(
@@ -337,7 +341,10 @@ class _FeedSeekBarState extends State<FeedSeekBar> {
                           if (knob)
                             Positioned(
                               // Keep the whole dot on the bar at both ends.
-                              left: (width * fraction - 6).clamp(0.0, width - 12),
+                              left: (width * fraction - 6).clamp(
+                                0.0,
+                                width - 12,
+                              ),
                               child: Container(
                                 width: 12,
                                 height: 12,
