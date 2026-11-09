@@ -778,14 +778,14 @@ class _MockFeedRepository extends FeedRepository {
     if (page > 0) return _emptyPage();
     // Only the owner sees processing/private rows — same rule as the API.
     final own = userId == _meId;
-    return _singlePage([
+    return _singlePage(pinnedFirst([
       for (final v in _live)
         if (v.userId == userId &&
             (own ||
                 (v.status == VideoStatus.published &&
                     v.visibility == VideoVisibility.public)))
           v,
-    ]);
+    ]));
   }
 
   /// Nothing is uploaded offline: the file is ignored and a PROCESSING row is
@@ -872,6 +872,34 @@ class _MockFeedRepository extends FeedRepository {
   ) async {
     await _latency();
     return _edit(videoId, (v) => v.copyWith(commentsDisabled: disabled));
+  }
+
+  /// Same rules as video-service: three at most, and only a published video
+  /// that is not private.
+  @override
+  Future<VideoModel> setPinned(String videoId, bool pinned) async {
+    await _latency();
+    final video = _live.firstWhere((v) => v.id == videoId);
+    if (pinned && video.pinnedAt == null) {
+      if (video.status != VideoStatus.published ||
+          video.visibility == VideoVisibility.private) {
+        throw const ServerException(409, 'Video not pinnable',
+            code: 'VIDEO_NOT_PINNABLE');
+      }
+      final count = _live
+          .where((v) => v.userId == video.userId && v.pinnedAt != null)
+          .length;
+      if (count >= 3) {
+        throw const ServerException(409, 'Pin limit reached',
+            code: 'PIN_LIMIT_REACHED');
+      }
+    }
+    return _edit(
+      videoId,
+      (v) => v.copyWith(
+        pinnedAt: pinned ? (v.pinnedAt ?? DateTime.now()) : null,
+      ),
+    );
   }
 
   /// `_live` already hands back the edited copy, so this reads through it
@@ -2056,17 +2084,8 @@ class _MockStudioRepository extends StudioRepository {
   }
 
   @override
-  Future<VideoModel> setPinned(String videoId, bool pinned) async {
-    await _latency();
-    if (pinned && _mine.where((v) => v.pinnedAt != null).length >= 3) {
-      throw const ServerException(409, 'Pin limit reached',
-          code: 'PIN_LIMIT_REACHED');
-    }
-    return _feed._edit(
-      videoId,
-      (v) => v.copyWith(pinnedAt: pinned ? DateTime.now() : null),
-    );
-  }
+  Future<VideoModel> setPinned(String videoId, bool pinned) =>
+      _feed.setPinned(videoId, pinned);
 
   /// Every fifth comment comes back held, so the review queue has rows.
   @override

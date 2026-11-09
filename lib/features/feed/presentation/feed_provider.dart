@@ -134,7 +134,15 @@ class FeedNotifier extends _$FeedNotifier {
 
     state = AsyncData(videos);
   });
+
+  /// Drops a video that was deleted while the feed was open.
+  void remove(String videoId) => state = AsyncData(_without(state, videoId));
 }
+
+List<VideoModel> _without(AsyncValue<List<VideoModel>> state, String id) => [
+  for (final video in state.value ?? <VideoModel>[])
+    if (video.id != id) video,
+];
 
 /// One user's videos. For the caller's own id the server also returns
 /// PROCESSING, PRIVATE, FAILED and TAKEN_DOWN items — this backs "My videos".
@@ -170,15 +178,29 @@ class UserVideosNotifier extends _$UserVideosNotifier {
   Future<void> setCommentsDisabled(String videoId, bool disabled) =>
       _replace((repo) => repo.updateCommentsDisabled(videoId, disabled));
 
+  /// A pin moves the row: the server lists pinned videos first, newest pin
+  /// on top, then the rest newest first. The loaded rows are re-sorted the
+  /// same way, so the grid matches what a reload would show.
+  Future<void> setPinned(String videoId, bool pinned) =>
+      _replace((repo) => repo.setPinned(videoId, pinned));
+
   Future<void> _replace(
     Future<VideoModel> Function(FeedRepository repo) edit,
-  ) async {
-    final updated = await edit(ref.read(feedRepositoryProvider));
-    state = AsyncData([
-      for (final video in state.value ?? <VideoModel>[])
-        if (video.id == updated.id) updated else video,
-    ]);
+  ) async => replace(await edit(ref.read(feedRepositoryProvider)));
+
+  /// Swaps in a copy the server answered with, wherever the edit was made.
+  /// Re-sorted with pinned rows first, so the grid matches a reload.
+  void replace(VideoModel updated) {
+    state = AsyncData(
+      pinnedFirst([
+        for (final video in state.value ?? <VideoModel>[])
+          if (video.id == updated.id) updated else video,
+      ]),
+    );
   }
+
+  /// A row deleted somewhere else, dropped without asking the server again.
+  void remove(String videoId) => state = AsyncData(_without(state, videoId));
 
   /// Soft-delete, one-way: the video vanishes from every read endpoint at
   /// once and there is no restore API.
@@ -268,6 +290,8 @@ mixin _AuthorFeed on AutoDisposeAsyncNotifier<List<VideoModel>> {
   Future<void> loadMore() => _more.run(() async {
     state = AsyncData(_appendDistinct(state.value ?? [], await _loadPage()));
   });
+
+  void remove(String videoId) => state = AsyncData(_without(state, videoId));
 }
 
 /// The Following tab: only the accounts the viewer follows, newest first.
@@ -332,3 +356,60 @@ class FriendsFeedNotifier extends _$FriendsFeedNotifier with _AuthorFeed {
 @riverpod
 Future<VideoModel> videoById(Ref ref, String videoId) =>
     ref.read(feedRepositoryProvider).getVideo(videoId);
+
+/// The latest copy of each video its owner edited this session. Screens that
+/// hold their own snapshot of a video — a feed page, the viewer opened from a
+/// grid — read through this so an edit shows at once.
+@Riverpod(keepAlive: true)
+class EditedVideos extends _$EditedVideos {
+  @override
+  Map<String, VideoModel> build() => const {};
+
+  void put(VideoModel video) => state = {...state, video.id: video};
+}
+
+/// Every owner edit made outside Studio — from the profile grid or from the
+/// player — goes through here, so each list showing the video follows.
+@Riverpod(keepAlive: true)
+VideoEditor videoEditor(Ref ref) => VideoEditor(ref);
+
+class VideoEditor {
+  VideoEditor(this._ref);
+
+  final Ref _ref;
+
+  FeedRepository get _repo => _ref.read(feedRepositoryProvider);
+
+  Future<VideoModel> setVisibility(String videoId, VideoVisibility v) =>
+      _apply(_repo.updateVisibility(videoId, v));
+
+  Future<VideoModel> setCommentsDisabled(String videoId, bool disabled) =>
+      _apply(_repo.updateCommentsDisabled(videoId, disabled));
+
+  Future<VideoModel> setPinned(String videoId, bool pinned) =>
+      _apply(_repo.setPinned(videoId, pinned));
+
+  /// One-way: there is no restore API.
+  Future<void> delete(VideoModel video) async {
+    await _repo.deleteVideo(video.id);
+    final grid = userVideosNotifierProvider(video.userId);
+    if (_ref.exists(grid)) _ref.read(grid.notifier).remove(video.id);
+    if (_ref.exists(feedNotifierProvider)) {
+      _ref.read(feedNotifierProvider.notifier).remove(video.id);
+    }
+    if (_ref.exists(followingFeedNotifierProvider)) {
+      _ref.read(followingFeedNotifierProvider.notifier).remove(video.id);
+    }
+    if (_ref.exists(friendsFeedNotifierProvider)) {
+      _ref.read(friendsFeedNotifierProvider.notifier).remove(video.id);
+    }
+  }
+
+  Future<VideoModel> _apply(Future<VideoModel> change) async {
+    final updated = await change;
+    _ref.read(editedVideosProvider.notifier).put(updated);
+    final grid = userVideosNotifierProvider(updated.userId);
+    if (_ref.exists(grid)) _ref.read(grid.notifier).replace(updated);
+    return updated;
+  }
+}

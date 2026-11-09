@@ -594,7 +594,7 @@ final studioRangeProvider = NotifierProvider<StudioRange, int>.internal(
 );
 
 typedef _$StudioRange = Notifier<int>;
-String _$studioVideoCacheHash() => r'a24755f30783e3fc2ea15199cc2c69f0130e900a';
+String _$studioVideoCacheHash() => r'837299ad6ee02ab3e85c4850f41d47eb857b5130';
 
 /// Videos Studio has seen by id — analytics and the comment inbox hand back
 /// ids only, and the title and thumbnail come from `/videos/batch`.
@@ -799,7 +799,7 @@ class _StudioInboxFilterProviderElement
       (origin as StudioInboxFilterProvider).initialVideoId;
 }
 
-String _$studioInboxHash() => r'ac3b3d9ddb4630ec5257fabf69aabefd18b7bde8';
+String _$studioInboxHash() => r'd88a6526ccd9a8026fe30559caf4b6b8b9a5d412';
 
 abstract class _$StudioInbox
     extends BuildlessAutoDisposeAsyncNotifier<List<CommentModel>> {

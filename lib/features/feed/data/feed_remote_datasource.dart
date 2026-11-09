@@ -350,6 +350,17 @@ class FeedRemoteDatasource {
     return _unwrapVideo(response.data!);
   }
 
+  /// Owner-only. Pins to the top of the profile, or unpins. 409
+  /// `PIN_LIMIT_REACHED` past three; `VIDEO_NOT_PINNABLE` for a video that is
+  /// not published or is private.
+  Future<VideoModel> setPinned(String videoId, bool pinned) async {
+    final response = await _apiClient.patch<Map<String, dynamic>>(
+      '/videos/$videoId/pin',
+      data: {'pinned': pinned},
+    );
+    return _unwrapVideo(response.data!);
+  }
+
   Future<void> deleteVideo(String videoId) {
     return _apiClient.delete<void>('/videos/$videoId');
   }

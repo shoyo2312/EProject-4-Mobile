@@ -10,6 +10,7 @@ class VideoPlayerWidget extends StatefulWidget {
     required this.url,
     required this.isActive,
     this.paused = false,
+    this.playbackSpeed = 1.0,
     this.placeholderLabel,
     this.controllerSink,
     this.onWatchEnd,
@@ -22,6 +23,9 @@ class VideoPlayerWidget extends StatefulWidget {
   /// `!paused`: leaving the tab or scrolling away always stops the clip,
   /// whatever the tap state.
   final bool paused;
+
+  /// Chosen by the viewer from the panel's hold menu; 1.0 is normal speed.
+  final double playbackSpeed;
 
   /// Shown on the striped frame while the first frame is still loading, so a
   /// slow clip looks like the design mock rather than a black rectangle.
@@ -61,6 +65,11 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   Duration _watched = Duration.zero;
   DateTime? _playingSince;
 
+  /// The speed the open stretch is playing at. A stretch is counted in clip
+  /// time — 10s at 2x is 20s of the clip seen — so `watchedMs` keeps meaning
+  /// the same thing next to `durationMs` whatever the speed.
+  double _stretchSpeed = 1.0;
+
   @override
   void initState() {
     super.initState();
@@ -72,6 +81,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
             if (!mounted) return;
             setState(() => _initialized = true);
             widget.controllerSink?.value = _controller;
+            _applySpeed();
             _syncPlayback();
           })
           .catchError((_) {
@@ -103,6 +113,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         oldWidget.paused != widget.paused) {
       _syncPlayback();
     }
+    if (oldWidget.playbackSpeed != widget.playbackSpeed) _applySpeed();
     // Scrolling away ends the session. Tapping pause does not: the viewer is
     // still on this clip and will likely resume it.
     if (oldWidget.isActive && !widget.isActive) _flushWatch();
@@ -112,6 +123,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     final playing = _controller.value.isPlaying;
     if (playing && _playingSince == null) {
       _playingSince = DateTime.now();
+      _stretchSpeed = widget.playbackSpeed;
     } else if (!playing) {
       _bankPlayingStretch();
     }
@@ -122,8 +134,21 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   void _bankPlayingStretch() {
     final since = _playingSince;
     if (since == null) return;
-    _watched += DateTime.now().difference(since);
+    _watched += DateTime.now().difference(since) * _stretchSpeed;
     _playingSince = null;
+  }
+
+  /// Banks the stretch played at the old speed first, so each part of the
+  /// session is counted at the speed it actually ran at.
+  void _applySpeed() {
+    if (!_initialized) return;
+    final playing = _playingSince != null;
+    _bankPlayingStretch();
+    _controller.setPlaybackSpeed(widget.playbackSpeed);
+    if (playing) {
+      _playingSince = DateTime.now();
+      _stretchSpeed = widget.playbackSpeed;
+    }
   }
 
   /// Ends the session and starts a fresh one. Coming back to the same clip is

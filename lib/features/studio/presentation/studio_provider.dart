@@ -274,6 +274,8 @@ class StudioEditor {
       _ref.read(studioPostsProvider.notifier).replace(updated);
     }
     _ref.read(studioVideoCacheProvider.notifier).put(updated);
+    // A player still showing this video picks the edit up from here.
+    _ref.read(editedVideosProvider.notifier).put(updated);
     _refreshElsewhere();
     return updated;
   }

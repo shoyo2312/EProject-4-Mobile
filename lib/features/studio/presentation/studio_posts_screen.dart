@@ -9,6 +9,7 @@ import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/error_view.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
 import 'package:tiktok_mobile/core/widgets/nowa_app_bar.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 import 'package:tiktok_mobile/features/studio/data/studio_models.dart';
 import 'package:tiktok_mobile/features/studio/presentation/studio_format.dart';
@@ -21,6 +22,8 @@ String studioErrorText(AppException e) {
     switch (e.code) {
       case 'PIN_LIMIT_REACHED':
         return 'You can pin up to 3 videos. Unpin one first.';
+      case 'VIDEO_NOT_PINNABLE':
+        return 'Only a published video that is not private can be pinned.';
       case 'NOT_VIDEO_OWNER':
       case 'VIDEO_NOT_FOUND':
         return 'This video is gone, or it is not yours.';
@@ -253,7 +256,11 @@ Future<void> showStudioPostActions(
               tile('analytics', Icons.insights_outlined, 'View analytics'),
               tile('edit', Icons.edit_outlined, 'Edit post'),
               tile('comments', Icons.chat_bubble_outline, 'Manage comments'),
-              if (video.status == VideoStatus.published)
+              // As on the web: a pinned post can always be unpinned, a new
+              // pin needs a published post that is not private.
+              if (video.pinnedAt != null ||
+                  (video.status == VideoStatus.published &&
+                      video.visibility != VideoVisibility.private))
                 tile(
                   'pin',
                   video.pinnedAt == null ? Icons.push_pin_outlined : Icons.push_pin,
@@ -269,7 +276,7 @@ Future<void> showStudioPostActions(
     },
   );
   if (action == null || !context.mounted) return;
-  final messenger = ScaffoldMessenger.of(context);
+  final toast = NowaToast.of(context);
   final editor = ref.read(studioEditorProvider);
   switch (action) {
     case 'watch':
@@ -283,11 +290,11 @@ Future<void> showStudioPostActions(
     case 'pin':
       try {
         final updated = await editor.setPinned(video.id, video.pinnedAt == null);
-        messenger.showSnackBar(SnackBar(
-          content: Text(updated.pinnedAt == null ? 'Unpinned' : 'Pinned to your profile'),
-        ));
+        toast.success(
+          updated.pinnedAt == null ? 'Unpinned' : 'Pinned to your profile',
+        );
       } on AppException catch (e) {
-        messenger.showSnackBar(SnackBar(content: Text(studioErrorText(e))));
+        toast.error(studioErrorText(e));
       }
     case 'delete':
       final confirmed = await showDialog<bool>(
@@ -315,9 +322,9 @@ Future<void> showStudioPostActions(
       if (confirmed != true) return;
       try {
         await editor.delete(video.id);
-        messenger.showSnackBar(const SnackBar(content: Text('Post deleted')));
+        toast.success('Post deleted');
       } on AppException catch (e) {
-        messenger.showSnackBar(SnackBar(content: Text(studioErrorText(e))));
+        toast.error(studioErrorText(e));
       }
   }
 }

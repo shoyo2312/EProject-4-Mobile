@@ -179,7 +179,27 @@ class _VideoByIdProviderElement
   String get videoId => (origin as VideoByIdProvider).videoId;
 }
 
-String _$feedNotifierHash() => r'1494ba7e20f2376f9cfad561612e1834aced500d';
+String _$videoEditorHash() => r'c44436ba2c63c52566a3a37b632078648bdb8459';
+
+/// Every owner edit made outside Studio — from the profile grid or from the
+/// player — goes through here, so each list showing the video follows.
+///
+/// Copied from [videoEditor].
+@ProviderFor(videoEditor)
+final videoEditorProvider = Provider<VideoEditor>.internal(
+  videoEditor,
+  name: r'videoEditorProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$videoEditorHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef VideoEditorRef = ProviderRef<VideoEditor>;
+String _$feedNotifierHash() => r'99a71a44fce67c817b8cc2eb13859cea8f8a3ec1';
 
 /// See also [FeedNotifier].
 @ProviderFor(FeedNotifier)
@@ -196,7 +216,7 @@ final feedNotifierProvider =
 
 typedef _$FeedNotifier = AutoDisposeAsyncNotifier<List<VideoModel>>;
 String _$userVideosNotifierHash() =>
-    r'e7067b0dfefcb268b2009222e5bb27fb8deb4d60';
+    r'209f7dbeba9b0de32d3081b0a6504cc6779c0765';
 
 abstract class _$UserVideosNotifier
     extends BuildlessAutoDisposeAsyncNotifier<List<VideoModel>> {
@@ -403,5 +423,25 @@ final friendsFeedNotifierProvider =
     );
 
 typedef _$FriendsFeedNotifier = AutoDisposeAsyncNotifier<List<VideoModel>>;
+String _$editedVideosHash() => r'20a80d9237c7fd3f273607a427ff160c3033ba05';
+
+/// The latest copy of each video its owner edited this session. Screens that
+/// hold their own snapshot of a video — a feed page, the viewer opened from a
+/// grid — read through this so an edit shows at once.
+///
+/// Copied from [EditedVideos].
+@ProviderFor(EditedVideos)
+final editedVideosProvider =
+    NotifierProvider<EditedVideos, Map<String, VideoModel>>.internal(
+      EditedVideos.new,
+      name: r'editedVideosProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$editedVideosHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$EditedVideos = Notifier<Map<String, VideoModel>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

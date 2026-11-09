@@ -102,6 +102,27 @@ class VideoModel with _$VideoModel {
 
 int _countOrZero(Object? json) => (json as num?)?.toInt() ?? 0;
 
+/// The profile's order, as video-service sorts it: pinned videos first,
+/// latest pin on top, then everything else newest first. Ties keep the order
+/// they came in (Dart's sort is not stable on its own).
+List<VideoModel> pinnedFirst(Iterable<VideoModel> videos) {
+  int compare((int, VideoModel) x, (int, VideoModel) y) {
+    final (i, a) = x;
+    final (j, b) = y;
+    final pa = a.pinnedAt, pb = b.pinnedAt;
+    final byPin = switch ((pa, pb)) {
+      (DateTime pa, DateTime pb) => pb.compareTo(pa),
+      (DateTime _, null) => -1,
+      (null, DateTime _) => 1,
+      _ => b.createdAt.compareTo(a.createdAt),
+    };
+    return byPin != 0 ? byPin : i.compareTo(j);
+  }
+
+  final indexed = videos.indexed.toList()..sort(compare);
+  return [for (final (_, video) in indexed) video];
+}
+
 /// Credit for the Creative Commons song under a video, as its licence asks:
 /// title, artist, and links to the track and the licence.
 @freezed

@@ -285,6 +285,44 @@ void main() {
     expect(videos.first.commentsDisabled, isTrue);
   });
 
+  test('pinning a video moves it to the top of the grid', () async {
+    when(() => feedRepository.getUserVideos('123')).thenAnswer(
+      (_) async => pageOf(['v1', 'v2', 'v3'], number: 0, totalPages: 1),
+    );
+    when(() => feedRepository.setPinned('v3', true)).thenAnswer(
+      (_) async => makeVideo('v3').copyWith(pinnedAt: DateTime(2026, 9, 1)),
+    );
+    await container.read(userVideosNotifierProvider('123').future);
+
+    await container
+        .read(userVideosNotifierProvider('123').notifier)
+        .setPinned('v3', true);
+
+    final videos = container.read(userVideosNotifierProvider('123')).value!;
+    expect(videos.map((v) => v.id), ['v3', 'v1', 'v2']);
+    expect(videos.first.pinnedAt, isNotNull);
+  });
+
+  test('a refused pin leaves the grid as it was', () async {
+    when(() => feedRepository.getUserVideos('123')).thenAnswer(
+      (_) async => pageOf(['v1', 'v2'], number: 0, totalPages: 1),
+    );
+    when(() => feedRepository.setPinned('v2', true)).thenThrow(
+      const ServerException(409, 'raw', code: 'PIN_LIMIT_REACHED'),
+    );
+    await container.read(userVideosNotifierProvider('123').future);
+
+    await expectLater(
+      container
+          .read(userVideosNotifierProvider('123').notifier)
+          .setPinned('v2', true),
+      throwsA(isA<ServerException>()),
+    );
+
+    final videos = container.read(userVideosNotifierProvider('123')).value!;
+    expect(videos.map((v) => v.id), ['v1', 'v2']);
+  });
+
   group('following feed', () {
     late MockUserRepository userRepository;
 

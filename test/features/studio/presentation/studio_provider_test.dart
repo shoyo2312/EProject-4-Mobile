@@ -3,9 +3,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_model.dart';
+import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 import 'package:tiktok_mobile/features/studio/data/studio_models.dart';
 import 'package:tiktok_mobile/features/studio/presentation/studio_provider.dart';
 import 'package:tiktok_mobile/mock/mock_backend.dart';
+
+/// video-service pins only a published video that is not private.
+bool pinnable(VideoModel v) =>
+    v.status == VideoStatus.published &&
+    v.visibility != VideoVisibility.private;
 
 void main() {
   late ProviderContainer container;
@@ -39,7 +45,7 @@ void main() {
   test('a pin made through the editor shows in the open Posts list', () async {
     container.listen(studioPostsProvider, (_, _) {});
     final posts = await container.read(studioPostsProvider.future);
-    final target = posts.firstWhere((v) => v.pinnedAt == null);
+    final target = posts.firstWhere((v) => v.pinnedAt == null && pinnable(v));
 
     await container.read(studioEditorProvider).setPinned(target.id, true);
 
@@ -50,7 +56,8 @@ void main() {
   test('a fourth pin is refused with PIN_LIMIT_REACHED', () async {
     final posts = await container.read(studioPostsProvider.future);
     final editor = container.read(studioEditorProvider);
-    final unpinned = posts.where((v) => v.pinnedAt == null).toList();
+    final unpinned =
+        posts.where((v) => v.pinnedAt == null && pinnable(v)).toList();
     for (final v in unpinned.take(3)) {
       await editor.setPinned(v.id, true);
     }

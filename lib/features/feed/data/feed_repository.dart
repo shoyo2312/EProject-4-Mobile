@@ -182,6 +182,14 @@ class FeedRepository {
     }
   }
 
+  Future<VideoModel> setPinned(String videoId, bool pinned) async {
+    try {
+      return await _remoteDatasource.setPinned(videoId, pinned);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
   Future<void> deleteVideo(String videoId) async {
     try {
       await _remoteDatasource.deleteVideo(videoId);

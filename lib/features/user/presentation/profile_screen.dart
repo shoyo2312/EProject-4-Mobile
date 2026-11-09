@@ -6,18 +6,20 @@ import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/error_view.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 import 'package:tiktok_mobile/features/feed/presentation/video_viewer_screen.dart';
 import 'package:tiktok_mobile/features/feed/presentation/feed_provider.dart';
+import 'package:tiktok_mobile/features/feed/presentation/video_manage_sheet.dart';
 import 'package:tiktok_mobile/features/interaction/presentation/interaction_provider.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_flow.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_ring.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
-/// Cover, avatar, stats, post grid — the design's profile page, filled from
+/// Avatar, stats, post grid — the design's profile page, filled from
 /// user-service and video-service.
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key, this.userId, this.embedded = false});
@@ -233,11 +235,46 @@ class _MyProfileBody extends ConsumerWidget {
     );
     if (route == null || !context.mounted) return;
     if (route == 'logout') {
-      await ref.read(authStateProvider.notifier).logout();
+      final confirmed = await _confirmLogout(context);
+      if (confirmed && context.mounted) {
+        await ref.read(authStateProvider.notifier).logout();
+      }
     } else {
       context.push(route);
     }
   }
+}
+
+/// Asks before signing out — one stray tap on the menu should not cost the
+/// session. True only when the user chose "Log out".
+Future<bool> _confirmLogout(BuildContext context) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      backgroundColor: NowaColors.surfaceHigh,
+      title: Text('Log out?', style: sora(size: 16)),
+      content: Text(
+        'Are you sure you want to log out of your account?',
+        style: work(size: 13, color: NowaColors.dim),
+      ),
+      actions: [
+        TextButton(
+          key: const Key('logout_confirm_cancel'),
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: Text('Cancel', style: work(size: 14, color: NowaColors.dim)),
+        ),
+        TextButton(
+          key: const Key('logout_confirm_ok'),
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: Text(
+            'Log out',
+            style: work(size: 14, color: NowaColors.danger),
+          ),
+        ),
+      ],
+    ),
+  );
+  return ok == true;
 }
 
 class _OtherProfileBody extends ConsumerWidget {
@@ -251,21 +288,21 @@ class _OtherProfileBody extends ConsumerWidget {
   /// guessed: two people have exactly one conversation, and which document it
   /// is was decided the first time either of them tapped this.
   Future<void> _openChat(BuildContext context, WidgetRef ref) async {
-    final messenger = ScaffoldMessenger.of(context);
+    final toast = NowaToast.of(context);
     try {
       final conversationId = await ref
           .read(conversationsProvider.notifier)
           .openWith(userId);
       if (context.mounted) context.push('/messages/$conversationId');
     } on AppException catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      toast.error(e.message);
     }
   }
 
   /// Follow, or withdraw / unfollow. A private account answers with a
   /// request rather than a follow, which is worth saying.
   Future<void> _toggleFollow(BuildContext context, WidgetRef ref) async {
-    final messenger = ScaffoldMessenger.of(context);
+    final toast = NowaToast.of(context);
     final provider = profileNotifierProvider(userId);
     final wasRequested = ref.read(provider).valueOrNull?.isRequested == true;
     try {
@@ -274,12 +311,10 @@ class _OtherProfileBody extends ConsumerWidget {
       ref.invalidate(userVideosNotifierProvider(userId));
       final nowRequested = ref.read(provider).valueOrNull?.isRequested == true;
       if (nowRequested && !wasRequested) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Follow request sent.')),
-        );
+        toast.success('Follow request sent.');
       }
     } on AppException catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      toast.error(e.message);
     }
   }
 
@@ -376,201 +411,175 @@ class _ProfileContentState extends State<_ProfileContent> {
     return ListView(
       padding: EdgeInsets.zero,
       children: [
-        SizedBox(
-          height: 170,
-          child: Stack(
-            fit: StackFit.expand,
+        // No cover image: just room under the status bar for the corner
+        // buttons (back, menu), which end 42 px below it.
+        SizedBox(height: MediaQuery.paddingOf(context).top + 54),
+        Padding(
+          padding: EdgeInsets.fromLTRB(16, 0, 16, widget.embedded ? 130 : 40),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // No cover-image field in UserProfileResponse — the striped
-              // frame from the design stands in for it.
-              const StripedPlaceholder(label: 'cover image', fontSize: 11),
-              const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [NowaColors.bg, Color(0x1A0B0A0D)],
-                    stops: [0, 0.7],
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  // A ring when there is a story to watch; on your own
+                  // profile, tapping an avatar with none starts one.
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      StoryRingAvatar(
+                        userId: profile.userId,
+                        radius: 30,
+                        onTapNoStory: widget.isOwnProfile
+                            ? () => startStoryFlow(context)
+                            : null,
+                        child: Container(
+                          width: 88,
+                          height: 88,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(color: NowaColors.bg, width: 2),
+                          ),
+                          child: AvatarImage(
+                            url: profile.avatarUrl,
+                            radius: 28,
+                          ),
+                        ),
+                      ),
+                      if (widget.isOwnProfile)
+                        Positioned(
+                          right: -2,
+                          bottom: -2,
+                          child: GestureDetector(
+                            key: const Key('profile_add_story'),
+                            onTap: () => startStoryFlow(context),
+                            child: Container(
+                              width: 26,
+                              height: 26,
+                              decoration: BoxDecoration(
+                                color: NowaColors.accent,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: NowaColors.bg,
+                                  width: 2,
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.add,
+                                size: 15,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            profile.displayName,
+                            key: const Key('profile_display_name'),
+                            style: sora(size: 19, spacing: -0.4),
+                          ),
+                          if (widget.handle != null) ...[
+                            const SizedBox(height: 3),
+                            Text(
+                              '@${widget.handle}',
+                              style: work(
+                                size: 12.5,
+                                height: 1.2,
+                                color: NowaColors.text.withValues(alpha: 0.5),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                profile.bio?.isNotEmpty == true ? profile.bio! : 'No bio yet',
+                style: work(
+                  size: 13,
+                  height: 1.6,
+                  color: NowaColors.text.withValues(
+                    alpha: profile.bio?.isNotEmpty == true ? 0.7 : 0.4,
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
-        Transform.translate(
-          offset: const Offset(0, -46),
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, widget.embedded ? 130 : 40),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    // A ring when there is a story to watch; on your own
-                    // profile, tapping an avatar with none starts one.
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        StoryRingAvatar(
-                          userId: profile.userId,
-                          radius: 30,
-                          onTapNoStory: widget.isOwnProfile
-                              ? () => startStoryFlow(context)
-                              : null,
-                          child: Container(
-                            width: 88,
-                            height: 88,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(30),
-                              border: Border.all(
-                                color: NowaColors.bg,
-                                width: 2,
-                              ),
-                            ),
-                            child: RemoteImage(
-                              url: profile.avatarUrl,
-                              radius: 28,
-                              band: 6,
-                              label: 'pfp',
-                            ),
-                          ),
-                        ),
-                        if (widget.isOwnProfile)
-                          Positioned(
-                            right: -2,
-                            bottom: -2,
-                            child: GestureDetector(
-                              key: const Key('profile_add_story'),
-                              onTap: () => startStoryFlow(context),
-                              child: Container(
-                                width: 26,
-                                height: 26,
-                                decoration: BoxDecoration(
-                                  color: NowaColors.accent,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: NowaColors.bg,
-                                    width: 2,
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.add,
-                                  size: 15,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              profile.displayName,
-                              key: const Key('profile_display_name'),
-                              style: sora(size: 19, spacing: -0.4),
-                            ),
-                            if (widget.handle != null) ...[
-                              const SizedBox(height: 3),
-                              Text(
-                                '@${widget.handle}',
-                                style: work(
-                                  size: 12.5,
-                                  height: 1.2,
-                                  color: NowaColors.text.withValues(alpha: 0.5),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  profile.bio?.isNotEmpty == true ? profile.bio! : 'No bio yet',
-                  style: work(
-                    size: 13,
-                    height: 1.6,
-                    color: NowaColors.text.withValues(
-                      alpha: profile.bio?.isNotEmpty == true ? 0.7 : 0.4,
-                    ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  _Stat(
+                    key: const Key('profile_following_count'),
+                    value: compact(profile.followingCount),
+                    label: 'Following',
+                    onTap: widget.onFollowingTap,
                   ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    _Stat(
-                      key: const Key('profile_following_count'),
-                      value: compact(profile.followingCount),
-                      label: 'Following',
-                      onTap: widget.onFollowingTap,
-                    ),
-                    const SizedBox(width: 26),
-                    _Stat(
-                      key: const Key('profile_followers_count'),
-                      value: compact(profile.followerCount),
-                      label: 'Followers',
-                      onTap: widget.onFollowersTap,
-                    ),
-                  ],
-                ),
-                if (widget.primaryAction != null) ...[
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(child: widget.primaryAction!),
-                      for (final action in widget.iconActions) ...[
-                        const SizedBox(width: 9),
-                        action,
-                      ],
-                    ],
+                  const SizedBox(width: 26),
+                  _Stat(
+                    key: const Key('profile_followers_count'),
+                    value: compact(profile.followerCount),
+                    label: 'Followers',
+                    onTap: widget.onFollowersTap,
                   ),
                 ],
-                const SizedBox(height: 18),
+              ),
+              if (widget.primaryAction != null) ...[
+                const SizedBox(height: 16),
                 Row(
                   children: [
-                    for (final t in ['Posts', 'Reposts', 'Liked', 'Saved']) ...[
-                      Chip2(
-                        label: t,
-                        active: t == _tab,
-                        onTap: () => setState(() => _tab = t),
-                        expand: true,
-                      ),
-                      if (t != 'Saved') const SizedBox(width: 8),
+                    Expanded(child: widget.primaryAction!),
+                    for (final action in widget.iconActions) ...[
+                      const SizedBox(width: 9),
+                      action,
                     ],
                   ],
                 ),
-                const SizedBox(height: 16),
-                if (_tab == 'Posts')
-                  _UserVideosGrid(
-                    userId: profile.userId,
-                    isOwnProfile: widget.isOwnProfile,
-                  )
-                // Unlike likes and saves, anyone's reposts can be read — the
-                // server decides about private accounts.
-                else if (_tab == 'Reposts')
-                  _RepostedVideosGrid(userId: profile.userId)
-                // Likes and saves are private: interaction-service only ever
-                // answers for "me", so there is nothing to show on someone
-                // else's profile — not an empty list, no endpoint at all.
-                else if (!widget.isOwnProfile)
-                  _PrivateTab(tab: _tab)
-                else
-                  _HistoryVideosGrid(
-                    history: _tab == 'Liked'
-                        ? VideoHistory.liked
-                        : VideoHistory.saved,
-                  ),
               ],
-            ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  for (final t in ['Posts', 'Reposts', 'Liked', 'Saved']) ...[
+                    Chip2(
+                      label: t,
+                      active: t == _tab,
+                      onTap: () => setState(() => _tab = t),
+                      expand: true,
+                    ),
+                    if (t != 'Saved') const SizedBox(width: 8),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (_tab == 'Posts')
+                _UserVideosGrid(
+                  userId: profile.userId,
+                  isOwnProfile: widget.isOwnProfile,
+                )
+              // Unlike likes and saves, anyone's reposts can be read — the
+              // server decides about private accounts.
+              else if (_tab == 'Reposts')
+                _RepostedVideosGrid(userId: profile.userId)
+              // Likes and saves are private: interaction-service only ever
+              // answers for "me", so there is nothing to show on someone
+              // else's profile — not an empty list, no endpoint at all.
+              else if (!widget.isOwnProfile)
+                _PrivateTab(tab: _tab)
+              else
+                _HistoryVideosGrid(
+                  history: _tab == 'Liked'
+                      ? VideoHistory.liked
+                      : VideoHistory.saved,
+                ),
+            ],
           ),
         ),
       ],
@@ -722,125 +731,6 @@ class _UserVideosGrid extends ConsumerWidget {
   final String userId;
   final bool isOwnProfile;
 
-  /// The owner's menu for one of their own videos. Long-press rather than a
-  /// visible button: the grid is three across and a per-tile overflow icon at
-  /// that size is a mis-tap waiting to happen.
-  Future<void> _openManageSheet(
-    BuildContext context,
-    WidgetRef ref,
-    VideoModel video,
-  ) async {
-    final isPrivate = video.visibility == VideoVisibility.private;
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: NowaColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            _ManageTile(
-              itemKey: const Key('manage_video_visibility'),
-              icon: isPrivate ? Icons.public : Icons.lock_outline,
-              label: isPrivate ? 'Make public' : 'Make private',
-              onTap: () => Navigator.of(sheetContext).pop('visibility'),
-            ),
-            _ManageTile(
-              itemKey: const Key('manage_video_comments'),
-              icon: video.commentsDisabled
-                  ? Icons.mode_comment_outlined
-                  : Icons.comments_disabled_outlined,
-              label: video.commentsDisabled
-                  ? 'Turn comments on'
-                  : 'Turn comments off',
-              onTap: () => Navigator.of(sheetContext).pop('comments'),
-            ),
-            _ManageTile(
-              itemKey: const Key('manage_video_delete'),
-              icon: Icons.delete_outline,
-              label: 'Delete',
-              danger: true,
-              onTap: () => Navigator.of(sheetContext).pop('delete'),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-    if (action == null || !context.mounted) return;
-
-    if (action == 'delete') {
-      await _confirmDelete(context, ref, video);
-      return;
-    }
-    final notifier = ref.read(userVideosNotifierProvider(userId).notifier);
-    try {
-      if (action == 'visibility') {
-        await notifier.setVisibility(
-          video.id,
-          isPrivate ? VideoVisibility.public : VideoVisibility.private,
-        );
-      } else {
-        await notifier.setCommentsDisabled(video.id, !video.commentsDisabled);
-      }
-    } on AppException catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.message)));
-    }
-  }
-
-  /// Deleting is a soft delete with no restore endpoint, and the gesture that
-  /// starts it is a long-press on a scrolling grid — easy to trigger by
-  /// accident. Ask first.
-  Future<void> _confirmDelete(
-    BuildContext context,
-    WidgetRef ref,
-    VideoModel video,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: NowaColors.surfaceHigh,
-        title: Text('Delete this video?', style: sora(size: 16)),
-        content: Text(
-          'It disappears everywhere and cannot be restored.',
-          style: work(size: 13, color: NowaColors.dim),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text('Cancel', style: work(size: 14, color: NowaColors.dim)),
-          ),
-          TextButton(
-            key: const Key('confirm_delete_video'),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(
-              'Delete',
-              style: work(size: 14, color: NowaColors.danger),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-
-    try {
-      await ref
-          .read(userVideosNotifierProvider(userId).notifier)
-          .delete(video.id);
-    } on AppException catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.message)));
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final videosState = ref.watch(userVideosNotifierProvider(userId));
@@ -862,9 +752,12 @@ class _UserVideosGrid extends ConsumerWidget {
           ? const _EmptyVideos()
           : _VideoGrid(
               videos: videos,
-              // Only the owner may edit or delete their own videos.
+              // Only the owner may edit or delete their own videos. Long-press
+              // rather than a visible button: the grid is three across and a
+              // per-tile overflow icon at that size is a mis-tap waiting to
+              // happen.
               onLongPress: isOwnProfile
-                  ? (video) => _openManageSheet(context, ref, video)
+                  ? (video) => showVideoManageMenu(context, ref, video)
                   : null,
             ),
     );
@@ -1009,6 +902,28 @@ class _VideoThumbnail extends StatelessWidget {
               ),
             ),
           ),
+          // The web grid's mark: a pill in the corner, ahead of the rest.
+          if (video.pinnedAt != null)
+            Positioned(
+              key: Key('profile_video_pinned_${video.id}'),
+              top: 6,
+              left: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: NowaColors.accent,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'Pinned',
+                  style: sora(
+                    size: 10,
+                    color: Colors.white,
+                    weight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
           if (video.visibility == VideoVisibility.private)
             const Positioned(
               top: 6,
@@ -1057,7 +972,7 @@ class _Stat extends StatelessWidget {
   }
 }
 
-/// A small glass button floating over the cover image — the back arrow on
+/// A small glass button floating at the top of the profile — the back arrow on
 /// the left, the menu on the right.
 class _CornerButton extends StatelessWidget {
   const _CornerButton({

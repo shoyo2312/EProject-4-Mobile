@@ -64,6 +64,8 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
                 key: Key('viewer_panel_${video.id}'),
                 video: video,
                 isActive: index == _activeIndex,
+                // Back to the grid, which has already dropped the row.
+                onDeleted: () => Navigator.of(context).maybePop(),
               );
             },
           ),

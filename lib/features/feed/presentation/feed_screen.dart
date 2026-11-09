@@ -12,6 +12,7 @@ import 'package:tiktok_mobile/core/widgets/action_rail.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/error_view.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_model.dart';
 import 'package:tiktok_mobile/features/comment/presentation/comment_provider.dart';
@@ -19,7 +20,9 @@ import 'package:tiktok_mobile/features/comment/presentation/comment_sheet.dart';
 import 'package:tiktok_mobile/features/comment/presentation/quick_comment_picker.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 import 'package:tiktok_mobile/features/feed/presentation/feed_provider.dart';
+import 'package:tiktok_mobile/features/feed/presentation/playback_speed_sheet.dart';
 import 'package:tiktok_mobile/features/feed/presentation/share_sheet.dart';
+import 'package:tiktok_mobile/features/feed/presentation/video_manage_sheet.dart';
 import 'package:tiktok_mobile/features/interaction/data/interaction_model.dart';
 import 'package:tiktok_mobile/features/interaction/presentation/interaction_provider.dart';
 import 'package:tiktok_mobile/features/feed/presentation/video_player_widget.dart';
@@ -149,8 +152,8 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   );
 }
 
-/// LIVE badge, source chips, search. "For You" has its own endpoint;
-/// "Following" and "Friends" share one, with different author lists.
+/// Source chips and search. "For You" has its own endpoint; "Following" and
+/// "Friends" share one, with different author lists.
 class _TopBar extends StatelessWidget {
   const _TopBar({required this.tab, required this.onTab, this.onSearch});
 
@@ -162,32 +165,6 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          height: 32,
-          padding: const EdgeInsets.symmetric(horizontal: 11),
-          decoration: BoxDecoration(
-            color: NowaColors.accent.withValues(alpha: 0.9),
-            borderRadius: BorderRadius.circular(11),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 6,
-                height: 6,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'LIVE',
-                style: sora(size: 11.5, spacing: 0.6, color: Colors.white),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
         Expanded(
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -229,10 +206,15 @@ class FeedVideoPanel extends ConsumerStatefulWidget {
     super.key,
     required this.video,
     required this.isActive,
+    this.onDeleted,
   });
 
   final VideoModel video;
   final bool isActive;
+
+  /// Runs once the owner deleted this video from its long-press menu. The
+  /// feed tabs leave it null: the row drops out of their list on its own.
+  final VoidCallback? onDeleted;
 
   @override
   ConsumerState<FeedVideoPanel> createState() => _FeedVideoPanelState();
@@ -246,6 +228,9 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel>
   );
 
   bool _paused = false;
+
+  /// Picked from the hold menu by anyone who does not own the video.
+  double _speed = 1.0;
 
   /// `viewCount` only moves when the client says so, and it is counted per
   /// playback — so it is fired once, when the clip first becomes the one on
@@ -284,6 +269,29 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel>
 
   bool get _signedIn => ref.read(authStateProvider).valueOrNull != null;
 
+  /// The copy to act on: the owner's latest edit, when there is one, wins
+  /// over the snapshot this panel was built with.
+  VideoModel get _video =>
+      ref.read(editedVideosProvider)[widget.video.id] ?? widget.video;
+
+  /// Anyone else holding the video picks how fast it plays.
+  Future<void> _pickSpeed() async {
+    unawaited(HapticFeedback.selectionClick());
+    final speed = await showPlaybackSpeedSheet(context, current: _speed);
+    if (speed != null && mounted) setState(() => _speed = speed);
+  }
+
+  /// The owner holding their own video: the same menu as on the profile grid.
+  Future<void> _manage() async {
+    unawaited(HapticFeedback.selectionClick());
+    await showVideoManageMenu(
+      context,
+      ref,
+      _video,
+      onDeleted: widget.onDeleted,
+    );
+  }
+
   /// Liking needs an account: signed out the write would 401, so the tap opens
   /// the login screen instead of failing quietly.
   Future<void> _like({bool toggle = true}) async {
@@ -315,7 +323,10 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel>
           .read(saveNotifierProvider(widget.video.id))
           .valueOrNull
           ?.saved;
-      _toast(saved == true ? 'Saved to favorites' : 'Removed from favorites');
+      _toast(
+        saved == true ? 'Saved to favorites' : 'Removed from favorites',
+        ToastKind.success,
+      );
     }
   }
 
@@ -359,7 +370,7 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel>
   Future<void> _share() async {
     final shared = await showShareSheet(
       context,
-      video: widget.video,
+      video: _video,
       saved:
           ref.read(saveNotifierProvider(widget.video.id)).valueOrNull?.saved ??
           false,
@@ -369,10 +380,8 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel>
     ref.read(interactionRepositoryProvider).share(widget.video.id).ignore();
   }
 
-  void _toast(String message, {SnackBarAction? action}) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message), action: action));
+  void _toast(String message, [ToastKind kind = ToastKind.error]) {
+    NowaToast.of(context).show(message, kind: kind);
   }
 
   /// The heart held for 1.5s: repost, with a way back. Idempotent on the
@@ -399,20 +408,18 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel>
       await interactions.repost(videoId);
       refreshMyReposts();
       if (!mounted) return;
-      _toast(
+      NowaToast.of(context).success(
         'Reposted to your profile',
-        action: SnackBarAction(
-          key: const Key('feed_repost_undo'),
-          label: 'Undo',
-          onPressed: () async {
-            try {
-              await interactions.unrepost(videoId);
-              refreshMyReposts();
-            } on AppException {
-              // The repost stays; the tab shows it.
-            }
-          },
-        ),
+        actionLabel: 'Undo',
+        actionKey: const Key('feed_repost_undo'),
+        onAction: () async {
+          try {
+            await interactions.unrepost(videoId);
+            refreshMyReposts();
+          } on AppException {
+            // The repost stays; the tab shows it.
+          }
+        },
       );
     } on AppException catch (e) {
       if (mounted) _toast(e.message);
@@ -426,8 +433,8 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel>
       context.push('/login');
       return;
     }
-    if (widget.video.commentsDisabled) {
-      _toast('Comments are turned off for this video');
+    if (_video.commentsDisabled) {
+      _toast('Comments are turned off for this video', ToastKind.info);
       return;
     }
     unawaited(HapticFeedback.selectionClick());
@@ -443,11 +450,14 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel>
       // The open thread and the counter both read the server again.
       ref.invalidate(commentNotifierProvider(videoId));
       ref.invalidate(videoCountsProvider(videoId));
-      _toast(
-        created.status == CommentStatus.held
-            ? 'Your comment is being reviewed before it appears'
-            : 'Commented $emoji',
-      );
+      if (created.status == CommentStatus.held) {
+        _toast(
+          'Your comment is being reviewed before it appears',
+          ToastKind.info,
+        );
+      } else {
+        _toast('Commented $emoji', ToastKind.success);
+      }
     } on AppException catch (e) {
       if (mounted) _toast(e.message);
     }
@@ -456,14 +466,19 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel>
   @override
   void didUpdateWidget(covariant FeedVideoPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Scrolling a paused clip out of view and back should not keep it frozen.
+    // Scrolling a paused clip out of view and back should not keep it frozen,
+    // nor keep it at a speed picked for that one viewing.
     if (!widget.isActive && _paused) _paused = false;
+    if (!widget.isActive) _speed = 1.0;
     if (widget.isActive) _sendView();
   }
 
   @override
   Widget build(BuildContext context) {
-    final video = widget.video;
+    final video =
+        ref.watch(editedVideosProvider.select((m) => m[widget.video.id])) ??
+        widget.video;
+    final isMine = ref.watch(authStateProvider).valueOrNull?.id == video.userId;
     // Only the clip on screen asks for its like state: there is no batch
     // endpoint, and the gateway's per-IP budget is shared app-wide.
     final like = widget.isActive
@@ -487,22 +502,37 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel>
         children: [
           // /feed only ever returns PUBLISHED videos, so hlsUrl is populated;
           // the striped frame is the fallback for anything else.
-          if (video.hlsUrl != null)
-            VideoPlayerWidget(
-              // The player opens its URL once, in initState.
-              key: ValueKey(video.hlsUrl),
-              url: video.hlsUrl!,
-              isActive: widget.isActive,
-              paused: _paused,
-              controllerSink: _controllerSink,
-              onWatchEnd: _sendWatch,
-            )
-          else
-            // Not playable: PROCESSING/FAILED clips never reach /feed, but a
-            // deep-linked one would land here.
-            const StripedPlaceholder(label: 'video unavailable', fontSize: 12),
+          // Only the video itself answers a hold, not the caption or the
+          // rail: the heart and comment buttons have their own hold actions.
+          GestureDetector(
+            key: const Key('feed_video_surface'),
+            behavior: HitTestBehavior.opaque,
+            onLongPress: isMine
+                ? _manage
+                : video.hlsUrl != null
+                ? _pickSpeed
+                : null,
+            child: video.hlsUrl != null
+                ? VideoPlayerWidget(
+                    // The player opens its URL once, in initState.
+                    key: ValueKey(video.hlsUrl),
+                    url: video.hlsUrl!,
+                    isActive: widget.isActive,
+                    paused: _paused,
+                    playbackSpeed: _speed,
+                    controllerSink: _controllerSink,
+                    onWatchEnd: _sendWatch,
+                  )
+                // Not playable: PROCESSING/FAILED clips never reach /feed, but
+                // a deep-linked one would land here.
+                : const StripedPlaceholder(
+                    label: 'video unavailable',
+                    fontSize: 12,
+                  ),
+          ),
           const _Scrims(),
           _pauseBadge(),
+          if (_speed != 1.0) _speedBadge(),
           _burstHeart(),
           Positioned(
             left: 16,
@@ -572,6 +602,34 @@ class _FeedVideoPanelState extends ConsumerState<FeedVideoPanel>
                 color: Colors.white,
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Says the clip is not at normal speed, so a 2x clip never looks broken.
+  Widget _speedBadge() {
+    return IgnorePointer(
+      child: Align(
+        alignment: const Alignment(0, -0.72),
+        child: Container(
+          key: const Key('feed_speed_badge'),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.speed, size: 14, color: Colors.white),
+              const SizedBox(width: 5),
+              Text(
+                speedLabel(_speed),
+                style: sora(size: 12, color: Colors.white),
+              ),
+            ],
           ),
         ),
       ),

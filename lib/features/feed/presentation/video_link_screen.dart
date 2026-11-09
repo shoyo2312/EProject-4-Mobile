@@ -78,6 +78,7 @@ class _VideoLinkScreenState extends ConsumerState<VideoLinkScreen> {
                   key: Key('video_link_panel_${video.id}'),
                   video: video,
                   isActive: true,
+                  onDeleted: () => Navigator.of(context).maybePop(),
                 );
               },
             ),
