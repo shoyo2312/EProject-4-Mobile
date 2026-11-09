@@ -94,6 +94,8 @@ flutter:
     - assets/stickers/
     # Share sheet app logos: Simple Icons (CC0), simpleicons.org.
     - assets/share_icons/
+    # Shown for any account that has no profile photo.
+    - assets/avatars/
 
   # Typefaces for text laid over videos (SIL OFL, licences in assets/fonts/).
   # Bundled so the words look the same on every phone; all cover Vietnamese.

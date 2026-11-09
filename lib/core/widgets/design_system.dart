@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 
 /// Diagonal striped placeholder that stands in for media that is missing,
@@ -54,17 +55,18 @@ class _StripePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = NowaColors.stripeB,
-    );
+    canvas.drawRect(Offset.zero & size, Paint()..color = NowaColors.stripeB);
     final paint = Paint()
       ..color = NowaColors.stripeA
       ..strokeWidth = band
       ..style = PaintingStyle.stroke;
     final step = band * 2;
     for (double x = -size.height; x < size.width + size.height; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x + size.height, size.height), paint);
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x + size.height, size.height),
+        paint,
+      );
     }
   }
 
@@ -92,8 +94,12 @@ class RemoteImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fallback =
-        StripedPlaceholder(label: label, radius: radius, band: band, fontSize: 9);
+    final fallback = StripedPlaceholder(
+      label: label,
+      radius: radius,
+      band: band,
+      fontSize: 9,
+    );
     if (url == null || url!.isEmpty) return fallback;
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
@@ -109,8 +115,46 @@ class RemoteImage extends StatelessWidget {
   }
 }
 
+/// The stock picture for an account with no photo of its own.
+const kDefaultAvatarAsset = 'assets/avatars/default_avatar.svg';
+
+/// An account's photo, or the stock avatar when it has none or it fails to
+/// load. The striped tile still shows while a real photo is loading.
+class AvatarImage extends StatelessWidget {
+  const AvatarImage({super.key, required this.url, this.radius = 0});
+
+  final String? url;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: SvgPicture.asset(
+        kDefaultAvatarAsset,
+        key: const Key('default_avatar'),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+      ),
+    );
+    if (url == null || url!.isEmpty) return fallback;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: CachedNetworkImage(
+        imageUrl: url!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        placeholder: (_, _) => StripedPlaceholder(radius: radius, band: 5),
+        errorWidget: (_, _, _) => fallback,
+      ),
+    );
+  }
+}
+
 /// Square avatar with the design's rounded-corner frame. Falls back to the
-/// striped tile when the user has no picture.
+/// stock avatar when the user has no picture.
 class NowaAvatar extends StatelessWidget {
   const NowaAvatar({
     super.key,
@@ -136,7 +180,7 @@ class NowaAvatar extends StatelessWidget {
             ? Border.all(color: Colors.white.withValues(alpha: 0.5), width: 1.5)
             : null,
       ),
-      child: RemoteImage(url: url, radius: radius - 1, band: 5, label: 'pfp'),
+      child: AvatarImage(url: url, radius: radius - 1),
     );
   }
 }
@@ -203,7 +247,9 @@ class Chip2 extends StatelessWidget {
           color: active ? NowaColors.accent : const Color(0x80141218),
           borderRadius: BorderRadius.circular(11),
           border: Border.all(
-            color: active ? NowaColors.accent : Colors.white.withValues(alpha: 0.12),
+            color: active
+                ? NowaColors.accent
+                : Colors.white.withValues(alpha: 0.12),
           ),
         ),
         child: Text(
@@ -226,14 +272,14 @@ class SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text(
-        text,
-        style: sora(
-          size: 10,
-          weight: FontWeight.w600,
-          spacing: 1.4,
-          color: NowaColors.text.withValues(alpha: 0.38),
-        ),
-      );
+    text,
+    style: sora(
+      size: 10,
+      weight: FontWeight.w600,
+      spacing: 1.4,
+      color: NowaColors.text.withValues(alpha: 0.38),
+    ),
+  );
 }
 
 /// Solid accent button used for the primary action on a page.
@@ -277,7 +323,10 @@ class NowaButton extends StatelessWidget {
             ? const SizedBox(
                 width: 18,
                 height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
               )
             : Row(
                 mainAxisSize: MainAxisSize.min,
