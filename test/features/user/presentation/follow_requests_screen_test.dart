@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/data/user_repository.dart';
 import 'package:tiktok_mobile/features/user/presentation/follow_requests_screen.dart';
@@ -67,6 +68,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('User 8'), findsNothing);
-    expect(find.byType(SnackBar), findsNothing);
+    expect(find.byKey(NowaToast.viewKey), findsNothing);
   });
 }

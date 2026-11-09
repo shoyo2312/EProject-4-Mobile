@@ -5,6 +5,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/widgets/nowa_app_bar.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/auth/data/qr_login_scan.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 
@@ -93,9 +94,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
   }
 
   void _toast(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    NowaToast.of(context).error(message);
   }
 
   @override

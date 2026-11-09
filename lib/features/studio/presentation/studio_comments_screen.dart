@@ -8,6 +8,7 @@ import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/error_view.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
 import 'package:tiktok_mobile/core/widgets/nowa_app_bar.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_model.dart';
 import 'package:tiktok_mobile/features/studio/data/studio_models.dart';
 import 'package:tiktok_mobile/features/studio/presentation/studio_provider.dart';
@@ -66,12 +67,12 @@ class _StudioCommentsScreenState extends ConsumerState<StudioCommentsScreen> {
   }
 
   Future<void> _run(Future<void> Function() action, {String? done}) async {
-    final messenger = ScaffoldMessenger.of(context);
+    final toast = NowaToast.of(context);
     try {
       await action();
-      if (done != null) messenger.showSnackBar(SnackBar(content: Text(done)));
+      if (done != null) toast.success(done);
     } on AppException catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      toast.error(e.message);
     }
   }
 

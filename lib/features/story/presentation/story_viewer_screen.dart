@@ -9,6 +9,7 @@ import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/utils/time_ago.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
 import 'package:tiktok_mobile/features/story/data/story_model.dart';
@@ -336,10 +337,8 @@ class _GroupPlayerState extends ConsumerState<_GroupPlayer>
     }
   }
 
-  void _toast(String text, {SnackBarAction? action}) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(text), action: action));
+  void _toast(String text, [ToastKind kind = ToastKind.error]) {
+    NowaToast.of(context).show(text, kind: kind);
   }
 
   // ---- Owner actions --------------------------------------------------------
@@ -370,7 +369,7 @@ class _GroupPlayerState extends ConsumerState<_GroupPlayer>
       if (ref.exists(storyTrayProvider)) {
         ref.read(storyTrayProvider.notifier).replace(updated);
       }
-      _toast('Audience updated');
+      _toast('Audience updated', ToastKind.success);
     } on AppException catch (e) {
       if (mounted) _toast(storyErrorMessage(e));
     }
@@ -426,7 +425,7 @@ class _GroupPlayerState extends ConsumerState<_GroupPlayer>
     });
     widget.onChanged(widget.group.copyWith(stories: remaining));
     _onShownLater();
-    _toast('Story deleted');
+    _toast('Story deleted', ToastKind.success);
   }
 
   // ---- Viewer actions -------------------------------------------------------
@@ -522,12 +521,10 @@ class _GroupPlayerState extends ConsumerState<_GroupPlayer>
       _replyAttempt = null;
       _reply.clear();
       _replyFocus.unfocus();
-      _toast(
+      NowaToast.of(context).success(
         'Reply sent',
-        action: SnackBarAction(
-          label: 'View',
-          onPressed: () => context.push('/messages/${message.conversationId}'),
-        ),
+        actionLabel: 'View',
+        onAction: () => context.push('/messages/${message.conversationId}'),
       );
     } on AppException catch (e) {
       if (mounted) _toast(storyErrorMessage(e));

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/story/data/story_repository.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_provider.dart';
 
@@ -40,7 +41,7 @@ Future<StoryDraft?> pickStoryDraftFrom(
   StoryMediaSource source, {
   ImagePicker? picker,
 }) async {
-  final messenger = ScaffoldMessenger.of(context);
+  final toast = NowaToast.of(context);
   final imagePicker = picker ?? ImagePicker();
 
   final XFile? picked;
@@ -64,9 +65,7 @@ Future<StoryDraft?> pickStoryDraftFrom(
     };
   } on PlatformException catch (e) {
     // A refused camera/library permission arrives as an exception.
-    messenger.showSnackBar(
-      SnackBar(content: Text(e.message ?? 'Could not open the camera')),
-    );
+    toast.error(e.message ?? 'Could not open the camera');
     return null;
   }
   if (picked == null) return null;
@@ -75,11 +74,9 @@ Future<StoryDraft?> pickStoryDraftFrom(
   final contentType = storyContentTypeForPath(picked.path) ??
       _fromMime(picked.mimeType);
   if (contentType == null) {
-    messenger.showSnackBar(const SnackBar(
-      content: Text(
-        'Only JPEG, PNG, WebP photos and MP4, WebM videos can be posted',
-      ),
-    ));
+    toast.error(
+      'Only JPEG, PNG, WebP photos and MP4, WebM videos can be posted',
+    );
     return null;
   }
 
@@ -87,11 +84,9 @@ Future<StoryDraft?> pickStoryDraftFrom(
   final isVideo = isVideoContentType(contentType);
   final limit = isVideo ? storyVideoMaxBytes : storyImageMaxBytes;
   if (size > limit) {
-    messenger.showSnackBar(SnackBar(
-      content: Text(isVideo
-          ? 'Videos can be at most 50 MB'
-          : 'Photos can be at most 10 MB'),
-    ));
+    toast.error(
+      isVideo ? 'Videos can be at most 50 MB' : 'Photos can be at most 10 MB',
+    );
     return null;
   }
   return StoryDraft(file: file, contentType: contentType);

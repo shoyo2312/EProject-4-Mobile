@@ -5,6 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:tiktok_mobile/core/network/api_client.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/router/app_router.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/auth/data/auth_repository.dart';
 import 'package:tiktok_mobile/features/auth/data/social_sign_in.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
@@ -79,7 +80,7 @@ void main() {
     await tester.tap(find.byKey(const Key('login_option_google')));
     await tester.pumpAndSettle();
 
-    expect(find.byType(SnackBar), findsNothing);
+    expect(find.byKey(NowaToast.viewKey), findsNothing);
     expect(find.text('Log in to TikTok'), findsOneWidget);
   });
 

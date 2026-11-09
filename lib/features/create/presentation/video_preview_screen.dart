@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/create/data/overlay_item.dart';
 import 'package:tiktok_mobile/features/create/data/video_edit.dart';
 import 'package:tiktok_mobile/features/create/presentation/post_details_screen.dart';
@@ -452,9 +453,9 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   /// keyboard is only noise, and its audio would keep running.
   Future<void> _continue() async {
     if (overlayLayers(_items).length > _maxLayers) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Text and stickers can appear at up to $_maxLayers different times'),
-      ));
+      NowaToast.of(context).info(
+        'Text and stickers can appear at up to $_maxLayers different times',
+      );
       return;
     }
     setState(() {

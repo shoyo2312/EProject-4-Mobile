@@ -6,6 +6,7 @@ import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/error_view.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
 import 'package:tiktok_mobile/core/widgets/nowa_app_bar.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/auth/data/session_model.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/auth/presentation/sessions_provider.dart';
@@ -200,10 +201,10 @@ Future<void> _confirm(
     ),
   );
   if (ok != true || !context.mounted) return;
-  final messenger = ScaffoldMessenger.of(context);
+  final toast = NowaToast.of(context);
   try {
     await action();
   } on AppException catch (e) {
-    messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    toast.error(e.message);
   }
 }

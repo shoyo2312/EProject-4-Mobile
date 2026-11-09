@@ -4,6 +4,7 @@ import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/utils/time_ago.dart';
 import 'package:tiktok_mobile/core/widgets/nowa_app_bar.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_model.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_report_reasons.dart';
@@ -50,11 +51,9 @@ class _ReportConversationScreenState
 
   void _changed() => _requestId = newClientRequestId();
 
-  void _toast(String message) {
+  void _toast(String message, [ToastKind kind = ToastKind.error]) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    NowaToast.of(context).show(message, kind: kind);
   }
 
   static bool _reportable(MessageModel m) => !m.pending && !m.recalled;
@@ -77,7 +76,10 @@ class _ReportConversationScreenState
       _changed();
       if (!_selected.remove(id)) {
         if (_selected.length >= reportMaxMessages) {
-          _toast('You can select up to $reportMaxMessages messages');
+          _toast(
+            'You can select up to $reportMaxMessages messages',
+            ToastKind.info,
+          );
           return;
         }
         _selected.add(id);

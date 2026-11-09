@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/create/data/recording_session.dart';
 import 'package:tiktok_mobile/features/create/data/video_edit.dart';
 import 'package:tiktok_mobile/features/create/data/video_filters.dart';
@@ -224,7 +225,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
     if (_cameras.length < 2 || _busy) return;
     // One file per recording, and a camera switch would need a second one.
     if (_started) {
-      _toast('Flip the camera before you start recording');
+      _toast('Flip the camera before you start recording', ToastKind.info);
       return;
     }
     _cameraIndex++;
@@ -240,7 +241,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
       await camera.setFlashMode(on ? FlashMode.torch : FlashMode.off);
       if (mounted) setState(() => _flash = on);
     } on CameraException {
-      _toast('This camera has no flash');
+      _toast('This camera has no flash', ToastKind.info);
     }
   }
 
@@ -547,11 +548,9 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
   double _fraction(Duration d) =>
       (d.inMilliseconds / _maxLength.inMilliseconds).clamp(0.0, 1.0);
 
-  void _toast(String message) {
+  void _toast(String message, [ToastKind kind = ToastKind.error]) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message, style: work(size: 12))),
-    );
+    NowaToast.of(context).show(message, kind: kind);
   }
 
   // ── UI ────────────────────────────────────────────────────────────────

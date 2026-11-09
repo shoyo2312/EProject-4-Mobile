@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 
 /// A titled block of rows on a dark card.
 class SettingsSection extends StatelessWidget {
@@ -371,9 +372,12 @@ class SettingsChip extends StatelessWidget {
   }
 }
 
-/// A SnackBar with [message], from anywhere a context reaches a messenger.
-void showSettingsMessage(BuildContext context, String message) {
-  ScaffoldMessenger.maybeOf(context)
-    ?..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(message)));
+/// A toast with [message]. Settings mostly have failures to report, so that
+/// is the default kind.
+void showSettingsMessage(
+  BuildContext context,
+  String message, {
+  ToastKind kind = ToastKind.error,
+}) {
+  NowaToast.of(context).show(message, kind: kind);
 }

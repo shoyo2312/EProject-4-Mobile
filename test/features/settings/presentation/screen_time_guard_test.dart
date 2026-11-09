@@ -76,7 +76,10 @@ void main() {
         ],
         child: MaterialApp.router(
           routerConfig: router,
-          builder: (_, child) => ScreenTimeGuard(router: router, child: child!),
+          // As main.dart wires it: the overlay is where the guard's toasts go.
+          builder: (_, child) => Overlay.wrap(
+            child: ScreenTimeGuard(router: router, child: child!),
+          ),
         ),
       ),
     );

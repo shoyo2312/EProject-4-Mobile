@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:tiktok_mobile/core/constants/env.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/utils/app_share.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 
 /// Resolves to true when the viewer actually shared something — that, and not
@@ -191,9 +192,7 @@ class _ShareSheet extends StatelessWidget {
             onTap: () async {
               await Clipboard.setData(ClipboardData(text: _link));
               if (!context.mounted) return;
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('Link copied')));
+              NowaToast.of(context).success('Link copied');
               Navigator.of(context).pop(true);
             },
           ),

@@ -7,6 +7,7 @@ import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/error_view.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
 import 'package:tiktok_mobile/core/widgets/nowa_app_bar.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 import 'package:tiktok_mobile/features/studio/presentation/studio_format.dart';
 import 'package:tiktok_mobile/features/studio/presentation/studio_posts_screen.dart';
@@ -98,7 +99,7 @@ class _EditFormState extends ConsumerState<_EditForm> {
   /// Each setting is its own call; a failure stops at that one and says so,
   /// leaving what already went through saved.
   Future<void> _save() async {
-    final messenger = ScaffoldMessenger.of(context);
+    final toast = NowaToast.of(context);
     final editor = ref.read(studioEditorProvider);
     final id = widget.video.id;
     setState(() => _saving = true);
@@ -117,10 +118,10 @@ class _EditFormState extends ConsumerState<_EditForm> {
         await editor.setCommentsDisabled(id, _commentsOff);
       }
       ref.invalidate(studioVideoProvider(id));
-      messenger.showSnackBar(const SnackBar(content: Text('Changes saved')));
+      toast.success('Changes saved');
       if (mounted) context.pop();
     } on AppException catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(studioErrorText(e))));
+      toast.error(studioErrorText(e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

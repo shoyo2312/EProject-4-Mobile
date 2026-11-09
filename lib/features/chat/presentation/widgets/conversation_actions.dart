@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_model.dart';
 import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
 import 'package:tiktok_mobile/features/chat/presentation/widgets/mute_sheet.dart';
@@ -28,9 +29,9 @@ Future<void> showConversationActions(
   final muted = conversation.muted;
   final pinned = conversation.pinned;
   // Held now: every await below can outlive the row that was pressed.
-  final messenger = ScaffoldMessenger.maybeOf(context);
-  void toast(String text) =>
-      messenger?.showSnackBar(SnackBar(content: Text(text)));
+  final toaster = NowaToast.of(context);
+  void toast(String text, [ToastKind kind = ToastKind.error]) =>
+      toaster.show(text, kind: kind);
 
   final action = await showModalBottomSheet<_Action>(
     context: context,
@@ -112,12 +113,12 @@ Future<void> showConversationActions(
       // Full already: say so without a round trip the server would refuse.
       final rows = ref.read(conversationsProvider).valueOrNull ?? const [];
       if (rows.where((c) => c.pinned).length >= ConversationModel.maxPins) {
-        toast(_pinLimitMessage);
+        toast(_pinLimitMessage, ToastKind.info);
         return;
       }
       try {
         await ref.read(conversationsProvider.notifier).pin(conversation.id);
-        toast('Pinned to top');
+        toast('Pinned to top', ToastKind.success);
       } on ServerException catch (e) {
         toast(e.code == 'PIN_LIMIT_REACHED' ? _pinLimitMessage : e.message);
       } on AppException catch (e) {
@@ -126,7 +127,7 @@ Future<void> showConversationActions(
     case _Action.unpin:
       try {
         await ref.read(conversationsProvider.notifier).unpin(conversation.id);
-        toast('Unpinned');
+        toast('Unpinned', ToastKind.success);
       } on AppException catch (e) {
         toast(e.message);
       }
@@ -137,14 +138,14 @@ Future<void> showConversationActions(
         await ref
             .read(conversationsProvider.notifier)
             .mute(conversation.id, length);
-        toast('Notifications muted');
+        toast('Notifications muted', ToastKind.success);
       } on AppException catch (e) {
         toast(e.message);
       }
     case _Action.unmute:
       try {
         await ref.read(conversationsProvider.notifier).unmute(conversation.id);
-        toast('Notifications turned on');
+        toast('Notifications turned on', ToastKind.success);
       } on AppException catch (e) {
         toast(e.message);
       }
@@ -164,7 +165,7 @@ Future<void> showConversationActions(
       // Whether the thread can still be written to depends on the block.
       ref.invalidate(conversationsProvider);
       ref.invalidate(profileNotifierProvider(otherId));
-      toast('$name blocked');
+      toast('$name blocked', ToastKind.success);
   }
 }
 

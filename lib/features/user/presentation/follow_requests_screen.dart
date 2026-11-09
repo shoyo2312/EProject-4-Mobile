@@ -7,6 +7,7 @@ import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/error_view.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
 import 'package:tiktok_mobile/core/widgets/nowa_app_bar.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
@@ -43,7 +44,7 @@ class _FollowRequestsScreenState extends ConsumerState<FollowRequestsScreen> {
   }
 
   Future<void> _answer(UserProfileModel user, {required bool approve}) async {
-    final messenger = ScaffoldMessenger.of(context);
+    final toast = NowaToast.of(context);
     final list = ref.read(userListNotifierProvider(_args).notifier);
     final repo = ref.read(userRepositoryProvider);
     list.remove(user.userId);
@@ -59,10 +60,10 @@ class _FollowRequestsScreenState extends ConsumerState<FollowRequestsScreen> {
       // Withdrawn, or answered on another device: the row is right to go.
       if (e.code == 'FOLLOW_REQUEST_NOT_FOUND') return;
       ref.invalidate(userListNotifierProvider(_args));
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      toast.error(e.message);
     } on AppException catch (e) {
       ref.invalidate(userListNotifierProvider(_args));
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      toast.error(e.message);
     }
   }
 

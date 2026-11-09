@@ -7,6 +7,7 @@ import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/nowa_app_bar.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/auth/presentation/qr_scan_screen.dart';
 
@@ -63,8 +64,7 @@ class _QrConfirmScreenState extends ConsumerState<QrConfirmScreen> {
     } on AppException catch (e) {
       if (!mounted) return;
       setState(() => _phase = _Phase.asking);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(qrLoginErrorMessage(e))));
+      NowaToast.of(context).error(qrLoginErrorMessage(e));
     }
   }
 

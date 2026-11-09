@@ -6,6 +6,7 @@ import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/error_view.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
 import 'package:tiktok_mobile/core/widgets/nowa_app_bar.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/user/data/comment_filter_settings.dart';
 import 'package:tiktok_mobile/features/user/presentation/comment_filters_provider.dart';
 
@@ -33,11 +34,11 @@ class _CommentFiltersScreenState extends ConsumerState<CommentFiltersScreen> {
   Future<void> _run(
     Future<void> Function(CommentFilters notifier) action,
   ) async {
-    final messenger = ScaffoldMessenger.of(context);
+    final toast = NowaToast.of(context);
     try {
       await action(ref.read(commentFiltersProvider.notifier));
     } on AppException catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      toast.error(e.message);
     }
   }
 
@@ -46,9 +47,7 @@ class _CommentFiltersScreenState extends ConsumerState<CommentFiltersScreen> {
     if (keyword.isEmpty) return;
     final problem = _keywordProblem(keyword, settings.commentKeywords);
     if (problem != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(problem)));
+      NowaToast.of(context).error(problem);
       return;
     }
     _keywordController.clear();

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/settings/data/settings_models.dart';
 import 'package:tiktok_mobile/features/settings/presentation/settings_provider.dart';
@@ -163,7 +164,11 @@ class _ScreenTimeGuardState extends ConsumerState<ScreenTimeGuard>
     final night = sleepReminderDue(start, DateTime.now());
     if (night == null || store.reminded(userId, night)) return;
     store.setReminded(userId, night);
-    showSettingsMessage(context, 'Sleep hours start in 10 minutes');
+    showSettingsMessage(
+      context,
+      'Sleep hours start in 10 minutes',
+      kind: ToastKind.info,
+    );
   }
 
   void _evaluate() {
@@ -230,6 +235,7 @@ class _ScreenTimeGuardState extends ConsumerState<ScreenTimeGuard>
       showSettingsMessage(
         context,
         "We'll remind you again after 1 hour on Nowa",
+        kind: ToastKind.info,
       );
     }
   }

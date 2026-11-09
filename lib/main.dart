@@ -31,7 +31,10 @@ class TikTokMobileApp extends ConsumerWidget {
       routerConfig: router,
       debugShowCheckedModeBanner: false,
       // Above the navigator, so the screen-time covers sit over every route.
-      builder: (_, child) => ScreenTimeGuard(router: router, child: child!),
+      // The overlay around it is where NowaToast lands: above both, so a
+      // toast is never hidden by a route pushed after it.
+      builder: (_, child) =>
+          Overlay.wrap(child: ScreenTimeGuard(router: router, child: child!)),
     );
   }
 }

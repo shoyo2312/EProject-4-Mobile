@@ -9,6 +9,7 @@ import 'package:tiktok_mobile/core/utils/time_ago.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/error_view.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/auth/data/user_model.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_model.dart';
@@ -142,8 +143,7 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
   late bool _disabled = widget.commentsDisabled;
 
   void _showError(AppException e) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(_messageFor(e))));
+    NowaToast.of(context).error(_messageFor(e));
   }
 
   Future<void> _send() async {
@@ -180,10 +180,10 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
       if (created.status == CommentStatus.held) {
         // Accepted, but kept out of the thread by the filters — without this
         // the comment would just seem to vanish.
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          key: Key('comment_held_notice'),
-          content: Text("Your comment is under review and isn't visible yet"),
-        ));
+        NowaToast.of(context).info(
+          "Your comment is under review and isn't visible yet",
+          key: const Key('comment_held_notice'),
+        );
       }
     } on AppException catch (e) {
       if (!mounted) return;
@@ -281,7 +281,7 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
       return;
     }
     if (!mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
+    final toast = NowaToast.of(context);
     try {
       if (reason != null) {
         await notifier.removeAsAdmin(comment.id, reason);
@@ -290,7 +290,7 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
       }
       if (mounted && _editing?.id == comment.id) _cancelEdit();
     } on AppException catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      toast.error(e.message);
     }
   }
 
@@ -301,15 +301,15 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
       keyPrefix: 'comment_report_reason',
     );
     if (reason == null || !mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
+    final toast = NowaToast.of(context);
     try {
       await _notifier.report(comment.id, reason);
-      messenger.showSnackBar(const SnackBar(
-        key: Key('comment_report_sent'),
-        content: Text("Thanks for reporting. We'll review this comment."),
-      ));
+      toast.success(
+        "Thanks for reporting. We'll review this comment.",
+        key: const Key('comment_report_sent'),
+      );
     } on AppException catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      toast.error(e.message);
     }
   }
 
@@ -357,8 +357,8 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
         onDelete: mine || ownsVideo
             ? () => _delete(comment, asAdmin: false)
             : isAdmin
-                ? () => _delete(comment, asAdmin: true)
-                : null,
+            ? () => _delete(comment, asAdmin: true)
+            : null,
         onReport: isLoggedIn && !mine ? () => _report(comment) : null,
       );
     }
@@ -372,10 +372,7 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
       ),
       child: Column(
         children: [
-          _Header(
-            count: count,
-            onClose: () => Navigator.of(context).pop(),
-          ),
+          _Header(count: count, onClose: () => Navigator.of(context).pop()),
           const Divider(height: 1, color: NowaColors.hairline),
           Expanded(
             child: commentsState.when(
@@ -386,33 +383,38 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
                   return Center(
                     child: Text(
                       'No comments yet',
-                      style: work(color: NowaColors.text.withValues(alpha: 0.5)),
+                      style: work(
+                        color: NowaColors.text.withValues(alpha: 0.5),
+                      ),
                     ),
                   );
                 }
                 final entries = _entries(comments, threads);
                 return ListView.builder(
                   controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   itemCount: entries.length,
                   itemBuilder: (_, index) => switch (entries[index]) {
                     _CommentEntry(:final comment) => Padding(
-                        padding: EdgeInsets.only(
-                          left: comment.isReply ? 47 : 0,
-                          bottom: 18,
-                        ),
-                        child: row(comment),
+                      padding: EdgeInsets.only(
+                        left: comment.isReply ? 47 : 0,
+                        bottom: 18,
                       ),
+                      child: row(comment),
+                    ),
                     _ThreadEntry(:final parent, :final thread) => Padding(
-                        padding: const EdgeInsets.only(left: 47, bottom: 18),
-                        child: _ThreadControls(
-                          parent: parent,
-                          thread: thread,
-                          onOpen: () => _openReplies(parent.id),
-                          onMore: () => _replies.loadMore(parent.id),
-                          onHide: () => _replies.close(parent.id),
-                        ),
+                      padding: const EdgeInsets.only(left: 47, bottom: 18),
+                      child: _ThreadControls(
+                        parent: parent,
+                        thread: thread,
+                        onOpen: () => _openReplies(parent.id),
+                        onMore: () => _replies.loadMore(parent.id),
+                        onHide: () => _replies.close(parent.id),
                       ),
+                    ),
                   },
                 );
               },
@@ -476,7 +478,10 @@ Future<bool> _confirmDelete(BuildContext context) async {
         TextButton(
           key: const Key('comment_confirm_delete'),
           onPressed: () => Navigator.of(context).pop(true),
-          child: Text('Delete', style: sora(size: 13, color: NowaColors.danger)),
+          child: Text(
+            'Delete',
+            style: sora(size: 13, color: NowaColors.danger),
+          ),
         ),
       ],
     ),
@@ -613,8 +618,11 @@ class _ThreadControls extends StatelessWidget {
       final n = parent.replyCount;
       return Align(
         alignment: Alignment.centerLeft,
-        child: link('comment_view_replies_${parent.id}',
-            'View $n ${n == 1 ? 'reply' : 'replies'}', onOpen),
+        child: link(
+          'comment_view_replies_${parent.id}',
+          'View $n ${n == 1 ? 'reply' : 'replies'}',
+          onOpen,
+        ),
       );
     }
     final remaining = parent.replyCount - thread.items.length;
@@ -630,8 +638,11 @@ class _ThreadControls extends StatelessWidget {
             ),
           )
         else if (thread.error != null)
-          link('comment_retry_replies_${parent.id}',
-              "Couldn't load replies. Retry", onMore)
+          link(
+            'comment_retry_replies_${parent.id}',
+            "Couldn't load replies. Retry",
+            onMore,
+          )
         else if (thread.hasMore)
           link(
             'comment_more_replies_${parent.id}',
@@ -677,8 +688,9 @@ class _Row extends ConsumerWidget {
     final author = profiles[comment.userId];
     final name = author?.displayName ?? 'user';
     final replyToId = comment.replyToUserId;
-    final replyTo =
-        replyToId == null ? null : profiles[replyToId]?.displayName ?? 'user';
+    final replyTo = replyToId == null
+        ? null
+        : profiles[replyToId]?.displayName ?? 'user';
     final avatar = comment.isReply ? 28.0 : 36.0;
     final metaStyle = work(
       size: 11.5,
@@ -686,23 +698,27 @@ class _Row extends ConsumerWidget {
       color: NowaColors.text.withValues(alpha: 0.4),
     );
 
-    Widget action(String key, String label, VoidCallback onTap, {Color? color}) =>
-        Padding(
-          padding: const EdgeInsets.only(left: 14),
-          child: GestureDetector(
-            key: Key(key),
-            onTap: onTap,
-            child: Text(
-              label,
-              style: work(
-                size: 11.5,
-                weight: FontWeight.w500,
-                height: 1,
-                color: color ?? NowaColors.text.withValues(alpha: 0.5),
-              ),
-            ),
+    Widget action(
+      String key,
+      String label,
+      VoidCallback onTap, {
+      Color? color,
+    }) => Padding(
+      padding: const EdgeInsets.only(left: 14),
+      child: GestureDetector(
+        key: Key(key),
+        onTap: onTap,
+        child: Text(
+          label,
+          style: work(
+            size: 11.5,
+            weight: FontWeight.w500,
+            height: 1,
+            color: color ?? NowaColors.text.withValues(alpha: 0.5),
           ),
-        );
+        ),
+      ),
+    );
 
     final sticker = comment.sticker;
     return Row(
@@ -761,13 +777,20 @@ class _Row extends ConsumerWidget {
                       key: Key('comment_edited_${comment.id}'),
                       style: metaStyle,
                     ),
-                  action('comment_reply_${comment.id}', 'Reply',
-                      () => onReply(comment, name)),
+                  action(
+                    'comment_reply_${comment.id}',
+                    'Reply',
+                    () => onReply(comment, name),
+                  ),
                   if (onEdit != null)
                     action('comment_edit_${comment.id}', 'Edit', onEdit!),
                   if (onDelete != null)
-                    action('comment_delete_${comment.id}', 'Delete', onDelete!,
-                        color: NowaColors.accent),
+                    action(
+                      'comment_delete_${comment.id}',
+                      'Delete',
+                      onDelete!,
+                      color: NowaColors.accent,
+                    ),
                   if (onReport != null)
                     action('comment_report_${comment.id}', 'Report', onReport!),
                 ],
@@ -866,7 +889,7 @@ class _AuthorAvatar extends ConsumerWidget {
         child: SizedBox(
           width: size,
           height: size,
-          child: RemoteImage(url: avatarUrl, radius: size / 2, band: 5),
+          child: AvatarImage(url: avatarUrl, radius: size / 2),
         ),
       );
     }
@@ -888,7 +911,7 @@ class _AuthorAvatar extends ConsumerWidget {
           child: SizedBox(
             width: inner,
             height: inner,
-            child: RemoteImage(url: avatarUrl, radius: inner / 2, band: 5),
+            child: AvatarImage(url: avatarUrl, radius: inner / 2),
           ),
         ),
       ),
@@ -912,16 +935,16 @@ class _AuthorAvatar extends ConsumerWidget {
             ),
             ListTile(
               key: const Key('comment_avatar_view_story'),
-              leading: const Icon(Icons.play_circle_outline,
-                  color: NowaColors.text),
+              leading: const Icon(
+                Icons.play_circle_outline,
+                color: NowaColors.text,
+              ),
               title: Text('View story', style: work()),
-              onTap: () =>
-                  Navigator.of(sheetContext).pop(_AvatarChoice.story),
+              onTap: () => Navigator.of(sheetContext).pop(_AvatarChoice.story),
             ),
             ListTile(
               key: const Key('comment_avatar_view_profile'),
-              leading:
-                  const Icon(Icons.person_outline, color: NowaColors.text),
+              leading: const Icon(Icons.person_outline, color: NowaColors.text),
               title: Text('View profile', style: work()),
               onTap: () =>
                   Navigator.of(sheetContext).pop(_AvatarChoice.profile),
@@ -957,8 +980,8 @@ class _StickerView extends StatelessWidget {
     final (width, height) = w <= 0 || h <= 0
         ? (_max, _max)
         : w >= h
-            ? (_max, _max * h / w)
-            : (_max * w / h, _max);
+        ? (_max, _max * h / w)
+        : (_max * w / h, _max);
     return SizedBox(
       width: width,
       height: height,
@@ -1002,8 +1025,8 @@ class _Composer extends StatelessWidget {
     final chip = editing
         ? 'Editing comment'
         : replyingTo != null
-            ? 'Replying to $replyingTo'
-            : null;
+        ? 'Replying to $replyingTo'
+        : null;
     return Container(
       padding: EdgeInsets.fromLTRB(
         14,
@@ -1071,8 +1094,8 @@ class _Composer extends StatelessWidget {
                             hintText: editing
                                 ? 'Edit your comment'
                                 : replyingTo != null
-                                    ? 'Add a reply'
-                                    : 'Add a comment',
+                                ? 'Add a reply'
+                                : 'Add a comment',
                             hintStyle: work(
                               size: 13.5,
                               height: 1.2,
