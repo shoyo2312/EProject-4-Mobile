@@ -33,7 +33,9 @@ Map<String, dynamic> _$$NotificationModelImplToJson(
 const _$NotificationKindEnumMap = {
   NotificationKind.like: 'LIKE',
   NotificationKind.comment: 'COMMENT',
+  NotificationKind.commentLike: 'COMMENT_LIKE',
   NotificationKind.share: 'SHARE',
+  NotificationKind.repost: 'REPOST',
   NotificationKind.newFollower: 'NEW_FOLLOWER',
   NotificationKind.story: 'STORY',
   NotificationKind.followRequest: 'FOLLOW_REQUEST',

@@ -11,8 +11,17 @@ enum NotificationKind {
   like,
   @JsonValue('COMMENT')
   comment,
+
+  /// Someone liked one of this user's comments; referenceId is the video the
+  /// comment sits under.
+  @JsonValue('COMMENT_LIKE')
+  commentLike,
   @JsonValue('SHARE')
   share,
+
+  /// Someone reposted this user's video; referenceId is that video.
+  @JsonValue('REPOST')
+  repost,
   @JsonValue('NEW_FOLLOWER')
   newFollower,
 
@@ -39,7 +48,11 @@ enum NotificationKind {
 }
 
 NotificationKind _kindFromJson(Object? value) =>
-    $enumDecodeNullable(_$NotificationKindEnumMap, value) ??
+    $enumDecodeNullable(
+      _$NotificationKindEnumMap,
+      value,
+      unknownValue: NotificationKind.system,
+    ) ??
     NotificationKind.system;
 
 /// One row of `GET /notifications`.

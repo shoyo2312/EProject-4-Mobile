@@ -189,4 +189,98 @@ void main() {
 
     expect(find.text('video v9 comments=1'), findsOneWidget);
   });
+
+  test('reads COMMENT_LIKE and REPOST as their own types', () {
+    NotificationKind parse(String type) => NotificationModel.fromJson({
+      'id': 'n1',
+      'type': type,
+      'title': 't',
+      'body': 'b',
+      'read': false,
+      'createdAt': '2026-11-08T10:00:00Z',
+    }).type;
+
+    expect(parse('COMMENT_LIKE'), NotificationKind.commentLike);
+    expect(parse('REPOST'), NotificationKind.repost);
+    expect(parse('SOMETHING_NEW'), NotificationKind.system);
+  });
+
+  testWidgets('the Likes chip keeps likes on comments too', (tester) async {
+    when(() => repository.list()).thenAnswer(
+      (_) async => [
+        row('n1', type: NotificationKind.commentLike, title: 'a comment liker'),
+        row('n2', type: NotificationKind.repost, title: 'a reposter'),
+      ],
+    );
+
+    await pumpScreen(tester);
+    await tester.tap(find.text('Likes'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('a comment liker'), findsOneWidget);
+    expect(find.text('a reposter'), findsNothing);
+  });
+
+  Future<void> pumpRouted(WidgetTester tester) async {
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, _) => const NotificationsScreen()),
+        GoRoute(
+          path: '/video/:videoId',
+          builder: (_, state) => Text(
+            'video ${state.pathParameters['videoId']} '
+            'comments=${state.uri.queryParameters['comments']}',
+          ),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateProvider.overrideWith(_SignedInAuthState.new),
+          notificationRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('notification_row_n1')));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('a like on a comment opens its video with comments', (
+    tester,
+  ) async {
+    when(() => repository.list()).thenAnswer(
+      (_) async => [
+        row(
+          'n1',
+          type: NotificationKind.commentLike,
+          title: 'New like',
+        ).copyWith(referenceId: 'v9'),
+      ],
+    );
+    when(() => repository.markRead('n1')).thenAnswer((_) async {});
+
+    await pumpRouted(tester);
+
+    expect(find.text('video v9 comments=1'), findsOneWidget);
+  });
+
+  testWidgets('a repost opens the reposted video', (tester) async {
+    when(() => repository.list()).thenAnswer(
+      (_) async => [
+        row(
+          'n1',
+          type: NotificationKind.repost,
+          title: 'New repost',
+        ).copyWith(referenceId: 'v7'),
+      ],
+    );
+    when(() => repository.markRead('n1')).thenAnswer((_) async {});
+
+    await pumpRouted(tester);
+
+    expect(find.text('video v7 comments=null'), findsOneWidget);
+  });
 }

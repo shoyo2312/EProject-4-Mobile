@@ -10,6 +10,7 @@ import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/error_view.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
 import 'package:tiktok_mobile/core/widgets/nowa_app_bar.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/notification/data/notification_model.dart';
 import 'package:tiktok_mobile/features/notification/presentation/notification_provider.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_flow.dart';
@@ -33,7 +34,7 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 /// Label → the types it keeps. `null` is "everything".
 const _filters = <String, Set<NotificationKind>?>{
   'All': null,
-  'Likes': {NotificationKind.like},
+  'Likes': {NotificationKind.like, NotificationKind.commentLike},
   'Comments': {NotificationKind.comment},
   'Follows': {
     NotificationKind.newFollower,
@@ -50,15 +51,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       await ref.read(inboxProvider.notifier).markAllRead();
     } on AppException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.message)));
+      NowaToast.of(context).error(e.message);
     }
   }
 
   /// Tapping a row clears its dot and opens what it is about: a follower's
-  /// profile, a story owner's stories, or — for a comment or a reply, whose
-  /// `referenceId` is the videoId — that video with its comments open.
+  /// profile, a story owner's stories, or — for a comment, a reply or a like
+  /// on a comment, whose `referenceId` is the videoId — that video with its
+  /// comments open. A repost opens the reposted video.
   Future<void> _open(NotificationModel notification) async {
     if ((notification.type == NotificationKind.newFollower ||
             notification.type == NotificationKind.followRequestAccepted) &&
@@ -80,9 +80,13 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       // The owner's stories, fetched fresh: the one announced may have
       // expired, been deleted, or been joined by newer ones.
       unawaited(openUserStories(context, ref, notification.referenceId!));
-    } else if (notification.type == NotificationKind.comment &&
+    } else if ((notification.type == NotificationKind.comment ||
+            notification.type == NotificationKind.commentLike) &&
         notification.referenceId != null) {
       context.push('/video/${notification.referenceId}?comments=1');
+    } else if (notification.type == NotificationKind.repost &&
+        notification.referenceId != null) {
+      context.push('/video/${notification.referenceId}');
     }
     try {
       await ref.read(inboxProvider.notifier).markRead(notification.id);
@@ -214,7 +218,9 @@ class _Empty extends StatelessWidget {
 const _badges = {
   NotificationKind.like: '♥',
   NotificationKind.comment: '💬',
+  NotificationKind.commentLike: '♥',
   NotificationKind.share: '↗',
+  NotificationKind.repost: '↻',
   NotificationKind.newFollower: '+',
   NotificationKind.story: '◎',
   NotificationKind.followRequest: '+',
@@ -233,7 +239,9 @@ class _Row extends StatelessWidget {
   Widget build(BuildContext context) {
     final n = notification;
     final accent =
-        n.type == NotificationKind.like || n.type == NotificationKind.system;
+        n.type == NotificationKind.like ||
+        n.type == NotificationKind.commentLike ||
+        n.type == NotificationKind.system;
     return GestureDetector(
       key: Key('notification_row_${n.id}'),
       behavior: HitTestBehavior.opaque,
