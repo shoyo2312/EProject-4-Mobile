@@ -13,6 +13,16 @@ class FakeStompClient extends StompClient {
 
   bool active = false;
   final subscriptions = <String, StompFrameCallback>{};
+  final sent = <(String, Map<String, String>?, String?)>[];
+
+  @override
+  void send({
+    required String destination,
+    Map<String, String>? headers,
+    String? body,
+    Uint8List? binaryBody,
+  }) =>
+      sent.add((destination, headers, body));
 
   @override
   void activate() => active = true;
@@ -195,6 +205,44 @@ void main() {
       await b.cancel();
       expect(clients.single.subscriptions.keys,
           isNot(contains('/topic/conversations/c7')));
+    });
+
+    test('a frame is sent only on an open connection, never queued',
+        () async {
+      final a = socket.inbox().listen((_) {});
+      addTearDown(a.cancel);
+      await settle();
+
+      expect(socket.send('/app/chat.typing/c1', {'typing': true}), isFalse);
+      clients.single.connect();
+      expect(socket.send('/app/chat.typing/c1', {'typing': true}), isTrue);
+
+      final (destination, headers, body) = clients.single.sent.single;
+      expect(destination, '/app/chat.typing/c1');
+      expect(headers?['content-type'], 'application/json');
+      expect(jsonDecode(body!), {'typing': true});
+
+      clients.single.drop();
+      expect(socket.send('/app/chat.typing/c1', {'typing': false}), isFalse);
+      expect(clients.first.sent, hasLength(1));
+    });
+
+    test('losing a live connection is told; one that never opened is not',
+        () async {
+      var lost = 0;
+      final watch = socket.connectionLost.listen((_) => lost++);
+      addTearDown(watch.cancel);
+      final a = socket.inbox().listen((_) {});
+      addTearDown(a.cancel);
+      await settle();
+
+      clients.single.drop();
+      expect(lost, 0);
+      await settle();
+
+      clients.last.connect();
+      clients.last.drop();
+      expect(lost, 1);
     });
   });
 }

@@ -258,7 +258,7 @@ final unreadConversationsProvider = AutoDisposeProvider<int>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef UnreadConversationsRef = AutoDisposeProviderRef<int>;
-String _$conversationsHash() => r'bd792fdbda06198c61570e6ce23da8ea4140a19b';
+String _$conversationsHash() => r'ddb3c92a07a53d434cb5ed3f5b1722b3a8c6a99a';
 
 /// The thread list, most recently active first, kept current over the socket.
 ///
@@ -282,7 +282,7 @@ final conversationsProvider =
     );
 
 typedef _$Conversations = AutoDisposeAsyncNotifier<List<ConversationModel>>;
-String _$messageRequestsHash() => r'eaf60d8852bcf84cd191a347a5038982d1b0e17a';
+String _$messageRequestsHash() => r'6637d68acfb83f8783d593aab4b4986053088b42';
 
 /// Message requests waiting on the caller: threads opened by people they do
 /// not follow back, each holding the one message its sender was allowed. Not
@@ -804,6 +804,184 @@ class _PeerReceiptProviderElement
 
   @override
   String get conversationId => (origin as PeerReceiptProvider).conversationId;
+}
+
+String _$peerTypingHash() => r'ba9cb84e6be743d59636030760565d3b5b78b781';
+
+abstract class _$PeerTyping extends BuildlessAutoDisposeNotifier<bool> {
+  late final String conversationId;
+
+  bool build(String conversationId);
+}
+
+/// Whether the other participant is typing in one thread right now.
+///
+/// On with each TYPING frame from them, off when they say they stopped, when
+/// a message from them lands (they sent what they were typing), when the
+/// connection drops (nothing said over it can be trusted any more), and on
+/// its own [typingPeerTtl] after the last frame, so a frame lost on the way
+/// never leaves the dots up.
+///
+/// Copied from [PeerTyping].
+@ProviderFor(PeerTyping)
+const peerTypingProvider = PeerTypingFamily();
+
+/// Whether the other participant is typing in one thread right now.
+///
+/// On with each TYPING frame from them, off when they say they stopped, when
+/// a message from them lands (they sent what they were typing), when the
+/// connection drops (nothing said over it can be trusted any more), and on
+/// its own [typingPeerTtl] after the last frame, so a frame lost on the way
+/// never leaves the dots up.
+///
+/// Copied from [PeerTyping].
+class PeerTypingFamily extends Family<bool> {
+  /// Whether the other participant is typing in one thread right now.
+  ///
+  /// On with each TYPING frame from them, off when they say they stopped, when
+  /// a message from them lands (they sent what they were typing), when the
+  /// connection drops (nothing said over it can be trusted any more), and on
+  /// its own [typingPeerTtl] after the last frame, so a frame lost on the way
+  /// never leaves the dots up.
+  ///
+  /// Copied from [PeerTyping].
+  const PeerTypingFamily();
+
+  /// Whether the other participant is typing in one thread right now.
+  ///
+  /// On with each TYPING frame from them, off when they say they stopped, when
+  /// a message from them lands (they sent what they were typing), when the
+  /// connection drops (nothing said over it can be trusted any more), and on
+  /// its own [typingPeerTtl] after the last frame, so a frame lost on the way
+  /// never leaves the dots up.
+  ///
+  /// Copied from [PeerTyping].
+  PeerTypingProvider call(String conversationId) {
+    return PeerTypingProvider(conversationId);
+  }
+
+  @override
+  PeerTypingProvider getProviderOverride(
+    covariant PeerTypingProvider provider,
+  ) {
+    return call(provider.conversationId);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'peerTypingProvider';
+}
+
+/// Whether the other participant is typing in one thread right now.
+///
+/// On with each TYPING frame from them, off when they say they stopped, when
+/// a message from them lands (they sent what they were typing), when the
+/// connection drops (nothing said over it can be trusted any more), and on
+/// its own [typingPeerTtl] after the last frame, so a frame lost on the way
+/// never leaves the dots up.
+///
+/// Copied from [PeerTyping].
+class PeerTypingProvider
+    extends AutoDisposeNotifierProviderImpl<PeerTyping, bool> {
+  /// Whether the other participant is typing in one thread right now.
+  ///
+  /// On with each TYPING frame from them, off when they say they stopped, when
+  /// a message from them lands (they sent what they were typing), when the
+  /// connection drops (nothing said over it can be trusted any more), and on
+  /// its own [typingPeerTtl] after the last frame, so a frame lost on the way
+  /// never leaves the dots up.
+  ///
+  /// Copied from [PeerTyping].
+  PeerTypingProvider(String conversationId)
+    : this._internal(
+        () => PeerTyping()..conversationId = conversationId,
+        from: peerTypingProvider,
+        name: r'peerTypingProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$peerTypingHash,
+        dependencies: PeerTypingFamily._dependencies,
+        allTransitiveDependencies: PeerTypingFamily._allTransitiveDependencies,
+        conversationId: conversationId,
+      );
+
+  PeerTypingProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.conversationId,
+  }) : super.internal();
+
+  final String conversationId;
+
+  @override
+  bool runNotifierBuild(covariant PeerTyping notifier) {
+    return notifier.build(conversationId);
+  }
+
+  @override
+  Override overrideWith(PeerTyping Function() create) {
+    return ProviderOverride(
+      origin: this,
+      override: PeerTypingProvider._internal(
+        () => create()..conversationId = conversationId,
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        conversationId: conversationId,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeNotifierProviderElement<PeerTyping, bool> createElement() {
+    return _PeerTypingProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is PeerTypingProvider &&
+        other.conversationId == conversationId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, conversationId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin PeerTypingRef on AutoDisposeNotifierProviderRef<bool> {
+  /// The parameter `conversationId` of this provider.
+  String get conversationId;
+}
+
+class _PeerTypingProviderElement
+    extends AutoDisposeNotifierProviderElement<PeerTyping, bool>
+    with PeerTypingRef {
+  _PeerTypingProviderElement(super.provider);
+
+  @override
+  String get conversationId => (origin as PeerTypingProvider).conversationId;
 }
 
 String _$outgoingImagesHash() => r'31e39b4dbf17633be2a56d1827f64f1cb2e150b1';

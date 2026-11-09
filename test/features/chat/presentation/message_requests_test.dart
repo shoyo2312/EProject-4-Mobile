@@ -134,6 +134,9 @@ void main() {
     when(() => repository.liveMessages(any()))
         .thenAnswer((_) => const Stream.empty());
     when(() => repository.inboxEvents()).thenAnswer((_) => inbox.stream);
+    when(() => repository.connectionLost())
+        .thenAnswer((_) => const Stream.empty());
+    when(() => repository.sendTyping(any(), any())).thenReturn(true);
     when(() => repository.listConversations()).thenAnswer((_) async => []);
     when(() => repository.listRequests()).thenAnswer((_) async => []);
     when(() => repository.getConversation('c1'))

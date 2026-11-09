@@ -13,6 +13,7 @@ import 'package:tiktok_mobile/features/chat/data/chat_report_reasons.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_repository.dart';
 import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
 import 'package:tiktok_mobile/features/chat/presentation/chat_thread_screen.dart';
+import 'package:tiktok_mobile/features/chat/presentation/typing_sender.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/data/user_repository.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
@@ -110,6 +111,9 @@ void main() {
         .thenAnswer((_) async => const ReceiptView(conversationId: 'c1'));
     when(() => repository.liveMessages(any())).thenAnswer((_) => topic.stream);
     when(() => repository.inboxEvents()).thenAnswer((_) => inbox.stream);
+    when(() => repository.connectionLost())
+        .thenAnswer((_) => const Stream.empty());
+    when(() => repository.sendTyping(any(), any())).thenReturn(true);
     when(() => repository.listConversations())
         .thenAnswer((_) async => [conversation()]);
     when(() => repository.listRequests()).thenAnswer((_) async => []);
@@ -153,6 +157,42 @@ void main() {
       expect(at.covers(b), isTrue);
       expect(at.covers(later), isFalse);
       expect(mark(a).covers(b), isFalse);
+    });
+
+    test('a mark read back from the store covers the message it names', () {
+      // Sent: the server clock's microseconds. The mark: the same message as
+      // the store holds it, to the millisecond.
+      final sent = msg('m1', sender: '1001').copyWith(
+        sentAt: DateTime.parse('2026-11-09T03:12:45.1234567Z'),
+      );
+      final stored = ReceiptMark.fromJson({
+        'messageId': 'm1',
+        'sentAt': '2026-11-09T03:12:45.123Z',
+        'at': '2026-11-09T03:12:50Z',
+      })!;
+      expect(stored.covers(sent), isTrue);
+      expect(
+        ReceiptView(conversationId: 'c1', delivered: stored).statusOf(sent),
+        MessageStatus.delivered,
+      );
+      expect(
+        ReceiptView(conversationId: 'c1', delivered: stored, read: stored)
+            .statusOf(sent),
+        MessageStatus.seen,
+      );
+      // The next millisecond is still after it.
+      final next = msg('m2', sender: '1001').copyWith(
+        sentAt: DateTime.parse('2026-11-09T03:12:45.124001Z'),
+      );
+      expect(stored.covers(next), isFalse);
+    });
+
+    test('ids in the same millisecond compare as numbers', () {
+      final short = msg('999');
+      final long = msg('1000');
+      expect(mark(long).covers(short), isTrue);
+      expect(mark(short).covers(long), isFalse);
+      expect(ReceiptMark.later(mark(short), mark(long))!.messageId, '1000');
     });
 
     test('my message reads Sent, then Delivered, then Seen', () {
@@ -621,6 +661,48 @@ void main() {
       expect(find.text('Seen 5m ago'), findsOneWidget);
     });
 
+    testWidgets('a message just sent goes Sent, Delivered, Seen as frames come',
+        (tester) async {
+      // As the send answers: to the microsecond.
+      final mine = msg('m1', sender: '1001', content: 'hi').copyWith(
+        sentAt: DateTime.parse('2026-11-09T03:12:45.123456Z'),
+      );
+      thread([mine], receipt: const ReceiptView(conversationId: 'c1'));
+      await pumpThread(tester);
+      expect(find.text('Sent'), findsOneWidget);
+
+      // The marks as the server sends them: read back from the store.
+      Map<String, dynamic> stored() => {
+            'messageId': 'm1',
+            'sentAt': '2026-11-09T03:12:45.123Z',
+            'at': DateTime.now().toUtc().toIso8601String(),
+          };
+      inbox.add(ChatInboxEvent.fromServer({
+        'type': 'RECEIPT',
+        'conversationId': 'c1',
+        'receipt': {
+          'conversationId': 'c1',
+          'userId': 2002,
+          'delivered': stored(),
+        },
+      })!);
+      await tester.pumpAndSettle();
+      expect(find.text('Delivered'), findsOneWidget);
+
+      inbox.add(ChatInboxEvent.fromServer({
+        'type': 'RECEIPT',
+        'conversationId': 'c1',
+        'receipt': {
+          'conversationId': 'c1',
+          'userId': 2002,
+          'delivered': stored(),
+          'read': stored(),
+        },
+      })!);
+      await tester.pumpAndSettle();
+      expect(find.text('Seen just now'), findsOneWidget);
+    });
+
     testWidgets('an unseen message of mine can be unsent', (tester) async {
       thread([msg('m1', sender: '1001', content: 'oops')],
           receipt: const ReceiptView(conversationId: 'c1'));
@@ -752,6 +834,122 @@ void main() {
       await tester.pumpAndSettle();
       verify(() => users.block('2002')).called(1);
       expect(find.text('Blocked'), findsOneWidget);
+    });
+  });
+
+  group('typing', () {
+    ChatInboxEvent typing(bool on, {String user = '2002', String id = 'c1'}) =>
+        ChatInboxEvent(
+          type: ChatEventType.typing,
+          conversationId: id,
+          typingUserId: user,
+          typing: on,
+        );
+
+    final dots = find.byKey(const Key('chat_typing_indicator'));
+
+    // Not pumpAndSettle while the dots are up: they never settle.
+    Future<void> pumpThread(WidgetTester tester) async {
+      await tester.pumpWidget(ProviderScope(
+        overrides: overrides(),
+        child: const MaterialApp(home: ChatThreadScreen(conversationId: 'c1')),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    // A frame to swap the child, one for the fade's first tick, one to end it.
+    Future<void> fade(WidgetTester tester) async {
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 16));
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    testWidgets('their typing shows the dots; their stop hides them',
+        (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pumpThread(tester);
+      expect(dots, findsNothing);
+
+      inbox.add(typing(true));
+      await fade(tester);
+      expect(dots, findsOneWidget);
+      expect(find.bySemanticsLabel('Lan is typing'), findsOneWidget);
+
+      inbox.add(typing(false));
+      await fade(tester);
+      expect(dots, findsNothing);
+      semantics.dispose();
+    });
+
+    testWidgets('a message from them takes the dots away', (tester) async {
+      await pumpThread(tester);
+      inbox.add(typing(true));
+      await fade(tester);
+
+      inbox.add(ChatInboxEvent(
+        type: ChatEventType.message,
+        conversationId: 'c1',
+        message: msg('m9'),
+      ));
+      await fade(tester);
+      expect(dots, findsNothing);
+    });
+
+    testWidgets('dots with no word after them go away by themselves',
+        (tester) async {
+      await pumpThread(tester);
+      inbox.add(typing(true));
+      await fade(tester);
+
+      await tester.pump(typingPeerTtl - const Duration(seconds: 1));
+      expect(dots, findsOneWidget);
+      await tester.pump(const Duration(seconds: 1));
+      await fade(tester);
+      expect(dots, findsNothing);
+    });
+
+    testWidgets('my own typing and another thread show nothing',
+        (tester) async {
+      await pumpThread(tester);
+      inbox.add(typing(true, user: '1001'));
+      inbox.add(typing(true, id: 'c2'));
+      await fade(tester);
+      expect(dots, findsNothing);
+    });
+
+    testWidgets('typing in the box tells them; emptying it stops',
+        (tester) async {
+      await pumpThread(tester);
+      final box = find.byKey(const Key('chat_composer_field'));
+
+      await tester.enterText(box, 'h');
+      await tester.enterText(box, 'he');
+      verify(() => repository.sendTyping('c1', true)).called(1);
+
+      await tester.enterText(box, '');
+      verify(() => repository.sendTyping('c1', false)).called(1);
+    });
+
+    testWidgets('going to the background stops', (tester) async {
+      await pumpThread(tester);
+      await tester.enterText(find.byKey(const Key('chat_composer_field')), 'hi');
+      verify(() => repository.sendTyping('c1', true)).called(1);
+
+      tester.binding
+          .handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      verify(() => repository.sendTyping('c1', false)).called(1);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    });
+
+    testWidgets('a request not yet answered announces nothing',
+        (tester) async {
+      when(() => repository.listConversations()).thenAnswer((_) async => [
+            conversation()
+                .copyWith(sendPermission: SendPermission.firstMessageOnly),
+          ]);
+      await pumpThread(tester);
+      await tester.enterText(find.byKey(const Key('chat_composer_field')), 'hi');
+      verifyNever(() => repository.sendTyping(any(), true));
     });
   });
 }

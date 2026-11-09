@@ -70,6 +70,9 @@ void main() {
         .thenAnswer((_) => const Stream.empty());
     when(() => repository.inboxEvents())
         .thenAnswer((_) => const Stream.empty());
+    when(() => repository.connectionLost())
+        .thenAnswer((_) => const Stream.empty());
+    when(() => repository.sendTyping(any(), any())).thenReturn(true);
     when(() => repository.listRequests()).thenAnswer((_) async => []);
   });
 

@@ -11,6 +11,7 @@ import 'package:tiktok_mobile/features/chat/data/chat_model.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_remote_datasource.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_repository.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_socket.dart';
+import 'package:tiktok_mobile/features/chat/presentation/typing_sender.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
 part 'chat_provider.g.dart';
@@ -56,6 +57,7 @@ class Conversations extends _$Conversations {
         case ChatEventType.messageUpdated:
         case ChatEventType.messageHidden:
         case ChatEventType.receipt:
+        case ChatEventType.typing:
         case ChatEventType.other:
           // An open thread applies these itself; a preview one of them
           // changes arrives as a CONVERSATION frame of its own.
@@ -203,6 +205,7 @@ class MessageRequests extends _$MessageRequests {
         case ChatEventType.messageUpdated:
         case ChatEventType.messageHidden:
         case ChatEventType.receipt:
+        case ChatEventType.typing:
         case ChatEventType.other:
           break;
       }
@@ -694,6 +697,52 @@ class PeerReceipt extends _$PeerReceipt {
       return;
     }
     state = AsyncData(state.valueOrNull?.merge(receipt) ?? receipt);
+  }
+}
+
+/// Whether the other participant is typing in one thread right now.
+///
+/// On with each TYPING frame from them, off when they say they stopped, when
+/// a message from them lands (they sent what they were typing), when the
+/// connection drops (nothing said over it can be trusted any more), and on
+/// its own [typingPeerTtl] after the last frame, so a frame lost on the way
+/// never leaves the dots up.
+@riverpod
+class PeerTyping extends _$PeerTyping {
+  Timer? _expiry;
+
+  @override
+  bool build(String conversationId) {
+    final repository = ref.read(chatRepositoryProvider);
+    final events = repository
+        .inboxEvents()
+        .where((e) => e.conversationId == conversationId)
+        .listen(_onEvent);
+    final lost = repository.connectionLost().listen((_) => _show(false));
+    ref.onDispose(() {
+      events.cancel();
+      lost.cancel();
+      _expiry?.cancel();
+    });
+    return false;
+  }
+
+  void _onEvent(ChatInboxEvent event) {
+    final me = ref.read(authStateProvider).valueOrNull?.id;
+    switch (event.type) {
+      case ChatEventType.typing when event.typingUserId != me:
+        _show(event.typing!);
+      case ChatEventType.message when event.message!.senderId != me:
+        _show(false);
+      default:
+        break;
+    }
+  }
+
+  void _show(bool on) {
+    _expiry?.cancel();
+    _expiry = on ? Timer(typingPeerTtl, () => state = false) : null;
+    state = on;
   }
 }
 

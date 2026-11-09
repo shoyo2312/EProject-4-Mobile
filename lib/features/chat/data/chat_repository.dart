@@ -299,4 +299,14 @@ class ChatRepository {
   /// that changed or went away. What keeps the conversation list and its
   /// unread dots current.
   Stream<ChatInboxEvent> inboxEvents() => _socket.inbox();
+
+  /// Tells the other side the caller is typing in [conversationId], or has
+  /// stopped. Only whether — never what. False when the socket is not up, in
+  /// which case nothing went out.
+  bool sendTyping(String conversationId, bool typing) =>
+      _socket.send('/app/chat.typing/$conversationId', {'typing': typing});
+
+  /// Each time the live connection drops. Typing state, on either side, does
+  /// not survive it.
+  Stream<void> connectionLost() => _socket.connectionLost;
 }

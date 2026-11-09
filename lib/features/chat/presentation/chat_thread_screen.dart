@@ -9,14 +9,17 @@ import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/error_view.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
 import 'package:tiktok_mobile/core/widgets/nowa_app_bar.dart';
+import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_model.dart';
 import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
 import 'package:tiktok_mobile/features/chat/presentation/photo_preview_screen.dart';
 import 'package:tiktok_mobile/features/chat/presentation/report_conversation_screen.dart';
+import 'package:tiktok_mobile/features/chat/presentation/typing_sender.dart';
 import 'package:tiktok_mobile/features/chat/presentation/widgets/chat_image.dart';
 import 'package:tiktok_mobile/features/chat/presentation/widgets/mute_sheet.dart';
 import 'package:tiktok_mobile/features/chat/presentation/widgets/sticker_sheet.dart';
+import 'package:tiktok_mobile/features/chat/presentation/widgets/typing_indicator.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
 /// Picks a picture from the camera or the gallery. Swapped in tests, where
@@ -55,6 +58,12 @@ class ChatThreadScreen extends ConsumerStatefulWidget {
 class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
     with WidgetsBindingObserver {
   final _controller = TextEditingController();
+  final _focus = FocusNode();
+
+  /// Tells the other side while the caller types. Holds the repository it
+  /// was made with, so the "stopped" sent on the way out of the screen does
+  /// not need `ref` once the screen is going.
+  late final TypingSender _typing;
 
   /// Which answer to a message request is on its way ('accept' / 'delete'),
   /// so a double tap cannot send two.
@@ -64,29 +73,48 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    final repository = ref.read(chatRepositoryProvider);
+    _typing = TypingSender(
+      send: (typing) => repository.sendTyping(widget.conversationId, typing),
+      connectionLost: repository.connectionLost(),
+    );
+    // Leaving the box — for the sticker sheet, a menu, the keyboard closed —
+    // is not typing any more.
+    _focus.addListener(() {
+      if (!_focus.hasFocus) _typing.stop();
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _typing.dispose();
+    _focus.dispose();
     _controller.dispose();
     super.dispose();
   }
+
+  /// Typing is only announced where a message could go out right now — the
+  /// same rule chat-service applies before it passes a frame on.
+  bool get _mayAnnounceTyping =>
+      _conversation?.sendPermission == SendPermission.allowed;
+
+  void _onComposerChanged(String text) =>
+      _typing.input(_mayAnnounceTyping && text.trim().isNotEmpty);
 
   /// A message that lands while the phone is locked or the app is behind
   /// another is not "Seen" until the user is actually back.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) _typing.stop();
     ref
         .read(threadProvider(widget.conversationId).notifier)
         .setForeground(state == AppLifecycleState.resumed);
   }
 
-  void _toast(String message) {
+  void _toast(String message, [ToastKind kind = ToastKind.error]) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    NowaToast.of(context).show(message, kind: kind);
   }
 
   /// The message shows at once, as "Sending…", so the composer is free for
@@ -95,6 +123,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
     final text = _controller.text.trim();
     if (text.isEmpty) return;
     if (!await _mayReopen()) return;
+    _typing.stop();
     _controller.clear();
     try {
       await ref.read(threadProvider(widget.conversationId).notifier).send(text);
@@ -111,6 +140,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
     final sticker = await showStickerSheet(context);
     if (sticker == null || !mounted) return;
     if (!await _mayReopen()) return;
+    _typing.stop();
     try {
       await ref
           .read(threadProvider(widget.conversationId).notifier)
@@ -189,7 +219,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
       } else {
         await requests.decline(widget.conversationId);
         if (!mounted) return;
-        _toast('Request deleted');
+        _toast('Request deleted', ToastKind.success);
         if (context.canPop()) context.pop();
       }
     } on AppException catch (e) {
@@ -290,6 +320,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
       );
       switch (result) {
         case SendPhoto(:final caption):
+          _typing.stop();
           // Not awaited: the row shows its own progress and failure.
           ref
               .read(outgoingImagesProvider(widget.conversationId).notifier)
@@ -322,6 +353,15 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
     final otherAvatar = otherId == null ? null : profiles[otherId]?.avatarUrl;
     final myAvatar = ref.watch(myProfileProvider).valueOrNull?.avatarUrl ??
         (me == null ? null : profiles[me.id]?.avatarUrl);
+    final peerTyping = ref.watch(peerTypingProvider(widget.conversationId));
+
+    // Blocked, a request turned around, an allowance spent: whatever was
+    // being announced stops with the right to send.
+    ref.listen(conversationDetailProvider(widget.conversationId), (_, next) {
+      if (next.valueOrNull?.sendPermission != SendPermission.allowed) {
+        _typing.stop();
+      }
+    });
 
     return Scaffold(
       backgroundColor: NowaColors.bg,
@@ -415,6 +455,11 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
                 );
               },
             ),
+          ),
+          TypingIndicator(
+            active: peerTyping,
+            name: _nameFor(me?.id),
+            avatarUrl: otherAvatar,
           ),
           _bottom(conversation, me?.id),
         ],
@@ -550,7 +595,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
       await ref
           .read(conversationsProvider.notifier)
           .mute(widget.conversationId, length);
-      _toast('Notifications muted');
+      _toast('Notifications muted', ToastKind.success);
     } on AppException catch (e) {
       _toast(e.message);
     }
@@ -561,7 +606,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
       await ref
           .read(conversationsProvider.notifier)
           .unmute(widget.conversationId);
-      _toast('Notifications turned on');
+      _toast('Notifications turned on', ToastKind.success);
     } on AppException catch (e) {
       _toast(e.message);
     }
@@ -745,6 +790,8 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
               child: TextField(
                 key: const Key('chat_composer_field'),
                 controller: _controller,
+                focusNode: _focus,
+                onChanged: _onComposerChanged,
                 minLines: 1,
                 maxLines: 4,
                 // The server caps a message at 2000 characters; stopping here

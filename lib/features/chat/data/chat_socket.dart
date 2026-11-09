@@ -77,6 +77,31 @@ class ChatSocket {
   int _generation = 0;
   bool _connecting = false;
 
+  final _lost = StreamController<void>.broadcast(sync: true);
+
+  /// Fires each time a connection that was up goes down. Whatever was said
+  /// over it that only holds while it lives — typing — is void from then on.
+  Stream<void> get connectionLost => _lost.stream;
+
+  /// Sends one frame to an application destination (`/app/...`) on the open
+  /// connection. False when there is none: such a frame is only true for a
+  /// moment, so it is dropped rather than queued for a later connection.
+  bool send(String destination, Map<String, dynamic> body) {
+    final client = _client;
+    if (!_connected || client == null) return false;
+    try {
+      client.send(
+        destination: destination,
+        headers: const {'content-type': 'application/json'},
+        body: jsonEncode(body),
+      );
+      return true;
+    } catch (e) {
+      if (kDebugMode) debugPrint('[chat] send failed: $e');
+      return false;
+    }
+  }
+
   /// Every message posted to [conversationId] while listened to, the caller's
   /// own sends included — chat-service broadcasts after persisting, whichever
   /// way the message arrived.
@@ -208,12 +233,14 @@ class ChatSocket {
     if (generation != _generation) return;
     if (kDebugMode && error != null) debugPrint('[chat] socket error: $error');
     _generation++;
+    final wasConnected = _connected;
     final connectedAt = _connectedAt;
     if (connectedAt != null &&
         DateTime.now().difference(connectedAt) >= stableAfter) {
       _backoff = initialBackoff;
     }
     _teardown();
+    if (wasConnected) _lost.add(null);
     if (_destinations.isNotEmpty) _scheduleRetry();
   }
 
@@ -253,6 +280,7 @@ class ChatSocket {
     ];
     _destinations.clear();
     _disconnect();
+    _lost.close();
     for (final listener in listeners) {
       listener.close();
     }

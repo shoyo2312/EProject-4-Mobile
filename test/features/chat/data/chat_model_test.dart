@@ -94,6 +94,39 @@ void main() {
       }
     });
 
+    test('a TYPING frame says who and whether', () {
+      final e = ChatInboxEvent.fromServer({
+        'type': 'TYPING',
+        'conversationId': 'c1',
+        'typing': {'conversationId': 'c1', 'userId': 2002, 'typing': true},
+      })!;
+      expect(e.type, ChatEventType.typing);
+      // The server's numeric id, as the app's string id.
+      expect(e.typingUserId, '2002');
+      expect(e.typing, isTrue);
+
+      final stopped = ChatInboxEvent.fromServer({
+        'type': 'TYPING',
+        'conversationId': 'c1',
+        'typing': {'conversationId': 'c1', 'userId': 2002, 'typing': false},
+      })!;
+      expect(stopped.typing, isFalse);
+    });
+
+    test('a TYPING frame missing who or whether is other', () {
+      for (final typing in [
+        {'conversationId': 'c1', 'typing': true},
+        {'conversationId': 'c1', 'userId': 2002},
+      ]) {
+        expect(
+          ChatInboxEvent.fromServer(
+                  {'type': 'TYPING', 'conversationId': 'c1', 'typing': typing})!
+              .type,
+          ChatEventType.other,
+        );
+      }
+    });
+
     test('a frame with no conversation is dropped', () {
       expect(ChatInboxEvent.fromServer({'type': 'MESSAGE'}), isNull);
     });

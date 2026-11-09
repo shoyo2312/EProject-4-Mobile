@@ -401,20 +401,32 @@ class ReceiptMark {
   final DateTime? at;
 
   /// Whether [message] is at or before this mark in thread order.
-  bool covers(MessageModel message) {
-    final bySentAt = sentAt.compareTo(message.sentAt);
-    return bySentAt > 0 ||
-        (bySentAt == 0 && messageId.compareTo(message.id) >= 0);
-  }
+  bool covers(MessageModel message) =>
+      comparePosition(sentAt, messageId, message.sentAt, message.id) >= 0;
 
   /// Marks only ever move forward; of two, the later position wins.
   static ReceiptMark? later(ReceiptMark? a, ReceiptMark? b) {
     if (a == null) return b;
     if (b == null) return a;
-    final bySentAt = a.sentAt.compareTo(b.sentAt);
-    if (bySentAt != 0) return bySentAt > 0 ? a : b;
-    return a.messageId.compareTo(b.messageId) >= 0 ? a : b;
+    return comparePosition(a.sentAt, a.messageId, b.sentAt, b.messageId) >= 0
+        ? a
+        : b;
   }
+}
+
+/// Thread order, as chat-service keeps it: by time to the millisecond, then
+/// by id. The millisecond is what the store holds — a message just sent comes
+/// back with the server clock's microseconds, the mark naming that same
+/// message is read back from the store without them, and comparing finer
+/// would put the message after its own mark. Ids are Snowflakes as strings:
+/// by length, then by digits, which is numeric order.
+int comparePosition(DateTime aAt, String aId, DateTime bAt, String bId) {
+  final byTime = aAt.millisecondsSinceEpoch.compareTo(
+    bAt.millisecondsSinceEpoch,
+  );
+  if (byTime != 0) return byTime;
+  if (aId.length != bId.length) return aId.length.compareTo(bId.length);
+  return aId.compareTo(bId);
 }
 
 /// How far one participant has got in a conversation. Seeing implies
@@ -494,8 +506,8 @@ class MessageUpdate {
   final DateTime? recalledAt;
 }
 
-/// The kinds of `/user/queue/chat` frame this app acts on. The server sends
-/// more (typing); those arrive as [other] and are ignored.
+/// The kinds of `/user/queue/chat` frame this app acts on. Anything else
+/// arrives as [other] and is ignored.
 enum ChatEventType {
   message,
   conversation,
@@ -511,6 +523,10 @@ enum ChatEventType {
   /// The other participant received or read the thread:
   /// [ChatInboxEvent.receipt].
   receipt,
+
+  /// Someone in the thread started or stopped typing:
+  /// [ChatInboxEvent.typingUserId] and [ChatInboxEvent.typing].
+  typing,
   other,
 }
 
@@ -524,6 +540,8 @@ class ChatInboxEvent {
     this.update,
     this.messageId,
     this.receipt,
+    this.typingUserId,
+    this.typing,
   });
 
   /// Reads a `ChatEvent` from chat-service. Null for a frame without a
@@ -535,6 +553,7 @@ class ChatInboxEvent {
     final update = json['update'];
     final receipt = json['receipt'];
     final messageId = json['messageId'];
+    final typing = json['typing'];
     final type = switch (json['type']) {
       'MESSAGE' when message is Map<String, dynamic> => ChatEventType.message,
       'CONVERSATION' => ChatEventType.conversation,
@@ -543,6 +562,11 @@ class ChatInboxEvent {
         ChatEventType.messageUpdated,
       'MESSAGE_HIDDEN' when messageId is String => ChatEventType.messageHidden,
       'RECEIPT' when receipt is Map<String, dynamic> => ChatEventType.receipt,
+      'TYPING'
+          when typing is Map<String, dynamic> &&
+              typing['userId'] != null &&
+              typing['typing'] is bool =>
+        ChatEventType.typing,
       _ => ChatEventType.other,
     };
     return ChatInboxEvent(
@@ -559,6 +583,13 @@ class ChatInboxEvent {
           : null,
       receipt: type == ChatEventType.receipt
           ? ReceiptView.fromJson(receipt as Map<String, dynamic>)
+          : null,
+      // The server's ids are numbers; the app's are strings.
+      typingUserId: type == ChatEventType.typing
+          ? (typing as Map<String, dynamic>)['userId'].toString()
+          : null,
+      typing: type == ChatEventType.typing
+          ? (typing as Map<String, dynamic>)['typing'] as bool
           : null,
     );
   }
@@ -577,6 +608,12 @@ class ChatInboxEvent {
 
   /// Set on [ChatEventType.receipt] only.
   final ReceiptView? receipt;
+
+  /// Who is (or stopped) typing. Set on [ChatEventType.typing] only.
+  final String? typingUserId;
+
+  /// Whether they are typing now. Set on [ChatEventType.typing] only.
+  final bool? typing;
 }
 
 /// One page of a thread, newest first — the order the server sorts in, which
