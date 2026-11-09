@@ -17,7 +17,8 @@ import 'package:tiktok_mobile/features/user/presentation/edit_profile_rules.dart
 import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
 /// Edit profile — the same fields and rules as the web client's modal: photo,
-/// username (once every 30 days), name (once every 7), bio.
+/// username (once every 30 days), name (once every 7), birthday (set once),
+/// bio.
 class EditProfileScreen extends ConsumerWidget {
   const EditProfileScreen({super.key});
 
@@ -89,6 +90,10 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   File? _avatarFile;
   String? _avatarContentType;
 
+  /// A birthday picked but not saved yet. Only offered while the profile has
+  /// none: the server takes it once and never again.
+  DateTime? _birthDate;
+
   String? _avatarError;
   String? _usernameError;
   String? _displayNameError;
@@ -151,6 +156,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   bool get _dirty {
     final c = _changes;
     return _avatarFile != null ||
+        _birthDate != null ||
         c.username != null ||
         c.displayName != null ||
         c.bio != null;
@@ -185,6 +191,21 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
       _avatarFile = file;
       _avatarContentType = contentType;
     });
+  }
+
+  Future<void> _pickBirthDate() async {
+    if (_isSaving) return;
+    final latest = latestBirthDate();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _birthDate ?? latest,
+      firstDate: kEarliestBirthDate,
+      lastDate: latest,
+      initialEntryMode: DatePickerEntryMode.calendarOnly,
+      helpText: "When's your birthday?",
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _birthDate = picked);
   }
 
   Future<void> _save() async {
@@ -224,8 +245,12 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
       final patch = <String, dynamic>{
         if (changes.displayName != null) 'displayName': changes.displayName,
         if (changes.bio != null) 'bio': changes.bio,
+        if (_birthDate != null) 'birthDate': birthDateToJson(_birthDate!),
       };
-      if (patch.isNotEmpty) await profile.updateProfile(patch);
+      if (patch.isNotEmpty) {
+        await profile.updateProfile(patch);
+        if (mounted) setState(() => _birthDate = null);
+      }
 
       if (changes.username != null) {
         await ref
@@ -398,6 +423,37 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                                       'Your nickname can only be changed '
                                       'once every 7 days.',
                                     ),
+                            ],
+                          ),
+                  ),
+                  _Section(
+                    label: 'Birthday',
+                    child: widget.original.birthDate != null
+                        ? _Locked(
+                            value: formatBirthDate(widget.original.birthDate!),
+                            tip:
+                                "Your birthday can't be changed and won't be "
+                                'shown publicly.',
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _DateField(
+                                fieldKey: const Key(
+                                  'edit_profile_birthday_field',
+                                ),
+                                value: _birthDate == null
+                                    ? null
+                                    : formatBirthDate(_birthDate!),
+                                hint: 'Add your birthday',
+                                onTap: _pickBirthDate,
+                              ),
+                              const SizedBox(height: 8),
+                              const _Tip(
+                                "Your birthday won't be shown publicly. You "
+                                'can only set it once, and you must be at '
+                                'least 13.',
+                              ),
                             ],
                           ),
                   ),
@@ -575,6 +631,58 @@ class _Locked extends StatelessWidget {
         const SizedBox(height: 8),
         _Tip(tip),
       ],
+    );
+  }
+}
+
+/// A field that opens a date picker instead of the keyboard, styled like
+/// [_Field].
+class _DateField extends StatelessWidget {
+  const _DateField({
+    required this.fieldKey,
+    required this.value,
+    required this.hint,
+    required this.onTap,
+  });
+
+  final Key fieldKey;
+  final String? value;
+  final String hint;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      key: fieldKey,
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        decoration: BoxDecoration(
+          color: NowaColors.surfaceHigh,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                value ?? hint,
+                style: work(
+                  size: 14.5,
+                  color: value == null
+                      ? NowaColors.text.withValues(alpha: 0.3)
+                      : NowaColors.text,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.calendar_today_outlined,
+              size: 16,
+              color: NowaColors.text.withValues(alpha: 0.5),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

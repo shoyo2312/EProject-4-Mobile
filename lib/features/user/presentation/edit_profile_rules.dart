@@ -82,6 +82,31 @@ String formatChangeableAt(DateTime at) {
   return '${two(t.day)}/${two(t.month)}/${t.year} ${two(t.hour)}:${two(t.minute)}';
 }
 
+/// The latest birthday the server accepts: 13 years before [now], the same
+/// gate as `BirthDateRule`. Feb 29 falls back to Feb 28, as Java's
+/// `minusYears` does, rather than rolling over into March.
+DateTime latestBirthDate({DateTime? now}) {
+  final t = now ?? DateTime.now();
+  final year = t.year - 13;
+  final day = t.month == 2 && t.day == 29 ? 28 : t.day;
+  return DateTime(year, t.month, day);
+}
+
+/// The earliest birthday the server accepts.
+final kEarliestBirthDate = DateTime(1900);
+
+/// `yyyy-MM-dd` — the shape `PATCH /me` expects for `birthDate`.
+String birthDateToJson(DateTime date) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${date.year.toString().padLeft(4, '0')}-${two(date.month)}-${two(date.day)}';
+}
+
+/// `dd/MM/yyyy`, no time: a birthday is a calendar day, not an instant.
+String formatBirthDate(DateTime date) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${two(date.day)}/${two(date.month)}/${date.year}';
+}
+
 /// What to tell the user when a save step fails. The codes come from
 /// auth-service (handle) and user-service (nickname); the wording is the web
 /// client's.
@@ -94,6 +119,10 @@ String saveErrorMessage(AppException error) {
         return 'You can only change your username once every 30 days.';
       case 'DISPLAY_NAME_CHANGE_TOO_SOON':
         return 'Your nickname can only be changed once every 7 days.';
+      case 'BIRTH_DATE_INVALID':
+        return 'You must be at least 13 years old.';
+      case 'BIRTH_DATE_ALREADY_SET':
+        return 'Your birthday has already been set.';
     }
   }
   return error.message;

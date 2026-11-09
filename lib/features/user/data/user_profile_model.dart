@@ -19,6 +19,9 @@ class UserProfileModel with _$UserProfileModel {
     // When the display name may change again (once every 7 days). Only sent
     // to the owner, and null when it may change now.
     DateTime? displayNameChangeableAt,
+    // `yyyy-MM-dd`, only sent to the owner. Null until it is set, and it can
+    // be set only once (user doc 3.2).
+    DateTime? birthDate,
   }) = _UserProfileModel;
 
   factory UserProfileModel.fromJson(Map<String, dynamic> json) =>

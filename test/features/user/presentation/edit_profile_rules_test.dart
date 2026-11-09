@@ -68,4 +68,25 @@ void main() {
       'Boom',
     );
   });
+
+  group('birthday', () {
+    test('the latest allowed day is 13 years back', () {
+      expect(
+        latestBirthDate(now: DateTime(2026, 11, 9)),
+        DateTime(2013, 11, 9),
+      );
+    });
+
+    test('Feb 29 falls back to Feb 28, like the server', () {
+      expect(
+        latestBirthDate(now: DateTime(2028, 2, 29)),
+        DateTime(2015, 2, 28),
+      );
+    });
+
+    test('sent as yyyy-MM-dd, shown as dd/MM/yyyy', () {
+      expect(birthDateToJson(DateTime(2001, 5, 9)), '2001-05-09');
+      expect(formatBirthDate(DateTime(2001, 5, 9)), '09/05/2001');
+    });
+  });
 }

@@ -30,7 +30,10 @@ mixin _$UserProfileModel {
   int get followingCount =>
       throw _privateConstructorUsedError; // When the display name may change again (once every 7 days). Only sent
   // to the owner, and null when it may change now.
-  DateTime? get displayNameChangeableAt => throw _privateConstructorUsedError;
+  DateTime? get displayNameChangeableAt =>
+      throw _privateConstructorUsedError; // `yyyy-MM-dd`, only sent to the owner. Null until it is set, and it can
+  // be set only once (user doc 3.2).
+  DateTime? get birthDate => throw _privateConstructorUsedError;
 
   /// Serializes this UserProfileModel to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -57,6 +60,7 @@ abstract class $UserProfileModelCopyWith<$Res> {
     int followerCount,
     int followingCount,
     DateTime? displayNameChangeableAt,
+    DateTime? birthDate,
   });
 }
 
@@ -82,6 +86,7 @@ class _$UserProfileModelCopyWithImpl<$Res, $Val extends UserProfileModel>
     Object? followerCount = null,
     Object? followingCount = null,
     Object? displayNameChangeableAt = freezed,
+    Object? birthDate = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -113,6 +118,10 @@ class _$UserProfileModelCopyWithImpl<$Res, $Val extends UserProfileModel>
                 ? _value.displayNameChangeableAt
                 : displayNameChangeableAt // ignore: cast_nullable_to_non_nullable
                       as DateTime?,
+            birthDate: freezed == birthDate
+                ? _value.birthDate
+                : birthDate // ignore: cast_nullable_to_non_nullable
+                      as DateTime?,
           )
           as $Val,
     );
@@ -136,6 +145,7 @@ abstract class _$$UserProfileModelImplCopyWith<$Res>
     int followerCount,
     int followingCount,
     DateTime? displayNameChangeableAt,
+    DateTime? birthDate,
   });
 }
 
@@ -160,6 +170,7 @@ class __$$UserProfileModelImplCopyWithImpl<$Res>
     Object? followerCount = null,
     Object? followingCount = null,
     Object? displayNameChangeableAt = freezed,
+    Object? birthDate = freezed,
   }) {
     return _then(
       _$UserProfileModelImpl(
@@ -191,6 +202,10 @@ class __$$UserProfileModelImplCopyWithImpl<$Res>
             ? _value.displayNameChangeableAt
             : displayNameChangeableAt // ignore: cast_nullable_to_non_nullable
                   as DateTime?,
+        birthDate: freezed == birthDate
+            ? _value.birthDate
+            : birthDate // ignore: cast_nullable_to_non_nullable
+                  as DateTime?,
       ),
     );
   }
@@ -207,6 +222,7 @@ class _$UserProfileModelImpl implements _UserProfileModel {
     required this.followerCount,
     required this.followingCount,
     this.displayNameChangeableAt,
+    this.birthDate,
   });
 
   factory _$UserProfileModelImpl.fromJson(Map<String, dynamic> json) =>
@@ -229,10 +245,14 @@ class _$UserProfileModelImpl implements _UserProfileModel {
   // to the owner, and null when it may change now.
   @override
   final DateTime? displayNameChangeableAt;
+  // `yyyy-MM-dd`, only sent to the owner. Null until it is set, and it can
+  // be set only once (user doc 3.2).
+  @override
+  final DateTime? birthDate;
 
   @override
   String toString() {
-    return 'UserProfileModel(userId: $userId, displayName: $displayName, bio: $bio, avatarUrl: $avatarUrl, followerCount: $followerCount, followingCount: $followingCount, displayNameChangeableAt: $displayNameChangeableAt)';
+    return 'UserProfileModel(userId: $userId, displayName: $displayName, bio: $bio, avatarUrl: $avatarUrl, followerCount: $followerCount, followingCount: $followingCount, displayNameChangeableAt: $displayNameChangeableAt, birthDate: $birthDate)';
   }
 
   @override
@@ -254,7 +274,9 @@ class _$UserProfileModelImpl implements _UserProfileModel {
                   other.displayNameChangeableAt,
                   displayNameChangeableAt,
                 ) ||
-                other.displayNameChangeableAt == displayNameChangeableAt));
+                other.displayNameChangeableAt == displayNameChangeableAt) &&
+            (identical(other.birthDate, birthDate) ||
+                other.birthDate == birthDate));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -268,6 +290,7 @@ class _$UserProfileModelImpl implements _UserProfileModel {
     followerCount,
     followingCount,
     displayNameChangeableAt,
+    birthDate,
   );
 
   /// Create a copy of UserProfileModel
@@ -296,6 +319,7 @@ abstract class _UserProfileModel implements UserProfileModel {
     required final int followerCount,
     required final int followingCount,
     final DateTime? displayNameChangeableAt,
+    final DateTime? birthDate,
   }) = _$UserProfileModelImpl;
 
   factory _UserProfileModel.fromJson(Map<String, dynamic> json) =
@@ -316,7 +340,10 @@ abstract class _UserProfileModel implements UserProfileModel {
   int get followingCount; // When the display name may change again (once every 7 days). Only sent
   // to the owner, and null when it may change now.
   @override
-  DateTime? get displayNameChangeableAt;
+  DateTime? get displayNameChangeableAt; // `yyyy-MM-dd`, only sent to the owner. Null until it is set, and it can
+  // be set only once (user doc 3.2).
+  @override
+  DateTime? get birthDate;
 
   /// Create a copy of UserProfileModel
   /// with the given fields replaced by the non-null parameter values.

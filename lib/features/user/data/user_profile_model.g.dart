@@ -18,6 +18,9 @@ _$UserProfileModelImpl _$$UserProfileModelImplFromJson(
   displayNameChangeableAt: json['displayNameChangeableAt'] == null
       ? null
       : DateTime.parse(json['displayNameChangeableAt'] as String),
+  birthDate: json['birthDate'] == null
+      ? null
+      : DateTime.parse(json['birthDate'] as String),
 );
 
 Map<String, dynamic> _$$UserProfileModelImplToJson(
@@ -31,4 +34,5 @@ Map<String, dynamic> _$$UserProfileModelImplToJson(
   'followingCount': instance.followingCount,
   'displayNameChangeableAt': instance.displayNameChangeableAt
       ?.toIso8601String(),
+  'birthDate': instance.birthDate?.toIso8601String(),
 };
