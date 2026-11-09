@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
+import 'package:tiktok_mobile/core/utils/badge_count.dart';
 import 'package:tiktok_mobile/core/utils/time_ago.dart';
 import 'package:tiktok_mobile/core/widgets/error_view.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
@@ -191,7 +192,7 @@ class _ActivityEntry extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  unread > 99 ? '99+' : '$unread',
+                  badgeCount(unread),
                   style: work(size: 11, height: 1, color: Colors.white),
                 ),
               )
@@ -284,7 +285,7 @@ class _RequestsEntry extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  counts.unread > 99 ? '99+' : '${counts.unread}',
+                  badgeCount(counts.unread),
                   style: work(size: 11, height: 1, color: Colors.white),
                 ),
               )

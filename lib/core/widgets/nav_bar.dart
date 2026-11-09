@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
+import 'package:tiktok_mobile/core/utils/badge_count.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
 
 /// Floating glass tab bar. Index 2 is the create button.
@@ -69,7 +70,11 @@ class NowaNavBar extends StatelessWidget {
                     color: NowaColors.accent,
                     borderRadius: BorderRadius.circular(99),
                   ),
-                  child: Text('$badge', style: sora(size: 10, color: Colors.white)),
+                  child: Text(
+                    badgeCount(badge),
+                    key: Key('nav_badge_$i'),
+                    style: sora(size: 10, color: Colors.white),
+                  ),
                 ),
               ),
           ],
