@@ -772,32 +772,41 @@ class _PrivateAccount extends StatelessWidget {
     return Padding(
       key: const Key('profile_private_account'),
       padding: const EdgeInsets.symmetric(vertical: 40),
-      child: Column(
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: NowaColors.hairline, width: 1.5),
+      // Full width, so the parent's start alignment cannot push it to the left.
+      child: SizedBox(
+        width: double.infinity,
+        child: Column(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: NowaColors.hairline, width: 1.5),
+              ),
+              child: Icon(
+                Icons.lock_outline,
+                size: 24,
+                color: NowaColors.text.withValues(alpha: 0.6),
+              ),
             ),
-            child: Icon(
-              Icons.lock_outline,
-              size: 24,
-              color: NowaColors.text.withValues(alpha: 0.6),
+            const SizedBox(height: 14),
+            Text(
+              'This account is private',
+              textAlign: TextAlign.center,
+              style: sora(size: 15),
             ),
-          ),
-          const SizedBox(height: 14),
-          Text('This account is private', style: sora(size: 15)),
-          const SizedBox(height: 6),
-          Text(
-            'Follow this account to see their videos.',
-            style: work(
-              size: 13,
-              color: NowaColors.text.withValues(alpha: 0.5),
+            const SizedBox(height: 6),
+            Text(
+              'Follow this account to see their videos.',
+              textAlign: TextAlign.center,
+              style: work(
+                size: 13,
+                color: NowaColors.text.withValues(alpha: 0.5),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
