@@ -114,6 +114,12 @@ class ChatSocket {
   Stream<ChatInboxEvent> inbox() =>
       _watch(inboxDestination, ChatInboxEvent.fromServer);
 
+  /// Raw frames from any other destination on the same socket — the public
+  /// video topics (`/topic/videos.{id}`, `/topic/videos.{id}.comments`) that
+  /// chat-service also serves.
+  Stream<Map<String, dynamic>> topic(String destination) =>
+      _watch(destination, (json) => json);
+
   Stream<T> _watch<T extends Object>(
     String destination,
     T? Function(Map<String, dynamic>) parse,

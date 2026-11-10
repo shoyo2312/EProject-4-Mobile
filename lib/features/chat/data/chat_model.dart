@@ -55,6 +55,13 @@ class ConversationModel with _$ConversationModel {
     /// While the viewer's own request message waits: when they may send one
     /// more.
     DateTime? retryAvailableAt,
+
+    /// The viewer blocked the other person. `null`: the server could not
+    /// tell right now (an outage, not a block).
+    bool? blockedByViewer,
+
+    /// Messaging is closed by a block in either direction. `null` as above.
+    bool? messagingBlocked,
   }) = _ConversationModel;
 
   factory ConversationModel.fromJson(Map<String, dynamic> json) =>
@@ -87,18 +94,19 @@ class ConversationModel with _$ConversationModel {
   /// The same conversation once [me]'s own message, sent at [sentAt], is in.
   /// A request's one message is spent, and writing into a request the viewer
   /// deleted opens it — what the server says too, without the wait for it.
-  ConversationModel afterOwnMessage(DateTime sentAt) => switch (sendPermission) {
-    SendPermission.firstMessageOnly => copyWith(
-      sendPermission: SendPermission.requestSent,
-      retryAvailableAt: sentAt.add(requestRetryAfter),
-    ),
-    SendPermission.reopenOnSend => copyWith(
-      requestState: null,
-      sendPermission: SendPermission.allowed,
-      retryAvailableAt: null,
-    ),
-    _ => this,
-  };
+  ConversationModel afterOwnMessage(DateTime sentAt) =>
+      switch (sendPermission) {
+        SendPermission.firstMessageOnly => copyWith(
+          sendPermission: SendPermission.requestSent,
+          retryAvailableAt: sentAt.add(requestRetryAfter),
+        ),
+        SendPermission.reopenOnSend => copyWith(
+          requestState: null,
+          sendPermission: SendPermission.allowed,
+          retryAvailableAt: null,
+        ),
+        _ => this,
+      };
 
   /// How many conversations one person can keep pinned (chat-service
   /// `ChatUserPrefs.MAX_PINS`).

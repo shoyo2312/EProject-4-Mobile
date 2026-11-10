@@ -5,6 +5,7 @@ import 'package:tiktok_mobile/core/constants/env.dart';
 import 'package:tiktok_mobile/core/network/api_client.dart';
 import 'package:tiktok_mobile/core/network/api_response.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_model.dart';
+import 'package:tiktok_mobile/features/chat/data/sticker_suggestions.dart';
 
 /// chat-service (`/api/v1/conversations`). Every endpoint takes the caller
 /// from the token and refuses a thread they are not in with
@@ -116,6 +117,39 @@ class ChatRemoteDatasource {
     );
     return (response.data!['data'] as List)
         .map((e) => StickerPack.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// GIPHY stickers through chat-service, which holds the API key: trending
+  /// for a blank [query], a search otherwise. Each id is `giphy:<id>` and is
+  /// sent like any other sticker.
+  Future<List<StickerModel>> searchGiphyStickers(String query) async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/conversations/stickers/giphy',
+      queryParameters: {'limit': 24, if (query.isNotEmpty) 'q': query},
+    );
+    return (response.data!['data'] as List)
+        .map((e) => StickerModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// The words that earn a sticker suggestion while typing.
+  Future<List<SuggestionTopic>> suggestionTopics() async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/conversations/stickers/suggestions/topics',
+    );
+    return (response.data!['data'] as List)
+        .map((e) => SuggestionTopic.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// A few stickers for one topic; an unknown topic gives none.
+  Future<List<StickerModel>> stickerSuggestions(String topicId) async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/conversations/stickers/suggestions/${Uri.encodeComponent(topicId)}',
+    );
+    return (response.data!['data'] as List)
+        .map((e) => StickerModel.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
@@ -303,6 +337,12 @@ class ChatRemoteDatasource {
       '/conversations/$conversationId/pin',
     );
     return _unwrapConversation(response.data!);
+  }
+
+  /// Removes the conversation from the caller's side only; the other person
+  /// keeps their copy, and a new message starts a fresh thread here.
+  Future<void> deleteForMe(String conversationId) async {
+    await _apiClient.delete<void>('/conversations/$conversationId');
   }
 
   /// A report filed from a conversation (admin-service). Who is reported and

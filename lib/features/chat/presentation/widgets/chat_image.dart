@@ -12,8 +12,11 @@ import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
 Size chatImageBox(int width, int height, double maxWidth) {
   if (width <= 0 || height <= 0) return Size(maxWidth, maxWidth);
   final maxHeight = maxWidth * 1.3;
-  final scale = [maxWidth / width, maxHeight / height, 1.0]
-      .reduce((a, b) => a < b ? a : b);
+  final scale = [
+    maxWidth / width,
+    maxHeight / height,
+    1.0,
+  ].reduce((a, b) => a < b ? a : b);
   final w = (width * scale).clamp(80.0, maxWidth);
   final h = (height * scale).clamp(80.0, maxHeight);
   return Size(w, h);
@@ -75,10 +78,7 @@ void openPhotoViewer(BuildContext context, Uint8List bytes) {
           elevation: 0,
         ),
         body: Center(
-          child: InteractiveViewer(
-            maxScale: 5,
-            child: Image.memory(bytes),
-          ),
+          child: InteractiveViewer(maxScale: 5, child: Image.memory(bytes)),
         ),
       ),
     ),

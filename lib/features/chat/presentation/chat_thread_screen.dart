@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/utils/time_ago.dart';
@@ -12,6 +15,7 @@ import 'package:tiktok_mobile/core/widgets/nowa_app_bar.dart';
 import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_model.dart';
+import 'package:tiktok_mobile/features/chat/data/sticker_suggestions.dart';
 import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
 import 'package:tiktok_mobile/features/chat/presentation/photo_preview_screen.dart';
 import 'package:tiktok_mobile/features/chat/presentation/report_conversation_screen.dart';
@@ -83,10 +87,16 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
     _focus.addListener(() {
       if (!_focus.hasFocus) _typing.stop();
     });
+    // Without it (tests, a broken store) suggestions just never go quiet.
+    SharedPreferences.getInstance().then<void>(
+      (prefs) => _prefs = prefs,
+      onError: (_) {},
+    );
   }
 
   @override
   void dispose() {
+    _suggestTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _typing.dispose();
     _focus.dispose();
@@ -97,10 +107,34 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
   /// Typing is only announced where a message could go out right now — the
   /// same rule chat-service applies before it passes a frame on.
   bool get _mayAnnounceTyping =>
-      _conversation?.sendPermission == SendPermission.allowed;
+      _conversation?.sendPermission == SendPermission.allowed &&
+      _conversation?.messagingBlocked != true;
 
-  void _onComposerChanged(String text) =>
-      _typing.input(_mayAnnounceTyping && text.trim().isNotEmpty);
+  bool _unblocking = false;
+
+  /// The way out of the caller's own block, right where the composer was.
+  Future<void> _unblock(String? me) async {
+    final otherId = _otherId(me);
+    if (otherId == null || _unblocking) return;
+    setState(() => _unblocking = true);
+    try {
+      await ref.read(userRepositoryProvider).unblock(otherId);
+    } on ServerException catch (e) {
+      if (e.code != 'NOT_BLOCKED') _toast(e.message);
+    } on AppException catch (e) {
+      _toast(e.message);
+    }
+    if (!mounted) return;
+    ref.invalidate(conversationsProvider);
+    ref.invalidate(conversationDetailProvider(widget.conversationId));
+    ref.invalidate(profileNotifierProvider(otherId));
+    setState(() => _unblocking = false);
+  }
+
+  void _onComposerChanged(String text) {
+    _typing.input(_mayAnnounceTyping && text.trim().isNotEmpty);
+    _suggestFor(text);
+  }
 
   /// A message that lands while the phone is locked or the app is behind
   /// another is not "Seen" until the user is actually back.
@@ -124,6 +158,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
     if (text.isEmpty) return;
     if (!await _mayReopen()) return;
     _typing.stop();
+    _ignoreSuggestion();
     _controller.clear();
     try {
       await ref.read(threadProvider(widget.conversationId).notifier).send(text);
@@ -139,20 +174,109 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
   Future<void> _pickSticker() async {
     final sticker = await showStickerSheet(context);
     if (sticker == null || !mounted) return;
-    if (!await _mayReopen()) return;
+    await _sendSticker(sticker);
+  }
+
+  Future<bool> _sendSticker(StickerModel sticker) async {
+    if (!await _mayReopen()) return false;
     _typing.stop();
     try {
       await ref
           .read(threadProvider(widget.conversationId).notifier)
           .sendSticker(sticker);
+      return true;
     } on AppException catch (e) {
       _toast(requestErrorMessage(e) ?? e.message);
+      return false;
     }
   }
 
-  ConversationModel? get _conversation => ref
-      .read(conversationDetailProvider(widget.conversationId))
-      .valueOrNull;
+  /// The topic of what is being typed, once typing pauses; its stickers show
+  /// over the composer. Same rules as the web client: a short message naming
+  /// a feeling or greeting, not a topic closed in this visit, not a
+  /// conversation silenced on this device.
+  String? _suggestTopic;
+  Timer? _suggestTimer;
+  final _closedTopics = <String>{};
+  SharedPreferences? _prefs;
+
+  void _suggestFor(String text) {
+    _suggestTimer?.cancel();
+    final topic = _topicFor(text);
+    if (topic == _suggestTopic) return;
+    if (topic == null) {
+      setState(() => _suggestTopic = null);
+      return;
+    }
+    _suggestTimer = Timer(const Duration(milliseconds: 500), () {
+      if (mounted) setState(() => _suggestTopic = topic);
+    });
+  }
+
+  String? _topicFor(String text) {
+    if (text.trim().isEmpty) return null;
+    final topics = ref.read(suggestionTopicsProvider);
+    if (!topics.hasValue) {
+      ref.read(suggestionTopicsProvider.future).then(
+        (_) {
+          if (mounted) _suggestFor(_controller.text);
+        },
+        // Tried again on the next keystroke.
+        onError: (_) => ref.invalidate(suggestionTopicsProvider),
+      );
+      return null;
+    }
+    final topic = matchSuggestionTopic(text, topics.requireValue);
+    if (topic == null || _closedTopics.contains(topic)) return null;
+    final prefs = _prefs;
+    if (prefs != null &&
+        isSuggestionMuted(prefs, widget.conversationId, DateTime.now())) {
+      return null;
+    }
+    return topic;
+  }
+
+  void _closeSuggestion(String topic) {
+    _suggestTimer?.cancel();
+    setState(() {
+      _closedTopics.add(topic);
+      _suggestTopic = null;
+    });
+  }
+
+  /// Closed, or sent past: twice in a row silences this conversation a day.
+  void _dismissSuggestion(String topic) {
+    _closeSuggestion(topic);
+    final prefs = _prefs;
+    if (prefs != null) {
+      recordSuggestionDismissed(prefs, widget.conversationId, DateTime.now());
+    }
+  }
+
+  /// The message went out; a bar that was showing counts as ignored.
+  void _ignoreSuggestion() {
+    _suggestTimer?.cancel();
+    final topic = _suggestTopic;
+    if (topic == null) return;
+    final shown =
+        ref.read(stickerSuggestionsProvider(topic)).valueOrNull?.isNotEmpty ??
+        false;
+    if (shown) {
+      _dismissSuggestion(topic);
+    } else {
+      setState(() => _suggestTopic = null);
+    }
+  }
+
+  Future<void> _sendSuggested(String topic, StickerModel sticker) async {
+    if (!await _sendSticker(sticker) || !mounted) return;
+    _closeSuggestion(topic);
+    final prefs = _prefs;
+    if (prefs != null) recordSuggestionUsed(prefs, widget.conversationId);
+  }
+
+  ConversationModel? get _conversation =>
+      ref.read(conversationDetailProvider(widget.conversationId)).valueOrNull;
 
   /// The other person's name for sentences; never an id.
   String _nameFor(String? me) {
@@ -351,14 +475,16 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
     final otherId = _otherId(me?.id);
     final profiles = ref.watch(profileCacheProvider);
     final otherAvatar = otherId == null ? null : profiles[otherId]?.avatarUrl;
-    final myAvatar = ref.watch(myProfileProvider).valueOrNull?.avatarUrl ??
+    final myAvatar =
+        ref.watch(myProfileProvider).valueOrNull?.avatarUrl ??
         (me == null ? null : profiles[me.id]?.avatarUrl);
     final peerTyping = ref.watch(peerTypingProvider(widget.conversationId));
 
     // Blocked, a request turned around, an allowance spent: whatever was
     // being announced stops with the right to send.
     ref.listen(conversationDetailProvider(widget.conversationId), (_, next) {
-      if (next.valueOrNull?.sendPermission != SendPermission.allowed) {
+      if (next.valueOrNull?.sendPermission != SendPermission.allowed ||
+          next.valueOrNull?.messagingBlocked == true) {
         _typing.stop();
       }
     });
@@ -437,8 +563,8 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
                         onAvatarTap: mine
                             ? () => context.push('/profile')
                             : otherId == null
-                                ? null
-                                : () => context.push('/profile/$otherId'),
+                            ? null
+                            : () => context.push('/profile/$otherId'),
                         status: index == statusAt && !message.recalled
                             ? _statusLabel(message, receipt)
                             : null,
@@ -471,6 +597,15 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
   /// caller may send: Accept / Delete on a request they received, a notice
   /// once their own request message is out, otherwise the composer.
   Widget _bottom(ConversationModel? conversation, String? me) {
+    // A block in either direction comes first: there is nothing to send into.
+    if (conversation?.messagingBlocked == true) {
+      final own = conversation!.blockedByViewer == true;
+      return _BlockedNotice(
+        name: _nameFor(me),
+        unblocking: own ? _unblocking : null,
+        onUnblock: own ? () => _unblock(me) : null,
+      );
+    }
     switch (conversation?.sendPermission) {
       case SendPermission.awaitingAccept:
         return _RequestPrompt(
@@ -771,67 +906,146 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
 
   Widget _composer() {
     final dim = NowaColors.text.withValues(alpha: 0.7);
+    final topic = _suggestTopic;
+    final suggested = topic == null
+        ? const <StickerModel>[]
+        : ref.watch(stickerSuggestionsProvider(topic)).valueOrNull ??
+              const <StickerModel>[];
     return SafeArea(
       top: false,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(8, 8, 16, 10),
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: NowaColors.hairline)),
-        ),
-        child: Row(
-          children: [
-            IconButton(
-              key: const Key('chat_attach_button'),
-              tooltip: 'Photo',
-              onPressed: _attach,
-              icon: Icon(Icons.add_circle_outline, size: 22, color: dim),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (topic != null && suggested.isNotEmpty)
+            _StickerSuggestionBar(
+              stickers: suggested,
+              onPick: (sticker) => _sendSuggested(topic, sticker),
+              onDismiss: () => _dismissSuggestion(topic),
             ),
-            Expanded(
-              child: TextField(
-                key: const Key('chat_composer_field'),
-                controller: _controller,
-                focusNode: _focus,
-                onChanged: _onComposerChanged,
-                minLines: 1,
-                maxLines: 4,
-                // The server caps a message at 2000 characters; stopping here
-                // beats a 400 after the fact.
-                maxLength: 2000,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _send(),
-                style: work(size: 14, height: 1.3),
-                cursorColor: NowaColors.accent,
-                decoration: InputDecoration(
-                  isDense: true,
-                  counterText: '',
-                  border: InputBorder.none,
-                  hintText: 'Message',
-                  hintStyle: work(
-                    size: 14,
-                    height: 1.3,
-                    color: Colors.white.withValues(alpha: 0.45),
-                  ),
+          _composerRow(dim),
+        ],
+      ),
+    );
+  }
+
+  Widget _composerRow(Color dim) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 8, 16, 10),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: NowaColors.hairline)),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            key: const Key('chat_attach_button'),
+            tooltip: 'Photo',
+            onPressed: _attach,
+            icon: Icon(Icons.add_circle_outline, size: 22, color: dim),
+          ),
+          Expanded(
+            child: TextField(
+              key: const Key('chat_composer_field'),
+              controller: _controller,
+              focusNode: _focus,
+              onChanged: _onComposerChanged,
+              minLines: 1,
+              maxLines: 4,
+              // The server caps a message at 2000 characters; stopping here
+              // beats a 400 after the fact.
+              maxLength: 2000,
+              textInputAction: TextInputAction.send,
+              onSubmitted: (_) => _send(),
+              style: work(size: 14, height: 1.3),
+              cursorColor: NowaColors.accent,
+              decoration: InputDecoration(
+                isDense: true,
+                counterText: '',
+                border: InputBorder.none,
+                hintText: 'Message',
+                hintStyle: work(
+                  size: 14,
+                  height: 1.3,
+                  color: Colors.white.withValues(alpha: 0.45),
                 ),
               ),
             ),
-            IconButton(
-              key: const Key('chat_sticker_button'),
-              tooltip: 'Stickers',
-              onPressed: _pickSticker,
-              icon: Icon(Icons.emoji_emotions_outlined, size: 22, color: dim),
+          ),
+          IconButton(
+            key: const Key('chat_sticker_button'),
+            tooltip: 'Stickers',
+            onPressed: _pickSticker,
+            icon: Icon(Icons.emoji_emotions_outlined, size: 22, color: dim),
+          ),
+          GestureDetector(
+            key: const Key('chat_send_button'),
+            behavior: HitTestBehavior.opaque,
+            onTap: _send,
+            child: Icon(Icons.arrow_upward, size: 20, color: NowaColors.accent),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Stickers for the feeling being typed, over the composer. A tap sends one.
+class _StickerSuggestionBar extends StatelessWidget {
+  const _StickerSuggestionBar({
+    required this.stickers,
+    required this.onPick,
+    required this.onDismiss,
+  });
+
+  final List<StickerModel> stickers;
+  final ValueChanged<StickerModel> onPick;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('sticker_suggestions'),
+      height: 64,
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      decoration: BoxDecoration(
+        color: NowaColors.surfaceHigh,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: NowaColors.hairline),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.all(4),
+              children: [
+                for (final sticker in stickers)
+                  Semantics(
+                    button: true,
+                    label: 'Send sticker: ${sticker.name}',
+                    child: InkWell(
+                      key: Key('sticker_suggestion_${sticker.stickerId}'),
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => onPick(sticker),
+                      child: Padding(
+                        padding: const EdgeInsets.all(3),
+                        child: StickerImage(sticker: sticker, size: 50),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            GestureDetector(
-              key: const Key('chat_send_button'),
-              behavior: HitTestBehavior.opaque,
-              onTap: _send,
-              child: Icon(
-                Icons.arrow_upward,
-                size: 20,
-                color: NowaColors.accent,
-              ),
+          ),
+          IconButton(
+            key: const Key('sticker_suggestions_close'),
+            tooltip: 'Hide sticker suggestions',
+            onPressed: onDismiss,
+            icon: Icon(
+              Icons.close,
+              size: 18,
+              color: NowaColors.text.withValues(alpha: 0.6),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -948,8 +1162,18 @@ class _RequestSentNotice extends StatelessWidget {
   final DateTime? retryAvailableAt;
 
   static const _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
   @override
@@ -1006,6 +1230,74 @@ class _RequestSentNotice extends StatelessWidget {
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Stands where the composer would be while a block closes the thread. The
+/// caller's own block offers Unblock; the other side's names no one and
+/// offers nothing, as on the web. History stays readable above it.
+class _BlockedNotice extends StatelessWidget {
+  const _BlockedNotice({required this.name, this.unblocking, this.onUnblock});
+
+  final String name;
+  final bool? unblocking;
+  final VoidCallback? onUnblock;
+
+  @override
+  Widget build(BuildContext context) {
+    final own = onUnblock != null;
+    return SafeArea(
+      top: false,
+      child: Container(
+        key: const Key('blocked_notice'),
+        margin: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: NowaColors.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: NowaColors.hairline),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: NowaColors.surfaceHigh,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.block, size: 18, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                own
+                    ? 'You blocked $name. You can\'t message each other until '
+                          'you unblock them.'
+                    : 'You can\'t message this account.',
+                style: work(
+                  size: 13,
+                  height: 1.4,
+                  color: NowaColors.text.withValues(alpha: 0.7),
+                ),
+              ),
+            ),
+            if (own) ...[
+              const SizedBox(width: 8),
+              TextButton(
+                key: const Key('blocked_unblock'),
+                onPressed: unblocking == true ? null : onUnblock,
+                child: Text(
+                  unblocking == true ? 'Unblocking…' : 'Unblock',
+                  style: work(size: 13, color: NowaColors.accent),
+                ),
+              ),
+            ],
           ],
         ),
       ),

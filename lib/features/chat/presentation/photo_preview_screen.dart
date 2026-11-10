@@ -107,8 +107,9 @@ class _PhotoPreviewScreenState extends State<PhotoPreviewScreen> {
                     style: IconButton.styleFrom(
                       backgroundColor: NowaColors.accent,
                     ),
-                    onPressed: () => Navigator.of(context)
-                        .pop(SendPhoto(_caption.text.trim())),
+                    onPressed: () => Navigator.of(
+                      context,
+                    ).pop(SendPhoto(_caption.text.trim())),
                     icon: const Icon(Icons.arrow_upward, color: Colors.white),
                   ),
                 ],

@@ -80,7 +80,7 @@ final stickerPacksProvider = FutureProvider<List<StickerPack>>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef StickerPacksRef = FutureProviderRef<List<StickerPack>>;
-String _$chatImageBytesHash() => r'45218dafe05594ce9aa7c34894c175d4f0f7b535';
+String _$giphyStickersHash() => r'3fefbd11103da45d59ca909fbc77b1a7d3f31bfe';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -102,6 +102,300 @@ class _SystemHash {
     return 0x1fffffff & (hash + ((0x00003fff & hash) << 15));
   }
 }
+
+/// GIPHY stickers for one query; a blank one gives the trending stickers.
+///
+/// Copied from [giphyStickers].
+@ProviderFor(giphyStickers)
+const giphyStickersProvider = GiphyStickersFamily();
+
+/// GIPHY stickers for one query; a blank one gives the trending stickers.
+///
+/// Copied from [giphyStickers].
+class GiphyStickersFamily extends Family<AsyncValue<List<StickerModel>>> {
+  /// GIPHY stickers for one query; a blank one gives the trending stickers.
+  ///
+  /// Copied from [giphyStickers].
+  const GiphyStickersFamily();
+
+  /// GIPHY stickers for one query; a blank one gives the trending stickers.
+  ///
+  /// Copied from [giphyStickers].
+  GiphyStickersProvider call(String query) {
+    return GiphyStickersProvider(query);
+  }
+
+  @override
+  GiphyStickersProvider getProviderOverride(
+    covariant GiphyStickersProvider provider,
+  ) {
+    return call(provider.query);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'giphyStickersProvider';
+}
+
+/// GIPHY stickers for one query; a blank one gives the trending stickers.
+///
+/// Copied from [giphyStickers].
+class GiphyStickersProvider
+    extends AutoDisposeFutureProvider<List<StickerModel>> {
+  /// GIPHY stickers for one query; a blank one gives the trending stickers.
+  ///
+  /// Copied from [giphyStickers].
+  GiphyStickersProvider(String query)
+    : this._internal(
+        (ref) => giphyStickers(ref as GiphyStickersRef, query),
+        from: giphyStickersProvider,
+        name: r'giphyStickersProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$giphyStickersHash,
+        dependencies: GiphyStickersFamily._dependencies,
+        allTransitiveDependencies:
+            GiphyStickersFamily._allTransitiveDependencies,
+        query: query,
+      );
+
+  GiphyStickersProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.query,
+  }) : super.internal();
+
+  final String query;
+
+  @override
+  Override overrideWith(
+    FutureOr<List<StickerModel>> Function(GiphyStickersRef provider) create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: GiphyStickersProvider._internal(
+        (ref) => create(ref as GiphyStickersRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        query: query,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeFutureProviderElement<List<StickerModel>> createElement() {
+    return _GiphyStickersProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is GiphyStickersProvider && other.query == query;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, query.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin GiphyStickersRef on AutoDisposeFutureProviderRef<List<StickerModel>> {
+  /// The parameter `query` of this provider.
+  String get query;
+}
+
+class _GiphyStickersProviderElement
+    extends AutoDisposeFutureProviderElement<List<StickerModel>>
+    with GiphyStickersRef {
+  _GiphyStickersProviderElement(super.provider);
+
+  @override
+  String get query => (origin as GiphyStickersProvider).query;
+}
+
+String _$suggestionTopicsHash() => r'2efbf43b9a18cbb4cb27c5ebb20ec32200c1be1e';
+
+/// The words that earn a sticker suggestion; fetched once per session.
+///
+/// Copied from [suggestionTopics].
+@ProviderFor(suggestionTopics)
+final suggestionTopicsProvider = FutureProvider<List<SuggestionTopic>>.internal(
+  suggestionTopics,
+  name: r'suggestionTopicsProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$suggestionTopicsHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef SuggestionTopicsRef = FutureProviderRef<List<SuggestionTopic>>;
+String _$stickerSuggestionsHash() =>
+    r'ad15e4ca438c3a0f234623f3078c6e213be5b8bb';
+
+/// The stickers offered for one topic. Kept 10 minutes, like the web client:
+/// the server refreshes each pool a few times a day.
+///
+/// Copied from [stickerSuggestions].
+@ProviderFor(stickerSuggestions)
+const stickerSuggestionsProvider = StickerSuggestionsFamily();
+
+/// The stickers offered for one topic. Kept 10 minutes, like the web client:
+/// the server refreshes each pool a few times a day.
+///
+/// Copied from [stickerSuggestions].
+class StickerSuggestionsFamily extends Family<AsyncValue<List<StickerModel>>> {
+  /// The stickers offered for one topic. Kept 10 minutes, like the web client:
+  /// the server refreshes each pool a few times a day.
+  ///
+  /// Copied from [stickerSuggestions].
+  const StickerSuggestionsFamily();
+
+  /// The stickers offered for one topic. Kept 10 minutes, like the web client:
+  /// the server refreshes each pool a few times a day.
+  ///
+  /// Copied from [stickerSuggestions].
+  StickerSuggestionsProvider call(String topicId) {
+    return StickerSuggestionsProvider(topicId);
+  }
+
+  @override
+  StickerSuggestionsProvider getProviderOverride(
+    covariant StickerSuggestionsProvider provider,
+  ) {
+    return call(provider.topicId);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'stickerSuggestionsProvider';
+}
+
+/// The stickers offered for one topic. Kept 10 minutes, like the web client:
+/// the server refreshes each pool a few times a day.
+///
+/// Copied from [stickerSuggestions].
+class StickerSuggestionsProvider
+    extends AutoDisposeFutureProvider<List<StickerModel>> {
+  /// The stickers offered for one topic. Kept 10 minutes, like the web client:
+  /// the server refreshes each pool a few times a day.
+  ///
+  /// Copied from [stickerSuggestions].
+  StickerSuggestionsProvider(String topicId)
+    : this._internal(
+        (ref) => stickerSuggestions(ref as StickerSuggestionsRef, topicId),
+        from: stickerSuggestionsProvider,
+        name: r'stickerSuggestionsProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$stickerSuggestionsHash,
+        dependencies: StickerSuggestionsFamily._dependencies,
+        allTransitiveDependencies:
+            StickerSuggestionsFamily._allTransitiveDependencies,
+        topicId: topicId,
+      );
+
+  StickerSuggestionsProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.topicId,
+  }) : super.internal();
+
+  final String topicId;
+
+  @override
+  Override overrideWith(
+    FutureOr<List<StickerModel>> Function(StickerSuggestionsRef provider)
+    create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: StickerSuggestionsProvider._internal(
+        (ref) => create(ref as StickerSuggestionsRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        topicId: topicId,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeFutureProviderElement<List<StickerModel>> createElement() {
+    return _StickerSuggestionsProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is StickerSuggestionsProvider && other.topicId == topicId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, topicId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin StickerSuggestionsRef
+    on AutoDisposeFutureProviderRef<List<StickerModel>> {
+  /// The parameter `topicId` of this provider.
+  String get topicId;
+}
+
+class _StickerSuggestionsProviderElement
+    extends AutoDisposeFutureProviderElement<List<StickerModel>>
+    with StickerSuggestionsRef {
+  _StickerSuggestionsProviderElement(super.provider);
+
+  @override
+  String get topicId => (origin as StickerSuggestionsProvider).topicId;
+}
+
+String _$chatImageBytesHash() => r'45218dafe05594ce9aa7c34894c175d4f0f7b535';
 
 /// A chat picture's bytes, fetched with the viewer's token.
 ///
@@ -258,7 +552,7 @@ final unreadConversationsProvider = AutoDisposeProvider<int>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef UnreadConversationsRef = AutoDisposeProviderRef<int>;
-String _$conversationsHash() => r'ddb3c92a07a53d434cb5ed3f5b1722b3a8c6a99a';
+String _$conversationsHash() => r'727996907f32c1c441b44585efd6ebf5b7314321';
 
 /// The thread list, most recently active first, kept current over the socket.
 ///
@@ -307,7 +601,7 @@ final messageRequestsProvider =
 
 typedef _$MessageRequests = AutoDisposeAsyncNotifier<List<ConversationModel>>;
 String _$conversationDetailHash() =>
-    r'4b1717932d4d211f1623c0e55b51d04e364998f6';
+    r'f4a7d2c431df5084f44dd082e13928bc6f047236';
 
 abstract class _$ConversationDetail
     extends BuildlessAutoDisposeAsyncNotifier<ConversationModel?> {

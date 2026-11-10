@@ -58,6 +58,13 @@ mixin _$ConversationModel {
   /// more.
   DateTime? get retryAvailableAt => throw _privateConstructorUsedError;
 
+  /// The viewer blocked the other person. `null`: the server could not
+  /// tell right now (an outage, not a block).
+  bool? get blockedByViewer => throw _privateConstructorUsedError;
+
+  /// Messaging is closed by a block in either direction. `null` as above.
+  bool? get messagingBlocked => throw _privateConstructorUsedError;
+
   /// Serializes this ConversationModel to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -92,6 +99,8 @@ abstract class $ConversationModelCopyWith<$Res> {
     @JsonKey(unknownEnumValue: SendPermission.allowed)
     SendPermission sendPermission,
     DateTime? retryAvailableAt,
+    bool? blockedByViewer,
+    bool? messagingBlocked,
   });
 }
 
@@ -124,6 +133,8 @@ class _$ConversationModelCopyWithImpl<$Res, $Val extends ConversationModel>
     Object? initiatorId = freezed,
     Object? sendPermission = null,
     Object? retryAvailableAt = freezed,
+    Object? blockedByViewer = freezed,
+    Object? messagingBlocked = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -183,6 +194,14 @@ class _$ConversationModelCopyWithImpl<$Res, $Val extends ConversationModel>
                 ? _value.retryAvailableAt
                 : retryAvailableAt // ignore: cast_nullable_to_non_nullable
                       as DateTime?,
+            blockedByViewer: freezed == blockedByViewer
+                ? _value.blockedByViewer
+                : blockedByViewer // ignore: cast_nullable_to_non_nullable
+                      as bool?,
+            messagingBlocked: freezed == messagingBlocked
+                ? _value.messagingBlocked
+                : messagingBlocked // ignore: cast_nullable_to_non_nullable
+                      as bool?,
           )
           as $Val,
     );
@@ -215,6 +234,8 @@ abstract class _$$ConversationModelImplCopyWith<$Res>
     @JsonKey(unknownEnumValue: SendPermission.allowed)
     SendPermission sendPermission,
     DateTime? retryAvailableAt,
+    bool? blockedByViewer,
+    bool? messagingBlocked,
   });
 }
 
@@ -246,6 +267,8 @@ class __$$ConversationModelImplCopyWithImpl<$Res>
     Object? initiatorId = freezed,
     Object? sendPermission = null,
     Object? retryAvailableAt = freezed,
+    Object? blockedByViewer = freezed,
+    Object? messagingBlocked = freezed,
   }) {
     return _then(
       _$ConversationModelImpl(
@@ -305,6 +328,14 @@ class __$$ConversationModelImplCopyWithImpl<$Res>
             ? _value.retryAvailableAt
             : retryAvailableAt // ignore: cast_nullable_to_non_nullable
                   as DateTime?,
+        blockedByViewer: freezed == blockedByViewer
+            ? _value.blockedByViewer
+            : blockedByViewer // ignore: cast_nullable_to_non_nullable
+                  as bool?,
+        messagingBlocked: freezed == messagingBlocked
+            ? _value.messagingBlocked
+            : messagingBlocked // ignore: cast_nullable_to_non_nullable
+                  as bool?,
       ),
     );
   }
@@ -330,6 +361,8 @@ class _$ConversationModelImpl extends _ConversationModel {
     @JsonKey(unknownEnumValue: SendPermission.allowed)
     this.sendPermission = SendPermission.allowed,
     this.retryAvailableAt,
+    this.blockedByViewer,
+    this.messagingBlocked,
   }) : _participantIds = participantIds,
        super._();
 
@@ -394,9 +427,18 @@ class _$ConversationModelImpl extends _ConversationModel {
   @override
   final DateTime? retryAvailableAt;
 
+  /// The viewer blocked the other person. `null`: the server could not
+  /// tell right now (an outage, not a block).
+  @override
+  final bool? blockedByViewer;
+
+  /// Messaging is closed by a block in either direction. `null` as above.
+  @override
+  final bool? messagingBlocked;
+
   @override
   String toString() {
-    return 'ConversationModel(id: $id, participantIds: $participantIds, lastMessageContent: $lastMessageContent, lastMessageSenderId: $lastMessageSenderId, lastMessageAt: $lastMessageAt, createdAt: $createdAt, hasUnread: $hasUnread, muteMode: $muteMode, mutedUntil: $mutedUntil, pinnedAt: $pinnedAt, requestState: $requestState, initiatorId: $initiatorId, sendPermission: $sendPermission, retryAvailableAt: $retryAvailableAt)';
+    return 'ConversationModel(id: $id, participantIds: $participantIds, lastMessageContent: $lastMessageContent, lastMessageSenderId: $lastMessageSenderId, lastMessageAt: $lastMessageAt, createdAt: $createdAt, hasUnread: $hasUnread, muteMode: $muteMode, mutedUntil: $mutedUntil, pinnedAt: $pinnedAt, requestState: $requestState, initiatorId: $initiatorId, sendPermission: $sendPermission, retryAvailableAt: $retryAvailableAt, blockedByViewer: $blockedByViewer, messagingBlocked: $messagingBlocked)';
   }
 
   @override
@@ -432,7 +474,11 @@ class _$ConversationModelImpl extends _ConversationModel {
             (identical(other.sendPermission, sendPermission) ||
                 other.sendPermission == sendPermission) &&
             (identical(other.retryAvailableAt, retryAvailableAt) ||
-                other.retryAvailableAt == retryAvailableAt));
+                other.retryAvailableAt == retryAvailableAt) &&
+            (identical(other.blockedByViewer, blockedByViewer) ||
+                other.blockedByViewer == blockedByViewer) &&
+            (identical(other.messagingBlocked, messagingBlocked) ||
+                other.messagingBlocked == messagingBlocked));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -453,6 +499,8 @@ class _$ConversationModelImpl extends _ConversationModel {
     initiatorId,
     sendPermission,
     retryAvailableAt,
+    blockedByViewer,
+    messagingBlocked,
   );
 
   /// Create a copy of ConversationModel
@@ -490,6 +538,8 @@ abstract class _ConversationModel extends ConversationModel {
     @JsonKey(unknownEnumValue: SendPermission.allowed)
     final SendPermission sendPermission,
     final DateTime? retryAvailableAt,
+    final bool? blockedByViewer,
+    final bool? messagingBlocked,
   }) = _$ConversationModelImpl;
   const _ConversationModel._() : super._();
 
@@ -546,6 +596,15 @@ abstract class _ConversationModel extends ConversationModel {
   /// more.
   @override
   DateTime? get retryAvailableAt;
+
+  /// The viewer blocked the other person. `null`: the server could not
+  /// tell right now (an outage, not a block).
+  @override
+  bool? get blockedByViewer;
+
+  /// Messaging is closed by a block in either direction. `null` as above.
+  @override
+  bool? get messagingBlocked;
 
   /// Create a copy of ConversationModel
   /// with the given fields replaced by the non-null parameter values.

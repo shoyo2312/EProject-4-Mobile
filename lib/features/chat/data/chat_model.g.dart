@@ -47,6 +47,8 @@ _$ConversationModelImpl _$$ConversationModelImplFromJson(
   retryAvailableAt: json['retryAvailableAt'] == null
       ? null
       : DateTime.parse(json['retryAvailableAt'] as String),
+  blockedByViewer: json['blockedByViewer'] as bool?,
+  messagingBlocked: json['messagingBlocked'] as bool?,
 );
 
 Map<String, dynamic> _$$ConversationModelImplToJson(
@@ -66,6 +68,8 @@ Map<String, dynamic> _$$ConversationModelImplToJson(
   'initiatorId': instance.initiatorId,
   'sendPermission': _$SendPermissionEnumMap[instance.sendPermission]!,
   'retryAvailableAt': instance.retryAvailableAt?.toIso8601String(),
+  'blockedByViewer': instance.blockedByViewer,
+  'messagingBlocked': instance.messagingBlocked,
 };
 
 const _$MuteModeEnumMap = {

@@ -11,7 +11,7 @@ import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
 /// One thread in the Inbox list: the other person, the last message, when it
 /// arrived and whether it is still unread. Tapping opens the thread; a long
-/// press offers pin, mute, block and the other person's profile.
+/// press offers pin, mute, report, block, delete and the profile.
 class ConversationRow extends ConsumerWidget {
   const ConversationRow({
     super.key,

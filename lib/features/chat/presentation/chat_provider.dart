@@ -11,6 +11,7 @@ import 'package:tiktok_mobile/features/chat/data/chat_model.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_remote_datasource.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_repository.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_socket.dart';
+import 'package:tiktok_mobile/features/chat/data/sticker_suggestions.dart';
 import 'package:tiktok_mobile/features/chat/presentation/typing_sender.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
@@ -114,9 +115,8 @@ class Conversations extends _$Conversations {
     // The server's order: an unpinned thread moves to the top of the
     // unpinned ones, a pinned one keeps its place among the pins.
     state = AsyncData(
-      [
-        for (final c in rows) c.id == message.conversationId ? updated : c,
-      ]..sort(ConversationModel.compare),
+      [for (final c in rows) c.id == message.conversationId ? updated : c]
+        ..sort(ConversationModel.compare),
     );
   }
 
@@ -163,6 +163,17 @@ class Conversations extends _$Conversations {
     _replace(await ref.read(chatRepositoryProvider).unpin(conversationId));
   }
 
+  /// Deletes the thread from this account only and drops its row.
+  Future<void> delete(String conversationId) async {
+    await ref.read(chatRepositoryProvider).deleteForMe(conversationId);
+    final rows = state.valueOrNull;
+    if (rows == null) return;
+    state = AsyncData([
+      for (final c in rows)
+        if (c.id != conversationId) c,
+    ]);
+  }
+
   /// The server's copy of one row, put where the server's order places it —
   /// a pin or an unpin moves the row; a mute leaves it where it is.
   void _replace(ConversationModel conversation) {
@@ -174,9 +185,8 @@ class Conversations extends _$Conversations {
       return;
     }
     state = AsyncData(
-      [
-        for (final c in rows) c.id == conversation.id ? conversation : c,
-      ]..sort(ConversationModel.compare),
+      [for (final c in rows) c.id == conversation.id ? conversation : c]
+        ..sort(ConversationModel.compare),
     );
   }
 }
@@ -312,6 +322,19 @@ RequestCounts requestCounts(Ref ref) {
 class ConversationDetail extends _$ConversationDetail {
   @override
   FutureOr<ConversationModel?> build(String conversationId) async {
+    // A block (either way), an accept elsewhere: the server pushes the
+    // conversation again, so the composer follows without a restart.
+    final live = ref
+        .read(chatRepositoryProvider)
+        .inboxEvents()
+        .where(
+          (e) =>
+              e.conversationId == conversationId &&
+              e.type == ChatEventType.conversation,
+        )
+        .listen((_) => ref.invalidateSelf());
+    ref.onDispose(live.cancel);
+
     ConversationModel? find(List<ConversationModel>? rows) =>
         rows?.where((c) => c.id == conversationId).firstOrNull;
     final known =
@@ -326,9 +349,9 @@ class ConversationDetail extends _$ConversationDetail {
       final me = ref.read(authStateProvider).valueOrNull?.id;
       if (me != null) {
         try {
-          await ref
-              .read(profileCacheProvider.notifier)
-              .loadMissing([fetched.otherParticipant(me)]);
+          await ref.read(profileCacheProvider.notifier).loadMissing([
+            fetched.otherParticipant(me),
+          ]);
         } on AppException {
           // The header says "Messages" until it is known.
         }
@@ -349,8 +372,7 @@ class ConversationDetail extends _$ConversationDetail {
   }
 
   /// The server's answer to something done here (an accept), shown at once.
-  void show(ConversationModel conversation) =>
-      state = AsyncData(conversation);
+  void show(ConversationModel conversation) => state = AsyncData(conversation);
 }
 
 /// The server refused a send because the request changed under the caller —
@@ -361,6 +383,7 @@ void _recheckPermission(Ref ref, String conversationId, AppException e) {
     'MESSAGE_REQUEST_LIMIT_REACHED',
     'MESSAGE_REQUEST_NOT_ACCEPTED',
     'MESSAGE_REQUEST_NOT_PENDING',
+    'MESSAGING_BLOCKED',
   };
   if (e is! ServerException || !changed.contains(e.code)) return;
   ref.invalidate(conversationsProvider);
@@ -761,6 +784,26 @@ String newClientRequestId() {
 @Riverpod(keepAlive: true)
 Future<List<StickerPack>> stickerPacks(Ref ref) =>
     ref.watch(chatRepositoryProvider).listStickerPacks();
+
+/// GIPHY stickers for one query; a blank one gives the trending stickers.
+@riverpod
+Future<List<StickerModel>> giphyStickers(Ref ref, String query) =>
+    ref.watch(chatRepositoryProvider).searchGiphyStickers(query);
+
+/// The words that earn a sticker suggestion; fetched once per session.
+@Riverpod(keepAlive: true)
+Future<List<SuggestionTopic>> suggestionTopics(Ref ref) =>
+    ref.watch(chatRepositoryProvider).suggestionTopics();
+
+/// The stickers offered for one topic. Kept 10 minutes, like the web client:
+/// the server refreshes each pool a few times a day.
+@riverpod
+Future<List<StickerModel>> stickerSuggestions(Ref ref, String topicId) {
+  final link = ref.keepAlive();
+  final timer = Timer(const Duration(minutes: 10), link.close);
+  ref.onDispose(timer.cancel);
+  return ref.watch(chatRepositoryProvider).stickerSuggestions(topicId);
+}
 
 /// A chat picture's bytes, fetched with the viewer's token.
 @riverpod

@@ -5,6 +5,7 @@ import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_model.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_remote_datasource.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_socket.dart';
+import 'package:tiktok_mobile/features/chat/data/sticker_suggestions.dart';
 
 class ChatRepository {
   ChatRepository(this._remoteDatasource, this._socket);
@@ -95,6 +96,30 @@ class ChatRepository {
   Future<List<StickerPack>> listStickerPacks() async {
     try {
       return await _remoteDatasource.listStickerPacks();
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<List<StickerModel>> searchGiphyStickers(String query) async {
+    try {
+      return await _remoteDatasource.searchGiphyStickers(query);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<List<SuggestionTopic>> suggestionTopics() async {
+    try {
+      return await _remoteDatasource.suggestionTopics();
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<List<StickerModel>> stickerSuggestions(String topicId) async {
+    try {
+      return await _remoteDatasource.stickerSuggestions(topicId);
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }
@@ -267,6 +292,14 @@ class ChatRepository {
   Future<ConversationModel> unpin(String conversationId) async {
     try {
       return await _remoteDatasource.unpin(conversationId);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<void> deleteForMe(String conversationId) async {
+    try {
+      await _remoteDatasource.deleteForMe(conversationId);
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }

@@ -6,17 +6,29 @@ import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_model.dart';
 import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
+import 'package:tiktok_mobile/features/chat/presentation/report_conversation_screen.dart';
 import 'package:tiktok_mobile/features/chat/presentation/widgets/mute_sheet.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
-enum _Action { pin, unpin, mute, unmute, block, profile }
+enum _Action {
+  pin,
+  unpin,
+  mute,
+  unmute,
+  report,
+  block,
+  unblock,
+  delete,
+  profile,
+}
 
 const _pinLimitMessage =
     'You can pin up to ${ConversationModel.maxPins} conversations. '
     'Unpin one first.';
 
 /// The long press on an Inbox row: pin (or unpin) the thread, mute (or
-/// unmute) it, block the other person, or open their profile.
+/// unmute) it, report it to moderators, block (or unblock) the other person,
+/// delete it from this account only, or open their profile.
 Future<void> showConversationActions(
   BuildContext context,
   WidgetRef ref, {
@@ -28,6 +40,7 @@ Future<void> showConversationActions(
       ref.read(profileCacheProvider)[otherId]?.displayName ?? 'this user';
   final muted = conversation.muted;
   final pinned = conversation.pinned;
+  final blockedByMe = conversation.blockedByViewer == true;
   // Held now: every await below can outlive the row that was pressed.
   final toaster = NowaToast.of(context);
   void toast(String text, [ToastKind kind = ToastKind.error]) =>
@@ -35,72 +48,100 @@ Future<void> showConversationActions(
 
   final action = await showModalBottomSheet<_Action>(
     context: context,
+    // Seven rows outgrow the default half-height cap on a small phone.
+    isScrollControlled: true,
     backgroundColor: NowaColors.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
     ),
     builder: (context) => SafeArea(
       top: false,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-            child: Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: sora(size: 14.5),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+              child: Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: sora(size: 14.5),
+              ),
             ),
-          ),
-          ListTile(
-            key: const Key('conversation_action_pin'),
-            leading: Icon(
-              pinned ? Icons.push_pin : Icons.push_pin_outlined,
-              color: NowaColors.text,
+            ListTile(
+              key: const Key('conversation_action_pin'),
+              leading: Icon(
+                pinned ? Icons.push_pin : Icons.push_pin_outlined,
+                color: NowaColors.text,
+              ),
+              title: Text(
+                pinned ? 'Unpin' : 'Pin to top',
+                style: work(size: 14),
+              ),
+              onTap: () => Navigator.of(
+                context,
+              ).pop(pinned ? _Action.unpin : _Action.pin),
             ),
-            title: Text(pinned ? 'Unpin' : 'Pin to top', style: work(size: 14)),
-            onTap: () =>
-                Navigator.of(context).pop(pinned ? _Action.unpin : _Action.pin),
-          ),
-          ListTile(
-            key: const Key('conversation_action_mute'),
-            leading: Icon(
-              muted
-                  ? Icons.notifications_active_outlined
-                  : Icons.notifications_off_outlined,
-              color: NowaColors.text,
+            ListTile(
+              key: const Key('conversation_action_mute'),
+              leading: Icon(
+                muted
+                    ? Icons.notifications_active_outlined
+                    : Icons.notifications_off_outlined,
+                color: NowaColors.text,
+              ),
+              title: Text(
+                muted ? 'Unmute notifications' : 'Mute notifications',
+                style: work(size: 14),
+              ),
+              subtitle: muted
+                  ? Text(
+                      mutedLabel(conversation),
+                      style: work(size: 12, color: NowaColors.dim),
+                    )
+                  : null,
+              onTap: () => Navigator.of(
+                context,
+              ).pop(muted ? _Action.unmute : _Action.mute),
             ),
-            title: Text(
-              muted ? 'Unmute notifications' : 'Mute notifications',
-              style: work(size: 14),
+            ListTile(
+              key: const Key('conversation_action_profile'),
+              leading: const Icon(Icons.person_outline, color: NowaColors.text),
+              title: Text('View profile', style: work(size: 14)),
+              onTap: () => Navigator.of(context).pop(_Action.profile),
             ),
-            subtitle: muted
-                ? Text(
-                    mutedLabel(conversation),
-                    style: work(size: 12, color: NowaColors.dim),
-                  )
-                : null,
-            onTap: () => Navigator.of(
-              context,
-            ).pop(muted ? _Action.unmute : _Action.mute),
-          ),
-          ListTile(
-            key: const Key('conversation_action_profile'),
-            leading: const Icon(Icons.person_outline, color: NowaColors.text),
-            title: Text('View profile', style: work(size: 14)),
-            onTap: () => Navigator.of(context).pop(_Action.profile),
-          ),
-          ListTile(
-            key: const Key('conversation_action_block'),
-            leading: const Icon(Icons.block, color: NowaColors.danger),
-            title: Text(
-              'Block',
-              style: work(size: 14, color: NowaColors.danger),
+            ListTile(
+              key: const Key('conversation_action_report'),
+              leading: const Icon(Icons.flag_outlined, color: NowaColors.text),
+              title: Text('Report', style: work(size: 14)),
+              onTap: () => Navigator.of(context).pop(_Action.report),
             ),
-            onTap: () => Navigator.of(context).pop(_Action.block),
-          ),
-        ],
+            ListTile(
+              key: const Key('conversation_action_block'),
+              leading: const Icon(Icons.block, color: NowaColors.danger),
+              title: Text(
+                blockedByMe ? 'Unblock' : 'Block',
+                style: work(size: 14, color: NowaColors.danger),
+              ),
+              onTap: () => Navigator.of(
+                context,
+              ).pop(blockedByMe ? _Action.unblock : _Action.block),
+            ),
+            ListTile(
+              key: const Key('conversation_action_delete'),
+              leading: const Icon(
+                Icons.delete_outline,
+                color: NowaColors.danger,
+              ),
+              title: Text(
+                'Delete',
+                style: work(size: 14, color: NowaColors.danger),
+              ),
+              onTap: () => Navigator.of(context).pop(_Action.delete),
+            ),
+          ],
+        ),
       ),
     ),
   );
@@ -149,8 +190,61 @@ Future<void> showConversationActions(
       } on AppException catch (e) {
         toast(e.message);
       }
+    case _Action.report:
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ReportConversationScreen(
+            conversationId: conversation.id,
+            otherUserId: otherId,
+          ),
+        ),
+      );
+    case _Action.delete:
+      final confirmed = await _confirm(
+        context,
+        key: const Key('conversation_delete_confirm'),
+        title: 'Delete chat with $name?',
+        body:
+            'This removes the conversation and its current message history '
+            "from your side, and it can't be restored in the app. $name will "
+            'still have their copy. New messages will start a fresh '
+            'conversation on your side.',
+        action: 'Delete',
+      );
+      if (!confirmed) return;
+      try {
+        await ref.read(conversationsProvider.notifier).delete(conversation.id);
+        toast('Chat deleted', ToastKind.success);
+      } on AppException catch (e) {
+        toast(e.message);
+      }
+    case _Action.unblock:
+      try {
+        await ref.read(userRepositoryProvider).unblock(otherId);
+      } on ServerException catch (e) {
+        // Already lifted elsewhere: the state the viewer asked for.
+        if (e.code != 'NOT_BLOCKED') {
+          toast(e.message);
+          return;
+        }
+      } on AppException catch (e) {
+        toast(e.message);
+        return;
+      }
+      ref.invalidate(conversationsProvider);
+      ref.invalidate(profileNotifierProvider(otherId));
+      toast('Unblocked $name', ToastKind.success);
     case _Action.block:
-      if (!await _confirmBlock(context, name)) return;
+      final confirmed = await _confirm(
+        context,
+        key: const Key('conversation_block_confirm'),
+        title: 'Block $name?',
+        body:
+            "They won't be able to message you. "
+            'You can unblock them later from their profile.',
+        action: 'Block',
+      );
+      if (!confirmed) return;
       try {
         await ref.read(userRepositoryProvider).block(otherId);
       } on ServerException catch (e) {
@@ -169,26 +263,28 @@ Future<void> showConversationActions(
   }
 }
 
-Future<bool> _confirmBlock(BuildContext context, String name) async {
+Future<bool> _confirm(
+  BuildContext context, {
+  required Key key,
+  required String title,
+  required String body,
+  required String action,
+}) async {
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (dialogContext) => AlertDialog(
       backgroundColor: NowaColors.surfaceHigh,
-      title: Text('Block $name?', style: sora(size: 16)),
-      content: Text(
-        'They won\'t be able to message you. '
-        'You can unblock them later from their profile.',
-        style: work(size: 13, color: NowaColors.dim),
-      ),
+      title: Text(title, style: sora(size: 16)),
+      content: Text(body, style: work(size: 13, color: NowaColors.dim)),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(dialogContext).pop(false),
           child: Text('Cancel', style: work(size: 14)),
         ),
         TextButton(
-          key: const Key('conversation_block_confirm'),
+          key: key,
           onPressed: () => Navigator.of(dialogContext).pop(true),
-          child: Text('Block', style: work(size: 14, color: NowaColors.danger)),
+          child: Text(action, style: work(size: 14, color: NowaColors.danger)),
         ),
       ],
     ),

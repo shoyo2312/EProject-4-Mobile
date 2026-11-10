@@ -500,6 +500,48 @@ void main() {
       expect(composer, findsNothing);
     });
 
+    testWidgets('a block pushed by the server closes the composer at once',
+        (tester) async {
+      when(() => repository.listConversations())
+          .thenAnswer((_) async => [ordinary]);
+      await pumpThread(tester);
+      expect(composer, findsOneWidget);
+
+      // The other side blocks: chat-service pushes the conversation again.
+      when(() => repository.listConversations()).thenAnswer((_) async =>
+          [ordinary.copyWith(blockedByViewer: false, messagingBlocked: true)]);
+      inbox.add(const ChatInboxEvent(
+          type: ChatEventType.conversation, conversationId: 'c1'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('You can\'t message this account.'), findsOneWidget);
+      expect(find.byKey(const Key('blocked_unblock')), findsNothing);
+      expect(composer, findsNothing);
+    });
+
+    testWidgets('the caller\'s own block offers Unblock right there',
+        (tester) async {
+      var blocked = true;
+      when(() => repository.listConversations()).thenAnswer((_) async => [
+            ordinary.copyWith(
+                blockedByViewer: blocked, messagingBlocked: blocked),
+          ]);
+      when(() => users.unblock('2002')).thenAnswer((_) async {
+        blocked = false;
+      });
+      await pumpThread(tester);
+
+      expect(find.textContaining('You blocked Lan'), findsOneWidget);
+      expect(composer, findsNothing);
+
+      await tester.tap(find.byKey(const Key('blocked_unblock')));
+      await tester.pumpAndSettle();
+
+      verify(() => users.unblock('2002')).called(1);
+      expect(find.byKey(const Key('blocked_notice')), findsNothing);
+      expect(composer, findsOneWidget);
+    });
+
     testWidgets('the one request message is sent, then the notice takes over',
         (tester) async {
       when(() => repository.listConversations()).thenAnswer(
