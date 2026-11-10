@@ -177,13 +177,17 @@ class _Row extends StatelessWidget {
   final Widget child;
   final Widget? trailing;
 
+  /// Kept on every row, filled or not, so all the sliders end at the same
+  /// place — the speaker's width ([OriginalSoundToggle] at its default size).
+  static const _trailingWidth = 26.0;
+
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         SizedBox(width: 74, child: Text(label, style: sora(size: 11, color: NowaColors.dim))),
         Expanded(child: child),
-        ?trailing,
+        SizedBox(width: _trailingWidth, child: Center(child: trailing)),
       ],
     );
   }

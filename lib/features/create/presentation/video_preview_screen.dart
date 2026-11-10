@@ -13,6 +13,7 @@ import 'package:tiktok_mobile/features/create/presentation/widgets/music_panel.d
 import 'package:tiktok_mobile/features/create/presentation/widgets/music_picker.dart';
 import 'package:tiktok_mobile/features/create/presentation/widgets/overlay_editor.dart';
 import 'package:tiktok_mobile/features/create/presentation/widgets/overlay_painter.dart';
+import 'package:tiktok_mobile/core/utils/player_audio.dart';
 import 'package:video_player/video_player.dart';
 
 /// Step 2 of the create flow: trim the clip and pick its speed before
@@ -146,13 +147,23 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   late EditMusic? _music = widget.initialEdit?.music;
   VideoPlayerController? _musicPlayer;
 
+  /// Set while the song is being moved. Its position means nothing until the
+  /// move lands, and moving it again restarts the load: over the network,
+  /// deep into a song, that kept it silent for good.
+  var _musicSeeking = false;
+
+  /// How far the song may sit from the picture before it is put back. Seeking
+  /// forward inside what is already loaded is instant, so a lag left by a
+  /// load is caught up on the next check.
+  static const _musicDrift = Duration(milliseconds: 500);
+
   /// The song's controls are showing in place of the editor's.
   var _musicOpen = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.file(widget.file)
+    _controller = VideoPlayerController.file(widget.file, videoPlayerOptions: ownsAudio())
       ..setLooping(true)
       ..addListener(_followEdit)
       ..initialize().then((_) {
@@ -227,7 +238,11 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
     _musicPlayer = null;
     await old?.dispose();
     if (track == null) return;
-    final player = VideoPlayerController.networkUrl(Uri.parse(track.audioUrl));
+    final player = VideoPlayerController.networkUrl(
+      Uri.parse(track.audioUrl),
+      // Never takes the video's audio focus: see mixesAudio.
+      videoPlayerOptions: mixesAudio(),
+    );
     try {
       await player.initialize();
     } catch (_) {
@@ -261,13 +276,44 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
     final target = Duration(milliseconds: ((music.start + played) * 1000).round());
     final ended = target >= player.value.duration;
     if (_controller.value.isPlaying && !ended) {
-      if ((player.value.position - target).abs() > const Duration(milliseconds: 350)) {
-        player.seekTo(target);
+      // Not while it loads: it stands still then, and every check would find
+      // it behind and send it off to load again.
+      final settling = _musicSeeking || player.value.isBuffering;
+      if (!settling && (player.value.position - target).abs() > _musicDrift) {
+        _seekMusic(target);
       }
       if (!player.value.isPlaying) player.play();
     } else if (player.value.isPlaying) {
       player.pause();
     }
+  }
+
+  Future<void> _seekMusic(Duration to) async {
+    final player = _musicPlayer;
+    if (player == null) return;
+    _musicSeeking = true;
+    try {
+      await player.seekTo(to);
+    } finally {
+      _musicSeeking = false;
+    }
+  }
+
+  /// The new start, heard against the video's first frame. Both move before
+  /// playback is followed again, so the old picture position cannot drag
+  /// the song somewhere else in between.
+  Future<void> _restartFrom(EditMusic music) async {
+    _seeking = true;
+    try {
+      await Future.wait([
+        _controller.seekTo(_playback.rawAt(0)),
+        _seekMusic(Duration(milliseconds: (music.start * 1000).round())),
+      ]);
+    } finally {
+      _seeking = false;
+    }
+    // The song follows the video, so a paused preview would stay silent.
+    if (mounted && !_controller.value.isPlaying) await _controller.play();
   }
 
   Future<void> _pickMusic() async {
@@ -295,13 +341,7 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
   void _setMusic(EditMusic music, {bool seek = false}) {
     setState(() => _music = music);
     _applyLevels();
-    if (seek) {
-      // The song's new start, heard against the video's first frame.
-      _controller.seekTo(_playback.rawAt(0));
-      _musicPlayer?.seekTo(Duration(milliseconds: (music.start * 1000).round()));
-      // The song follows the video, so a paused preview would stay silent.
-      if (!_controller.value.isPlaying) _controller.play();
-    }
+    if (seek) _restartFrom(music);
   }
 
   Future<void> _removeMusic() async {
@@ -548,9 +588,22 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
             )
           else
             const LoadingView(),
-          if (_ready && !_controller.value.isPlaying)
-            const Center(
-              child: Icon(Icons.play_arrow, size: 56, color: Colors.white70),
+          if (_ready)
+            // Follows the player itself: it can stop or start without this
+            // screen doing anything (a call, another app taking the sound).
+            ValueListenableBuilder<VideoPlayerValue>(
+              valueListenable: _controller,
+              builder: (context, value, _) => value.isPlaying
+                  ? const SizedBox.shrink()
+                  : const IgnorePointer(
+                      child: Center(
+                        child: Icon(
+                          Icons.play_arrow,
+                          size: 56,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ),
             ),
           Positioned(
             left: 14,

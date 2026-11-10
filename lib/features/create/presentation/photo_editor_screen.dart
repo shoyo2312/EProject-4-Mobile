@@ -14,6 +14,7 @@ import 'package:tiktok_mobile/features/create/presentation/widgets/music_panel.d
 import 'package:tiktok_mobile/features/create/presentation/widgets/music_picker.dart';
 import 'package:tiktok_mobile/features/create/presentation/widgets/overlay_editor.dart';
 import 'package:tiktok_mobile/features/create/presentation/widgets/overlay_painter.dart';
+import 'package:tiktok_mobile/core/utils/player_audio.dart';
 import 'package:video_player/video_player.dart';
 
 /// What the photo editor made: the picture to upload and the recipe the
@@ -173,7 +174,10 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
     await old?.dispose();
     final track = music.track;
     if (track == null) return;
-    final player = VideoPlayerController.networkUrl(Uri.parse(track.audioUrl));
+    final player = VideoPlayerController.networkUrl(
+      Uri.parse(track.audioUrl),
+      videoPlayerOptions: ownsAudio(),
+    );
     try {
       await player.initialize();
     } catch (_) {

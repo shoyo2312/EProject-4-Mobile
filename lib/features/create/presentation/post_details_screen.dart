@@ -9,6 +9,7 @@ import 'package:tiktok_mobile/features/create/data/video_edit.dart';
 import 'package:tiktok_mobile/features/create/presentation/upload_provider.dart';
 import 'package:tiktok_mobile/features/create/presentation/video_preview_screen.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
+import 'package:tiktok_mobile/core/utils/player_audio.dart';
 import 'package:video_player/video_player.dart';
 
 /// Step 3 of the create flow (camera → preview → details). A full route rather
@@ -363,7 +364,7 @@ class _VideoThumbState extends State<_VideoThumb> {
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.file(widget.file)
+    _controller = VideoPlayerController.file(widget.file, videoPlayerOptions: ownsAudio())
       ..initialize().then((_) {
         if (mounted) setState(() => _ready = true);
       });

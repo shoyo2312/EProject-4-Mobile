@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:tiktok_mobile/core/theme/app_theme.dart';
 import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
+import 'package:tiktok_mobile/core/utils/player_audio.dart';
 import 'package:video_player/video_player.dart';
 
 /// Sound on or off for every clip, like TikTok: muting one keeps the next one
@@ -77,7 +78,10 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
+    _controller = VideoPlayerController.networkUrl(
+      Uri.parse(widget.url),
+      videoPlayerOptions: ownsAudio(),
+    )
       ..setLooping(true)
       ..addListener(_onPlaybackChanged)
       ..initialize()

@@ -9,6 +9,7 @@ import 'package:tiktok_mobile/core/widgets/error_view.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
 import 'package:tiktok_mobile/features/create/data/music_track.dart';
 import 'package:tiktok_mobile/features/create/presentation/music_provider.dart';
+import 'package:tiktok_mobile/core/utils/player_audio.dart';
 import 'package:video_player/video_player.dart';
 
 /// The sound picker: the most popular songs, or a search, each with a preview
@@ -65,7 +66,10 @@ class _MusicPickerState extends ConsumerState<_MusicPicker> {
     });
     await old?.dispose();
     if (playing) return;
-    final player = VideoPlayerController.networkUrl(Uri.parse(track.audioUrl));
+    final player = VideoPlayerController.networkUrl(
+      Uri.parse(track.audioUrl),
+      videoPlayerOptions: ownsAudio(),
+    );
     try {
       await player.initialize();
     } catch (_) {

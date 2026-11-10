@@ -17,6 +17,7 @@ import 'package:tiktok_mobile/features/story/presentation/floating_reactions.dar
 import 'package:tiktok_mobile/features/story/presentation/story_provider.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_viewers_sheet.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
+import 'package:tiktok_mobile/core/utils/player_audio.dart';
 import 'package:video_player/video_player.dart';
 
 /// How long a photo stays up. A video plays for its own length (≤ 60s).
@@ -738,8 +739,14 @@ class _StoryMediaState extends State<_StoryMedia> {
     if (widget.story.mediaType == StoryMediaType.video) {
       final uri = Uri.parse(widget.story.mediaUrl);
       final controller = _video = _isLocal
-          ? VideoPlayerController.file(File(uri.toFilePath()))
-          : VideoPlayerController.networkUrl(uri);
+          ? VideoPlayerController.file(
+              File(uri.toFilePath()),
+              videoPlayerOptions: ownsAudio(),
+            )
+          : VideoPlayerController.networkUrl(
+              uri,
+              videoPlayerOptions: ownsAudio(),
+            );
       controller.initialize().then((_) {
         if (!mounted) return;
         setState(() {});

@@ -11,6 +11,7 @@ import 'package:tiktok_mobile/features/create/presentation/widgets/filter_picker
 import 'package:tiktok_mobile/features/story/data/story_model.dart';
 import 'package:tiktok_mobile/features/story/data/story_repository.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_provider.dart';
+import 'package:tiktok_mobile/core/utils/player_audio.dart';
 import 'package:video_player/video_player.dart';
 
 /// story-service's caption limit.
@@ -45,7 +46,10 @@ class _StoryComposerScreenState extends ConsumerState<StoryComposerScreen> {
   void initState() {
     super.initState();
     if (widget.draft.isVideo) {
-      final controller = _video = VideoPlayerController.file(widget.draft.file);
+      final controller = _video = VideoPlayerController.file(
+        widget.draft.file,
+        videoPlayerOptions: ownsAudio(),
+      );
       final edit = widget.draft.edit;
       controller
         ..setLooping(true)
