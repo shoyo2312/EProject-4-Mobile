@@ -11,6 +11,7 @@ import 'package:tiktok_mobile/features/feed/data/feed_repository.dart';
 import 'package:tiktok_mobile/features/feed/data/video_model.dart';
 import 'package:tiktok_mobile/features/feed/presentation/feed_provider.dart';
 import 'package:tiktok_mobile/features/feed/presentation/feed_screen.dart';
+import 'package:tiktok_mobile/features/feed/presentation/video_player_widget.dart';
 import 'package:tiktok_mobile/features/interaction/data/interaction_model.dart';
 import 'package:tiktok_mobile/features/interaction/data/interaction_repository.dart';
 import 'package:tiktok_mobile/features/interaction/presentation/interaction_provider.dart';
@@ -63,8 +64,9 @@ List<Override> _overrides({
 }
 
 void main() {
-  testWidgets('renders the title and the like count of the first video',
-      (tester) async {
+  testWidgets('renders the title and the like count of the first video', (
+    tester,
+  ) async {
     final feedRepository = MockFeedRepository();
     final video = VideoModel(
       id: 'v1',
@@ -79,10 +81,12 @@ void main() {
       commentCount: 0,
       createdAt: DateTime(2026, 8, 12),
     );
-    when(() => feedRepository.fetchFeed(
-          cursor: any(named: 'cursor'),
-          size: any(named: 'size'),
-        )).thenAnswer((_) async => VideoPage(items: [video]));
+    when(
+      () => feedRepository.fetchFeed(
+        cursor: any(named: 'cursor'),
+        size: any(named: 'size'),
+      ),
+    ).thenAnswer((_) async => VideoPage(items: [video]));
 
     // The caption shows the author. The feed resolves every author of a page
     // in one batched call before handing the page over.
@@ -118,13 +122,16 @@ void main() {
     expect(find.text('5'), findsOneWidget);
   });
 
-  testWidgets('a single tap on the panel toggles the pause badge',
-      (tester) async {
+  testWidgets('a single tap on the panel toggles the pause badge', (
+    tester,
+  ) async {
     final feedRepository = MockFeedRepository();
-    when(() => feedRepository.fetchFeed(
-          cursor: any(named: 'cursor'),
-          size: any(named: 'size'),
-        )).thenAnswer(
+    when(
+      () => feedRepository.fetchFeed(
+        cursor: any(named: 'cursor'),
+        size: any(named: 'size'),
+      ),
+    ).thenAnswer(
       (_) async => VideoPage(
         items: [
           VideoModel(
@@ -181,14 +188,55 @@ void main() {
     // The tap is held back until the double-tap window closes; pumping past
     // that window and then past the badge's fade is what makes it visible.
     // (pumpAndSettle would hang on the player's spinner.)
-    await tester.tap(find.byKey(const Key('feed_pause_badge')), warnIfMissed: false);
+    await tester.tap(
+      find.byKey(const Key('feed_pause_badge')),
+      warnIfMissed: false,
+    );
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pump(const Duration(milliseconds: 200));
     expect(badgeOpacity(), 1);
 
-    await tester.tap(find.byKey(const Key('feed_pause_badge')), warnIfMissed: false);
+    await tester.tap(
+      find.byKey(const Key('feed_pause_badge')),
+      warnIfMissed: false,
+    );
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pump(const Duration(milliseconds: 200));
     expect(badgeOpacity(), 0);
+  });
+
+  testWidgets('the speaker button mutes and unmutes every clip', (
+    tester,
+  ) async {
+    final feedRepository = MockFeedRepository();
+    when(
+      () => feedRepository.fetchFeed(
+        cursor: any(named: 'cursor'),
+        size: any(named: 'size'),
+      ),
+    ).thenAnswer((_) async => const VideoPage(items: []));
+    addTearDown(() => videoMuted.value = false);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _overrides(
+          feedRepository: feedRepository,
+          userRepository: MockUserRepository(),
+          likeCount: 0,
+        ),
+        child: const MaterialApp(home: FeedScreen()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byIcon(Icons.volume_up_rounded), findsOneWidget);
+    await tester.tap(find.byKey(const Key('feed_mute_toggle')));
+    await tester.pump();
+    expect(videoMuted.value, isTrue);
+    expect(find.byIcon(Icons.volume_off_rounded), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('feed_mute_toggle')));
+    await tester.pump();
+    expect(videoMuted.value, isFalse);
   });
 }

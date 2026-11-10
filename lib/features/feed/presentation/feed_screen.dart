@@ -165,21 +165,44 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
+        // Same size as search on the right, so the chips sit at true centre.
+        ValueListenableBuilder<bool>(
+          valueListenable: videoMuted,
+          builder: (context, muted, _) => GestureDetector(
+            key: const Key('feed_mute_toggle'),
+            onTap: () => videoMuted.value = !muted,
+            child: Glass(
+              radius: 11,
+              child: SizedBox(
+                width: 32,
+                height: 32,
+                child: Icon(
+                  muted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+                  size: 17,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ),
         Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (final t in ['Friends', 'Following', 'For You'])
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: Chip2(
-                      label: t,
-                      active: t == tab,
-                      onTap: () => onTab(t),
+          child: Center(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final t in ['Friends', 'Following', 'For You'])
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: Chip2(
+                        label: t,
+                        active: t == tab,
+                        onTap: () => onTab(t),
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

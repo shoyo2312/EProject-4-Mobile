@@ -4,6 +4,10 @@ import 'package:tiktok_mobile/core/widgets/design_system.dart';
 import 'package:tiktok_mobile/core/widgets/loading_view.dart';
 import 'package:video_player/video_player.dart';
 
+/// Sound on or off for every clip, like TikTok: muting one keeps the next one
+/// quiet too. Playback is untouched, only the volume.
+final videoMuted = ValueNotifier<bool>(false);
+
 class VideoPlayerWidget extends StatefulWidget {
   const VideoPlayerWidget({
     super.key,
@@ -81,6 +85,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
             if (!mounted) return;
             setState(() => _initialized = true);
             widget.controllerSink?.value = _controller;
+            _applyVolume();
             _applySpeed();
             _syncPlayback();
           })
@@ -94,6 +99,11 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     // this widget has gone inactive in the meantime. Re-apply our own rule
     // after it. Registered after the controller's observer, so it runs last.
     _lifecycle = AppLifecycleListener(onResume: _syncPlayback);
+    videoMuted.addListener(_applyVolume);
+  }
+
+  void _applyVolume() {
+    if (_initialized) _controller.setVolume(videoMuted.value ? 0 : 1);
   }
 
   @override
@@ -183,6 +193,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     try {
       _flushWatch();
     } finally {
+      videoMuted.removeListener(_applyVolume);
       _lifecycle.dispose();
       _controller.removeListener(_onPlaybackChanged);
       _controller.dispose();
