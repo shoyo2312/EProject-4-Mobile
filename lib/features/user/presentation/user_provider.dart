@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
+import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
 import 'package:tiktok_mobile/core/network/page_response.dart';
 import 'package:tiktok_mobile/core/utils/paging.dart';
 import 'package:tiktok_mobile/features/user/data/follow_models.dart';
@@ -26,7 +27,15 @@ class MyProfile extends _$MyProfile {
   FutureOr<UserProfileModel> build() {
     // Rebuild whenever the signed-in account changes, so one account's profile
     // can never be served to the next one that logs in on this device.
-    ref.watch(authStateProvider.select((s) => s.valueOrNull?.id));
+    final myId = ref.watch(authStateProvider.select((s) => s.valueOrNull?.id));
+    if (myId != null) {
+      // Someone follows or unfollows me, or approves my request: my counts
+      // move without anything happening on this device.
+      listenFollowCounts(ref, myId, (apply) {
+        final current = state.valueOrNull;
+        if (current != null) _publish(apply(current));
+      });
+    }
     return ref.read(userRepositoryProvider).getMyProfile();
   }
 
@@ -83,6 +92,39 @@ class ProfileCache extends _$ProfileCache {
       state = {...state, profile.userId: profile};
 }
 
+/// Takes the counts in a frame onto a profile; a count the frame leaves out
+/// keeps its value.
+typedef ApplyFollowCounts = UserProfileModel Function(UserProfileModel);
+
+/// Follows `/topic/users.{userId}` for as long as [ref] lives. chat-service
+/// sends a snapshot of the user's counts there each time a follow edge on
+/// them changes — any account's follow, unfollow or approved request,
+/// including ones made on another device.
+void listenFollowCounts(
+  Ref ref,
+  String userId,
+  void Function(ApplyFollowCounts apply) onCounts,
+) {
+  final live = ref
+      .read(chatSocketProvider)
+      .topic('/topic/users.$userId')
+      .listen((frame) {
+        if (frame['type'] != 'stats') return;
+        final followers = frame['followerCount'];
+        final following = frame['followingCount'];
+        if (followers is! int && following is! int) return;
+        onCounts(
+          (profile) => profile.copyWith(
+            followerCount: followers is int ? followers : profile.followerCount,
+            followingCount: following is int
+                ? following
+                : profile.followingCount,
+          ),
+        );
+      });
+  ref.onDispose(live.cancel);
+}
+
 /// Relationship flags aren't part of `UserProfileResponse` (the backend has
 /// no "am I following/blocking/muting this user" field) — the client tracks
 /// them locally, seeded to unknown (`null`) and set from action results.
@@ -110,6 +152,7 @@ class ProfileNotifier extends _$ProfileNotifier {
   FutureOr<ProfileState> build(String userId) async {
     _disposed = false;
     ref.onDispose(() => _disposed = true);
+    listenFollowCounts(ref, userId, _applyCounts);
     // Read, not watch: `put` below writes to the cache, and watching it here
     // would rebuild this provider straight back over its own result.
     final cached = ref.read(profileCacheProvider)[userId];
@@ -120,6 +163,40 @@ class ProfileNotifier extends _$ProfileNotifier {
     // Following / Requested a moment later.
     unawaited(_seedFollowState());
     return ProfileState(profile: profile);
+  }
+
+  void _applyCounts(ApplyFollowCounts apply) {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    final profile = apply(current.profile);
+    ref.read(profileCacheProvider.notifier).put(profile);
+    state = AsyncData(current.copyWith(profile: profile));
+    // Their followers moved while my request waited: maybe they approved it,
+    // and the button should say Following now rather than Requested.
+    if (current.isRequested == true &&
+        profile.followerCount != current.profile.followerCount) {
+      unawaited(_recheckRequest());
+    }
+  }
+
+  Future<void> _recheckRequest() async {
+    try {
+      final friendship = await ref
+          .read(userRepositoryProvider)
+          .getFriendship(userId);
+      final current = state.valueOrNull;
+      if (_disposed || current == null || current.isRequested != true) return;
+      state = AsyncData(
+        current.copyWith(
+          isFollowing: friendship.following,
+          isRequested: friendship.requested,
+        ),
+      );
+      // Approving moved my Following count too.
+      if (friendship.following) ref.invalidate(myProfileProvider);
+    } on AppException {
+      // The button stays as it was; the next frame or a tap corrects it.
+    }
   }
 
   /// One `GET /friendship` for the Follow button (user doc 3.17). Only for

@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
+import 'package:tiktok_mobile/features/chat/data/chat_socket.dart';
+import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
 import 'package:tiktok_mobile/features/user/data/follow_models.dart';
 import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/data/user_repository.dart';
@@ -192,4 +196,95 @@ void main() {
       expect(container.read(profileCacheProvider)['u1'], profile());
     });
   });
+
+  group('live counts', () {
+    late _FakeSocket socket;
+
+    setUp(() {
+      container.dispose();
+      socket = _FakeSocket();
+      container = ProviderContainer(
+        overrides: [
+          userRepositoryProvider.overrideWithValue(repository),
+          chatSocketProvider.overrideWithValue(socket),
+        ],
+      );
+    });
+
+    test('a stats frame moves the counts on screen and in the cache', () async {
+      container.listen(profileNotifierProvider('u1'), (_, _) {});
+      await loadedNotifier();
+
+      socket.push('/topic/users.u1', {
+        'type': 'stats',
+        'userId': 'u1',
+        'followerCount': 11,
+        'followingCount': 4,
+      });
+      await pumpEventQueue();
+
+      final shown = container.read(profileNotifierProvider('u1')).value!;
+      expect(shown.profile.followerCount, 11);
+      expect(shown.profile.followingCount, 4);
+      expect(container.read(profileCacheProvider)['u1']!.followerCount, 11);
+    });
+
+    test('a count the frame leaves out keeps its value', () async {
+      container.listen(profileNotifierProvider('u1'), (_, _) {});
+      await loadedNotifier();
+
+      socket.push('/topic/users.u1', {'type': 'stats', 'totalLikes': 7});
+      socket.push('/topic/users.u1', {'type': 'stats', 'followerCount': 12});
+      await pumpEventQueue();
+
+      final shown = container.read(profileNotifierProvider('u1')).value!;
+      expect(shown.profile.followerCount, 12);
+      expect(shown.profile.followingCount, 3);
+    });
+
+    test('an approved request turns Requested into Following', () async {
+      when(
+        () => repository.follow('u1'),
+      ).thenAnswer((_) async => FollowStatus.requested);
+      when(() => repository.getFriendship('u1')).thenAnswer(
+        (_) async => const Friendship(userId: 'u1', following: true),
+      );
+      container.listen(profileNotifierProvider('u1'), (_, _) {});
+      final notifier = await loadedNotifier();
+      await notifier.toggleFollow();
+
+      // The owner approves on their own device: only the frame says so.
+      socket.push('/topic/users.u1', {'type': 'stats', 'followerCount': 11});
+      await pumpEventQueue();
+
+      final shown = container.read(profileNotifierProvider('u1')).value!;
+      expect(shown.isFollowing, true);
+      expect(shown.isRequested, false);
+    });
+
+    test('leaving the profile stops listening', () async {
+      final sub = container.listen(profileNotifierProvider('u1'), (_, _) {});
+      await container.read(profileNotifierProvider('u1').future);
+      expect(socket.hasListener('/topic/users.u1'), true);
+
+      sub.close();
+      await pumpEventQueue();
+
+      expect(socket.hasListener('/topic/users.u1'), false);
+    });
+  });
+}
+
+class _FakeSocket extends Fake implements ChatSocket {
+  final _topics = <String, StreamController<Map<String, dynamic>>>{};
+
+  @override
+  Stream<Map<String, dynamic>> topic(String destination) =>
+      (_topics[destination] ??= StreamController.broadcast()).stream;
+
+  void push(String destination, Map<String, dynamic> frame) =>
+      _topics[destination]?.add(frame);
+
+  bool hasListener(String destination) =>
+      _topics[destination]?.hasListener ?? false;
 }

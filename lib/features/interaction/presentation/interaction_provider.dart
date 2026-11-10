@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
+import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
 import 'package:tiktok_mobile/features/interaction/data/interaction_model.dart';
 import 'package:tiktok_mobile/features/interaction/data/interaction_remote_datasource.dart';
 import 'package:tiktok_mobile/features/interaction/data/interaction_repository.dart';
@@ -131,14 +132,52 @@ class LikeNotifier extends _$LikeNotifier {
   }
 }
 
-/// The four counters of one video, straight from interaction-service.
+/// The four counters of one video, straight from interaction-service, then
+/// kept live from `/topic/videos.{id}` for as long as somebody watches it.
 ///
 /// Watched only for the clip on screen, like [LikeNotifier] and for the same
 /// reason: there is no batch endpoint and the gateway's per-IP budget is
-/// shared app-wide. Needs no token, so a signed-out viewer sees real numbers.
-@riverpod
-Future<InteractionCounts> videoCounts(Ref ref, String videoId) =>
-    ref.read(interactionRepositoryProvider).getCounts(videoId);
+/// shared app-wide. Needs no token, so a signed-out viewer sees real numbers
+/// (but no live updates: the socket needs a session).
+///
+/// Declared by hand rather than with `@riverpod`, same API either way.
+final videoCountsProvider = AsyncNotifierProvider.autoDispose
+    .family<VideoCounts, InteractionCounts, String>(VideoCounts.new);
+
+class VideoCounts
+    extends AutoDisposeFamilyAsyncNotifier<InteractionCounts, String> {
+  @override
+  Future<InteractionCounts> build(String videoId) async {
+    // chat-service only sends counts for videos somebody subscribes to, so
+    // the subscription lives exactly as long as this provider does.
+    final live = ref
+        .read(chatSocketProvider)
+        .topic('/topic/videos.$videoId')
+        .listen(_apply);
+    ref.onDispose(live.cancel);
+    return ref.read(interactionRepositoryProvider).getCounts(videoId);
+  }
+
+  /// A `counts` frame is a full snapshot, never a delta. One that lands
+  /// before the first fetch is dropped: the fetch is about to answer anyway.
+  void _apply(Map<String, dynamic> frame) {
+    final current = state.valueOrNull;
+    if (frame['type'] != 'counts' || current == null) return;
+    int read(String key, int fallback) {
+      final value = frame[key];
+      return value is int ? value : fallback;
+    }
+
+    state = AsyncData(
+      current.copyWith(
+        likeCount: read('likeCount', current.likeCount),
+        commentCount: read('commentCount', current.commentCount),
+        shareCount: read('shareCount', current.shareCount),
+        viewCount: read('viewCount', current.viewCount),
+      ),
+    );
+  }
+}
 
 /// Whether the calling user has this video in their favourites.
 ///
