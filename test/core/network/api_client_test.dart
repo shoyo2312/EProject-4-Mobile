@@ -107,6 +107,67 @@ void main() {
     verify(() => tokenStorage.clear()).called(1);
   });
 
+  test('a server down during the refresh keeps the session for next time', () async {
+    // Production restarting: the gateway answers before auth-service does.
+    var currentAccessToken = 'expired-token';
+    when(() => tokenStorage.readAccessToken())
+        .thenAnswer((_) async => currentAccessToken);
+    when(() => tokenStorage.readRefreshToken()).thenAnswer((_) async => 'refresh-token');
+    when(() => tokenStorage.clear()).thenAnswer((_) async {});
+    when(() => tokenStorage.saveTokens(
+          accessToken: any(named: 'accessToken'),
+          refreshToken: any(named: 'refreshToken'),
+        )).thenAnswer((invocation) async {
+      currentAccessToken = invocation.namedArguments[#accessToken] as String;
+    });
+
+    final adapter = _ScriptedAdapter({
+      '/protected': [
+        () => _jsonResponse(401, {}),
+        () => _jsonResponse(401, {}),
+        () => _jsonResponse(200, {'ok': true}),
+      ],
+      '/auth/refresh': [
+        () => _jsonResponse(500, {'code': 'INTERNAL_SERVER_ERROR'}),
+        () => _jsonResponse(200, {
+              'success': true,
+              'data': {
+                'accessToken': 'new-token',
+                'refreshToken': 'new-refresh',
+                'expiresInMillis': 900000,
+              },
+              'timestamp': '2026-08-01T10:00:00Z',
+            }),
+      ],
+    });
+    apiClient.dio.httpClientAdapter = adapter;
+
+    await expectLater(
+      () => apiClient.get<Map<String, dynamic>>('/protected'),
+      throwsA(isA<DioException>()),
+    );
+    verifyNever(() => tokenStorage.clear());
+
+    // Back up: the next 401 refreshes and the request goes through.
+    final response = await apiClient.get<Map<String, dynamic>>('/protected');
+    expect(response.statusCode, 200);
+    expect(adapter.headersByPath['/protected']!.last['Authorization'], 'Bearer new-token');
+  });
+
+  test('validAccessToken throws, not null, when the server cannot be asked', () async {
+    when(() => tokenStorage.readAccessToken()).thenAnswer((_) async => 'not-a-jwt');
+    when(() => tokenStorage.readRefreshToken()).thenAnswer((_) async => 'refresh-token');
+    apiClient.dio.httpClientAdapter = _ScriptedAdapter({
+      '/auth/refresh': [() => _jsonResponse(502, {})],
+    });
+
+    await expectLater(
+      apiClient.validAccessToken(),
+      throwsA(isA<SessionRefreshUnavailable>()),
+    );
+    verifyNever(() => tokenStorage.clear());
+  });
+
   test('a malformed refresh envelope does not wedge later 401s', () async {
     // The refresh response parses as JSON but has no accessToken, so the casts
     // in _refreshAccessToken throw a TypeError rather than a DioException. If

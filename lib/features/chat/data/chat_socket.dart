@@ -168,10 +168,14 @@ class ChatSocket {
     final generation = _generation;
 
     String? token;
+    var unreachable = false;
     try {
       token = await _accessToken();
     } catch (_) {
+      // The session could not be renewed just now (server down or
+      // restarting) — not the same as having none.
       token = null;
+      unreachable = true;
     }
     // A disconnect while the token was fetched has already cleared the flag,
     // and may have started a newer attempt that owns it now.
@@ -179,9 +183,11 @@ class ChatSocket {
     _connecting = false;
     if (_destinations.isEmpty) return;
     if (token == null) {
-      // No session — signed out, or a refresh the server refused, which the
+      // Unreachable: try again with the usual backoff. Otherwise there is no
+      // session — signed out, or a refresh the server refused, which the
       // REST side treats as signed out too. Nothing to retry with: signing in
       // rebuilds the conversation list, whose new listener connects again.
+      if (unreachable) _scheduleRetry();
       return;
     }
 

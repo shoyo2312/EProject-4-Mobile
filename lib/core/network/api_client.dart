@@ -9,6 +9,17 @@ import 'package:tiktok_mobile/core/network/device_headers.dart';
 const _refreshPath = '/auth/refresh';
 const _retriedAfterRefreshKey = 'retriedAfterRefresh';
 
+/// The session could not be renewed right now — the server did not answer,
+/// or answered with a fault of its own (5xx, 429). Says nothing about the
+/// session itself, which is kept for the next attempt. Only a refresh the
+/// server refuses ends it.
+class SessionRefreshUnavailable implements Exception {
+  const SessionRefreshUnavailable();
+
+  @override
+  String toString() => 'SessionRefreshUnavailable';
+}
+
 abstract class TokenStorage {
   Future<String?> readAccessToken();
   Future<String?> readRefreshToken();
@@ -88,6 +99,12 @@ class ApiClient {
     final String? newAccessToken;
     try {
       newAccessToken = await (_refreshing ??= _refreshAccessToken());
+    } on SessionRefreshUnavailable {
+      // The server is down or restarting: this request fails, the session
+      // stays, and the next 401 tries the refresh again. Clearing it here
+      // signed people out every time production restarted.
+      handler.next(err);
+      return;
     } finally {
       // Cleared in `finally`: a malformed refresh envelope throws something
       // other than DioException, and leaving the failed future in place would
@@ -123,6 +140,8 @@ class ApiClient {
   /// Refreshes when the stored token is expired or about to be, sharing the
   /// in-flight refresh with any concurrent 401. Null when signed out or the
   /// session cannot be renewed; the REST path is what clears it in that case.
+  /// Throws [SessionRefreshUnavailable] when the server could not be asked:
+  /// worth trying again later, unlike null.
   Future<String?> validAccessToken({
     Duration margin = const Duration(seconds: 30),
   }) async {
@@ -182,13 +201,24 @@ class ApiClient {
         refreshToken: body['refreshToken'] as String,
       );
       return body['accessToken'] as String;
+    } on DioException catch (e) {
+      if (_isTransient(e)) throw const SessionRefreshUnavailable();
+      // The server looked at the refresh token and said no.
+      return null;
     } catch (_) {
-      // Anything at all — a rejected refresh token, or an envelope whose
-      // shape the casts above do not survive — means "no session". Letting a
-      // TypeError out here would escape the repositories' DioException
-      // mapping and reach the UI unwrapped.
+      // An envelope whose shape the casts above do not survive means "no
+      // session" too. Letting a TypeError out here would escape the
+      // repositories' DioException mapping and reach the UI unwrapped.
       return null;
     }
+  }
+
+  /// No answer at all (timeout, no network, connection refused), or one
+  /// from a server that is down, restarting or overloaded — Cloudflare's
+  /// 52x included. None of them is a verdict on the refresh token.
+  static bool _isTransient(DioException e) {
+    final status = e.response?.statusCode;
+    return status == null || status >= 500 || status == 429;
   }
 
   Future<Response<T>> get<T>(
