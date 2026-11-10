@@ -33,8 +33,16 @@ class TikTokMobileApp extends ConsumerWidget {
       // Above the navigator, so the screen-time covers sit over every route.
       // The overlay around it is where NowaToast lands: above both, so a
       // toast is never hidden by a route pushed after it.
-      builder: (_, child) =>
-          Overlay.wrap(child: ScreenTimeGuard(router: router, child: child!)),
+      //
+      // A tap on nothing in particular closes the keyboard, everywhere. A tap
+      // on a field, button or link wins the gesture and never reaches this.
+      builder: (_, child) => GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+        child: Overlay.wrap(
+          child: ScreenTimeGuard(router: router, child: child!),
+        ),
+      ),
     );
   }
 }
