@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +22,7 @@ import 'package:tiktok_mobile/features/chat/presentation/photo_preview_screen.da
 import 'package:tiktok_mobile/features/chat/presentation/report_conversation_screen.dart';
 import 'package:tiktok_mobile/features/chat/presentation/typing_sender.dart';
 import 'package:tiktok_mobile/features/chat/presentation/widgets/chat_image.dart';
+import 'package:tiktok_mobile/features/chat/presentation/widgets/message_extras.dart';
 import 'package:tiktok_mobile/features/chat/presentation/widgets/mute_sheet.dart';
 import 'package:tiktok_mobile/features/chat/presentation/widgets/sticker_sheet.dart';
 import 'package:tiktok_mobile/features/chat/presentation/widgets/typing_indicator.dart';
@@ -63,6 +65,17 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
     with WidgetsBindingObserver {
   final _controller = TextEditingController();
   final _focus = FocusNode();
+  final _scroll = ScrollController();
+
+  /// One per message row, so a tapped quote can find its original on screen.
+  final _rowKeys = <String, GlobalKey>{};
+
+  /// The message the next send answers, shown above the composer.
+  MessageModel? _replyingTo;
+
+  /// The original a quote was tapped for, lit up for a moment once there.
+  String? _highlighted;
+  Timer? _highlightTimer;
 
   /// Tells the other side while the caller types. Holds the repository it
   /// was made with, so the "stopped" sent on the way out of the screen does
@@ -97,10 +110,12 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
   @override
   void dispose() {
     _suggestTimer?.cancel();
+    _highlightTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _typing.dispose();
     _focus.dispose();
     _controller.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -160,15 +175,138 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
     _typing.stop();
     _ignoreSuggestion();
     _controller.clear();
+    final replyTo = _takeReply();
     try {
-      await ref.read(threadProvider(widget.conversationId).notifier).send(text);
+      await ref
+          .read(threadProvider(widget.conversationId).notifier)
+          .send(text, replyTo: replyTo);
     } on AppException catch (e) {
       if (!mounted) return;
       // Put the text back rather than losing what was typed — unless
       // something new is being written already.
-      if (_controller.text.isEmpty) _controller.text = text;
-      _toast(requestErrorMessage(e) ?? e.message);
+      if (_controller.text.isEmpty) {
+        _controller.text = text;
+        _restoreReply(replyTo, e);
+      }
+      _toast(chatActionError(e));
     }
+  }
+
+  /// The reply being written, cleared from the composer as it goes out.
+  MessageModel? _takeReply() {
+    final replyTo = _replyingTo;
+    if (replyTo != null) setState(() => _replyingTo = null);
+    return replyTo;
+  }
+
+  /// A failed reply goes back to being one, unless the original is what
+  /// stopped it.
+  void _restoreReply(MessageModel? replyTo, AppException e) {
+    if (replyTo == null || _replyingTo != null) return;
+    if (e is ServerException && e.code == 'REPLY_TARGET_UNAVAILABLE') return;
+    setState(() => _replyingTo = replyTo);
+  }
+
+  void _startReply(MessageModel message) {
+    setState(() => _replyingTo = message);
+    _focus.requestFocus();
+  }
+
+  /// Sets, swaps or takes back the caller's reaction.
+  Future<void> _react(MessageModel message, String emoji) async {
+    try {
+      await ref
+          .read(threadProvider(widget.conversationId).notifier)
+          .react(message.id, emoji);
+    } on AppException catch (e) {
+      _toast(chatActionError(e));
+    }
+  }
+
+  /// A tapped quote: older pages are fetched until the original is there,
+  /// then the list scrolls until its row is built, and it lights up.
+  Future<void> _jumpTo(String messageId) async {
+    final found = await ref
+        .read(threadProvider(widget.conversationId).notifier)
+        .locate(messageId);
+    if (!mounted) return;
+    if (!found) {
+      _toast('That message is no longer in this chat', ToastKind.info);
+      return;
+    }
+    await WidgetsBinding.instance.endOfFrame;
+    // Reversed list: older messages are further along the scroll offset. One
+    // step is less than a screen, so no row is passed over unbuilt.
+    for (var step = 0; step < 200 && mounted; step++) {
+      final target = _rowKeys[messageId]?.currentContext;
+      if (target != null && target.mounted) {
+        await Scrollable.ensureVisible(
+          target,
+          alignment: 0.5,
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+        );
+        _flash(messageId);
+        return;
+      }
+      if (!_scroll.hasClients) return;
+      final position = _scroll.position;
+      if (position.pixels >= position.maxScrollExtent) {
+        // At the top of what is loaded; the next page may still be coming.
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+        if (!_scroll.hasClients ||
+            _scroll.position.pixels >= _scroll.position.maxScrollExtent) {
+          if (step > 20) return;
+          continue;
+        }
+      }
+      _scroll.jumpTo(
+        min(
+          _scroll.position.pixels + _scroll.position.viewportDimension * 0.8,
+          _scroll.position.maxScrollExtent,
+        ),
+      );
+      await WidgetsBinding.instance.endOfFrame;
+    }
+  }
+
+  void _flash(String messageId) {
+    _highlightTimer?.cancel();
+    setState(() => _highlighted = messageId);
+    _highlightTimer = Timer(const Duration(milliseconds: 1600), () {
+      if (mounted) setState(() => _highlighted = null);
+    });
+  }
+
+  /// Whether there is a composer to write a reply in: none while a block
+  /// closes the thread or a request waits on one side.
+  bool get _mayReply {
+    final c = _conversation;
+    if (c?.messagingBlocked == true) return false;
+    return switch (c?.sendPermission) {
+      SendPermission.awaitingAccept || SendPermission.requestSent => false,
+      _ => true,
+    };
+  }
+
+  /// Reactions follow the sending rules: only in an ordinary, open chat.
+  bool get _mayReact {
+    final c = _conversation;
+    if (c == null) return true;
+    return c.messagingBlocked != true &&
+        c.sendPermission == SendPermission.allowed;
+  }
+
+  /// "You replied to Lan", "Lan replied to you", … above a reply.
+  String _quoteLabel(MessageModel message, String? me) {
+    final name = _nameFor(me);
+    final mine = message.senderId == me;
+    final quoted = message.replyTo?.senderId;
+    if (quoted == null) return mine ? 'You replied' : '$name replied';
+    if (mine) {
+      return quoted == me ? 'You replied to yourself' : 'You replied to $name';
+    }
+    return quoted == me ? '$name replied to you' : '$name replied';
   }
 
   Future<void> _pickSticker() async {
@@ -180,13 +318,15 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
   Future<bool> _sendSticker(StickerModel sticker) async {
     if (!await _mayReopen()) return false;
     _typing.stop();
+    final replyTo = _takeReply();
     try {
       await ref
           .read(threadProvider(widget.conversationId).notifier)
-          .sendSticker(sticker);
+          .sendSticker(sticker, replyTo: replyTo);
       return true;
     } on AppException catch (e) {
-      _toast(requestErrorMessage(e) ?? e.message);
+      if (mounted) _restoreReply(replyTo, e);
+      _toast(chatActionError(e));
       return false;
     }
   }
@@ -356,7 +496,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
     }
   }
 
-  Future<void> _report(String? me) async {
+  Future<void> _report(String? me, {String? messageId}) async {
     final otherId = _otherId(me);
     if (otherId == null) return;
     await Navigator.of(context).push(
@@ -364,6 +504,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
         builder: (_) => ReportConversationScreen(
           conversationId: widget.conversationId,
           otherUserId: otherId,
+          messageId: messageId,
         ),
       ),
     );
@@ -533,6 +674,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
                     return false;
                   },
                   child: ListView.builder(
+                    controller: _scroll,
                     reverse: true,
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                     itemCount: outgoing.length + messages.length,
@@ -555,9 +697,21 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
                           ? (outgoing.isNotEmpty ? me?.id : null)
                           : messages[index - 1].senderId;
                       return _Bubble(
+                        key: _rowKeys.putIfAbsent(message.id, GlobalKey.new),
                         message: message,
                         mine: mine,
+                        me: me?.id,
                         maxWidth: maxWidth,
+                        highlighted: _highlighted == message.id,
+                        quoteLabel: message.replyTo == null
+                            ? null
+                            : _quoteLabel(message, me?.id),
+                        onQuoteTap: () => _jumpTo(message.replyTo!.messageId),
+                        onReactionTap: _mayReact && message.canBeRepliedTo
+                            ? (emoji) => _react(message, emoji)
+                            : null,
+                        onOpenVideo: (videoId) =>
+                            context.push('/video/$videoId'),
                         showAvatar: newerSender != message.senderId,
                         avatarUrl: mine ? myAvatar : otherAvatar,
                         onAvatarTap: mine
@@ -567,6 +721,9 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
                             : () => context.push('/profile/$otherId'),
                         status: index == statusAt && !message.recalled
                             ? _statusLabel(message, receipt)
+                            : null,
+                        onSwipeReply: message.canBeRepliedTo && _mayReply
+                            ? () => _startReply(message)
                             : null,
                         onLongPress: message.pending
                             ? null
@@ -756,6 +913,10 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
     required bool seen,
   }) async {
     final canRecall = mine && !message.recalled;
+    final canReact = message.canBeRepliedTo && _mayReact;
+    // Their messages only: a report is about the other person.
+    final canReport = !mine && message.canBeRepliedTo;
+    final me = ref.read(authStateProvider).valueOrNull?.id;
     final choice = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: NowaColors.surface,
@@ -767,6 +928,11 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (canReact)
+              ReactionStrip(
+                current: message.reactionOf(me),
+                onPick: (emoji) => Navigator.of(context).pop('react:$emoji'),
+              ),
             if (canRecall)
               ListTile(
                 key: const Key('chat_action_recall'),
@@ -790,6 +956,16 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
                     : null,
                 onTap: () => Navigator.of(context).pop('recall'),
               ),
+            if (canReport)
+              ListTile(
+                key: const Key('chat_action_report'),
+                leading: const Icon(
+                  Icons.flag_outlined,
+                  color: NowaColors.text,
+                ),
+                title: Text('Report', style: work(size: 14)),
+                onTap: () => Navigator.of(context).pop('report'),
+              ),
             ListTile(
               key: const Key('chat_action_hide'),
               leading: const Icon(
@@ -811,6 +987,14 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
       ),
     );
     if (!mounted || choice == null) return;
+    if (choice == 'report') {
+      await _report(me, messageId: message.id);
+      return;
+    }
+    if (choice.startsWith('react:')) {
+      await _react(message, choice.substring('react:'.length));
+      return;
+    }
     final recall = choice == 'recall';
     final confirmed = await showDialog<bool>(
       context: context,
@@ -851,13 +1035,12 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
         await thread.hide(message.id);
       }
     } on AppException catch (e) {
-      final code = e is ServerException ? e.code : null;
-      _toast(switch (code) {
-        'MESSAGE_ALREADY_SEEN' =>
-          'They\'ve already seen this message, so it can\'t be unsent',
-        'NOT_MESSAGE_AUTHOR' => 'Only the sender can unsend a message',
-        _ => e.message,
-      });
+      _toast(chatActionError(e));
+    }
+    // A reply being written to a message just unsent or deleted has nothing
+    // left to quote.
+    if (mounted && _replyingTo?.id == message.id) {
+      setState(() => _replyingTo = null);
     }
   }
 
@@ -905,6 +1088,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
   }
 
   Widget _composer() {
+    final me = ref.read(authStateProvider).valueOrNull?.id;
     final dim = NowaColors.text.withValues(alpha: 0.7);
     final topic = _suggestTopic;
     final suggested = topic == null
@@ -921,6 +1105,12 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
               stickers: suggested,
               onPick: (sticker) => _sendSuggested(topic, sticker),
               onDismiss: () => _dismissSuggestion(topic),
+            ),
+          if (_replyingTo case final replyTo?)
+            ReplyBar(
+              name: replyTo.senderId == me ? 'yourself' : _nameFor(me),
+              quote: replyTo.asQuote(),
+              onClose: () => setState(() => _replyingTo = null),
             ),
           _composerRow(dim),
         ],
@@ -987,6 +1177,21 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
     );
   }
 }
+
+/// The server's refusals of something done in a thread, in words.
+String chatActionError(AppException e) =>
+    requestErrorMessage(e) ??
+    switch (e is ServerException ? e.code : null) {
+      'MESSAGE_ALREADY_SEEN' =>
+        'They\'ve already seen this message, so it can\'t be unsent',
+      'NOT_MESSAGE_AUTHOR' => 'Only the sender can unsend a message',
+      'REPLY_TARGET_UNAVAILABLE' => 'That message can no longer be replied to',
+      'MESSAGE_RECALLED' => 'That message was unsent',
+      'REACTION_NOT_ALLOWED' => 'You can\'t react in this chat right now',
+      'INVALID_REACTION' => 'That reaction isn\'t available',
+      'MESSAGING_BLOCKED' => 'You can\'t message this account',
+      _ => e.message,
+    };
 
 /// Stickers for the feeling being typed, over the composer. A tap sends one.
 class _StickerSuggestionBar extends StatelessWidget {
@@ -1312,19 +1517,39 @@ const _avatarGap = 6.0;
 
 class _Bubble extends StatelessWidget {
   const _Bubble({
+    super.key,
     required this.message,
     required this.mine,
     required this.maxWidth,
+    this.me,
     this.status,
     this.onLongPress,
+    this.onSwipeReply,
     this.showAvatar = false,
     this.avatarUrl,
     this.onAvatarTap,
+    this.highlighted = false,
+    this.quoteLabel,
+    this.onQuoteTap,
+    this.onReactionTap,
+    this.onOpenVideo,
   });
 
   final MessageModel message;
   final bool mine;
   final double maxWidth;
+  final String? me;
+
+  /// Just jumped to from a quote.
+  final bool highlighted;
+
+  /// Above a reply's quote; null on a message that is not one.
+  final String? quoteLabel;
+  final VoidCallback? onQuoteTap;
+
+  /// Null where the viewer may not react.
+  final ValueChanged<String>? onReactionTap;
+  final ValueChanged<String>? onOpenVideo;
 
   /// Only on the last message of a run from one sender.
   final bool showAvatar;
@@ -1335,31 +1560,103 @@ class _Bubble extends StatelessWidget {
   final String? status;
   final VoidCallback? onLongPress;
 
+  /// A swipe from right to left answers the message; null where it can't be.
+  final VoidCallback? onSwipeReply;
+
+  /// What a video without a note carries as its text.
+  static const _videoPlaceholder = 'Shared a video';
+
   @override
   Widget build(BuildContext context) {
     final align = mine ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+    final quote = message.replyTo;
+    final groups = groupReactions(message.reactions, me);
+    final body = _content(context, align);
+    if (quote == null && groups.isEmpty && !highlighted) return _aligned(body);
+    return _aligned(
+      AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        padding: highlighted ? const EdgeInsets.all(4) : EdgeInsets.zero,
+        decoration: BoxDecoration(
+          color: highlighted
+              ? NowaColors.accent.withValues(alpha: 0.18)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(
+          crossAxisAlignment: align,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (quote != null)
+              ReplyQuoteBlock(
+                quote: quote,
+                label: quoteLabel ?? '',
+                mine: mine,
+                maxWidth: maxWidth,
+                onTap: onQuoteTap,
+              ),
+            body,
+            if (groups.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: ReactionPills(
+                  messageId: message.id,
+                  groups: groups,
+                  mine: mine,
+                  onTap: onReactionTap,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
+  Widget _content(BuildContext context, CrossAxisAlignment align) {
     final sticker = message.sticker;
     if (sticker != null && !message.recalled) {
-      return _aligned(StickerImage(sticker: sticker, size: 120));
+      return StickerImage(sticker: sticker, size: 120);
+    }
+
+    if (message.type == MessageType.video && !message.recalled) {
+      final card = message.video;
+      final note = message.content == _videoPlaceholder ? '' : message.content;
+      return Column(
+        crossAxisAlignment: align,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ChatVideoCardView(
+            card: card,
+            width: min(maxWidth, 170),
+            onOpen: card?.videoId == null || onOpenVideo == null
+                ? null
+                : () => onOpenVideo!(card!.videoId!),
+          ),
+          if (note.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            _textBubble(
+              context,
+              Text(note, style: work(size: 13.5, height: 1.35)),
+            ),
+          ],
+        ],
+      );
     }
 
     final image = message.image;
     if (image != null && !message.recalled) {
-      return _aligned(
-        Column(
-          crossAxisAlignment: align,
-          children: [
-            ChatImage(image: image, maxWidth: maxWidth),
-            if (message.content.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              _textBubble(
-                context,
-                Text(message.content, style: work(size: 13.5, height: 1.35)),
-              ),
-            ],
+      return Column(
+        crossAxisAlignment: align,
+        children: [
+          ChatImage(image: image, maxWidth: maxWidth),
+          if (message.content.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            _textBubble(
+              context,
+              Text(message.content, style: work(size: 13.5, height: 1.35)),
+            ),
           ],
-        ),
+        ],
       );
     }
 
@@ -1373,7 +1670,7 @@ class _Bubble extends StatelessWidget {
             ).copyWith(fontStyle: FontStyle.italic)
           : work(size: 13.5, height: 1.35),
     );
-    return _aligned(_textBubble(context, text));
+    return _textBubble(context, text);
   }
 
   Widget _aligned(Widget child) {
@@ -1445,9 +1742,12 @@ class _Bubble extends StatelessWidget {
       );
     }
     // Tighter inside a run, a little air between runs.
-    return Padding(
-      padding: EdgeInsets.only(bottom: showAvatar ? 10 : 3),
-      child: row,
+    return SwipeToReply(
+      onReply: onSwipeReply,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: showAvatar ? 10 : 3),
+        child: row,
+      ),
     );
   }
 

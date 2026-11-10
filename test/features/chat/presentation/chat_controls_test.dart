@@ -835,6 +835,51 @@ void main() {
       verify(() => users.block('2002')).called(1);
       expect(find.text('Blocked'), findsOneWidget);
     });
+
+    testWidgets('a long press on their message reports that one message', (
+      tester,
+    ) async {
+      thread([
+        msg('m3', minute: 3, content: 'scam link'),
+        msg('m2', sender: '1001', minute: 2, content: 'what?'),
+        msg('m1', minute: 1, content: 'hi'),
+      ]);
+      when(() => repository.reportConversation(
+            conversationId: any(named: 'conversationId'),
+            reason: any(named: 'reason'),
+            messageIds: any(named: 'messageIds'),
+            requestId: any(named: 'requestId'),
+          )).thenAnswer((_) async {});
+      await pumpThread(tester);
+
+      // Not on one's own message.
+      await tester.longPress(find.byKey(const Key('chat_message_m2')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chat_action_report')), findsNothing);
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+
+      await tester.longPress(find.byKey(const Key('chat_message_m1')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('chat_action_report')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('report_reason_Frauds and scams')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('report_next')));
+      await tester.pumpAndSettle();
+
+      // Only the pressed message comes ticked.
+      expect(find.text('1/$reportMaxMessages selected'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('report_submit')));
+      await tester.pumpAndSettle();
+      final sent = verify(() => repository.reportConversation(
+            conversationId: 'c1',
+            reason: 'Frauds and scams',
+            messageIds: captureAny(named: 'messageIds'),
+            requestId: any(named: 'requestId'),
+          )).captured.single as List<String>;
+      expect(sent, ['m1']);
+    });
   });
 
   group('typing', () {

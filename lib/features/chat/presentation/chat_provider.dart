@@ -435,7 +435,9 @@ class Thread extends _$Thread {
         .listen(_receive);
     ref.onDispose(subscription.cancel);
 
-    // Recalls, and messages deleted for the caller on another device.
+    // Recalls, reactions, messages deleted for the caller on another device,
+    // and the messages that never use the shared topic: a reply or a video
+    // is drawn for each viewer apart, so it comes on their own queue.
     final events = repository
         .inboxEvents()
         .where((e) => e.conversationId == conversationId)
@@ -468,6 +470,8 @@ class Thread extends _$Thread {
         _apply(event.update!);
       case ChatEventType.messageHidden:
         _drop(event.messageId!);
+      case ChatEventType.message:
+        _receive(event.message!);
       default:
         break;
     }
@@ -544,42 +548,50 @@ class Thread extends _$Thread {
   /// Draws the message at once, marked as sending, then swaps in the server's
   /// copy. A failed send takes the row away again and rethrows, so the
   /// composer can put the text back.
-  Future<void> send(String content) => _sendWith(
+  ///
+  /// [replyTo] makes it a reply to that message; the row shows the quote
+  /// while it goes, and the server's copy brings its own.
+  Future<void> send(String content, {MessageModel? replyTo}) => _sendWith(
     (requestId) => MessageModel(
       id: _localId(requestId),
       conversationId: conversationId,
       senderId: _me ?? '',
       content: content,
       sentAt: DateTime.now(),
+      replyTo: replyTo?.asQuote(),
       pending: true,
     ),
     (repository, requestId) => repository.sendMessage(
       conversationId,
       content,
       clientRequestId: requestId,
+      replyToMessageId: replyTo?.id,
     ),
   );
 
   /// A sticker is a message of its own; the draft in the composer is left as
   /// it was.
-  Future<void> sendSticker(StickerModel sticker) => _sendWith(
-    (requestId) => MessageModel(
-      id: _localId(requestId),
-      conversationId: conversationId,
-      senderId: _me ?? '',
-      // What the server's copy of a sticker carries as its text.
-      content: 'Sticker',
-      sentAt: DateTime.now(),
-      type: MessageType.sticker,
-      sticker: sticker,
-      pending: true,
-    ),
-    (repository, requestId) => repository.sendSticker(
-      conversationId,
-      sticker.stickerId,
-      clientRequestId: requestId,
-    ),
-  );
+  Future<void> sendSticker(StickerModel sticker, {MessageModel? replyTo}) =>
+      _sendWith(
+        (requestId) => MessageModel(
+          id: _localId(requestId),
+          conversationId: conversationId,
+          senderId: _me ?? '',
+          // What the server's copy of a sticker carries as its text.
+          content: 'Sticker',
+          sentAt: DateTime.now(),
+          type: MessageType.sticker,
+          sticker: sticker,
+          replyTo: replyTo?.asQuote(),
+          pending: true,
+        ),
+        (repository, requestId) => repository.sendSticker(
+          conversationId,
+          sticker.stickerId,
+          clientRequestId: requestId,
+          replyToMessageId: replyTo?.id,
+        ),
+      );
 
   String? get _me => ref.read(authStateProvider).valueOrNull?.id;
 
@@ -661,6 +673,66 @@ class Thread extends _$Thread {
     _drop(messageId);
     // The preview in the list was that message; the server's says what now.
     if (newest) ref.invalidate(conversationsProvider);
+  }
+
+  /// The caller's reaction on a message: [emoji] set, or taken back when it
+  /// is already theirs — one reaction per person, as on the server. Shown at
+  /// once and put back as it was if the server refuses.
+  Future<void> react(String messageId, String emoji) async {
+    final me = _me;
+    final message = state.value?.where((m) => m.id == messageId).firstOrNull;
+    if (me == null || message == null || !message.canBeRepliedTo) return;
+    final next = message.reactionOf(me) == emoji ? null : emoji;
+    _change(messageId, (m) => m.copyWith(reactions: m.reactionsWith(me, next)));
+    final repository = ref.read(chatRepositoryProvider);
+    try {
+      final update = next == null
+          ? await repository.unreact(conversationId, messageId)
+          : await repository.react(conversationId, messageId, next);
+      // An answer that changed nothing has the revision already held, which
+      // [MessageModel.applying] would skip: its reactions are still the truth.
+      _change(messageId, (m) {
+        if (update.recalledAt != null) return m.applying(update);
+        if (update.revision < m.revision) return m;
+        return m.copyWith(
+          revision: update.revision,
+          reactions: update.reactions ?? m.reactions,
+        );
+      });
+    } catch (e) {
+      _change(
+        messageId,
+        (m) =>
+            m.copyWith(reactions: m.reactionsWith(me, message.reactionOf(me))),
+      );
+      if (e is AppException) _recheckPermission(ref, conversationId, e);
+      rethrow;
+    }
+  }
+
+  /// Loads older pages until [messageId] is among them — what tapping a
+  /// quote needs before it can scroll there. False when it is not in the
+  /// history at all (deleted from this side), or too far back to fetch.
+  Future<bool> locate(String messageId, {int maxPages = 20}) async {
+    bool has() => state.value?.any((m) => m.id == messageId) ?? false;
+    for (var page = 0; page < maxPages && !has(); page++) {
+      if (_more.done) break;
+      final before = state.value?.length ?? 0;
+      await loadMore();
+      // A scroll's own load was in flight and this call did nothing.
+      if ((state.value?.length ?? 0) == before && !_more.done) {
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+      }
+    }
+    return has();
+  }
+
+  void _change(String messageId, MessageModel Function(MessageModel) change) {
+    final current = state.value;
+    if (current == null) return;
+    state = AsyncData([
+      for (final m in current) m.id == messageId ? change(m) : m,
+    ]);
   }
 
   void _apply(MessageUpdate update) {

@@ -287,7 +287,22 @@ class MessageModel with _$MessageModel {
     MessageType type,
     StickerModel? sticker,
     ChatImageModel? image,
+
+    /// A video from the app, as this viewer may see it right now. Set on
+    /// [MessageType.video] only.
+    @JsonKey(fromJson: _videoCardFromJson, includeToJson: false)
+    ChatVideoCard? video,
     DateTime? recalledAt,
+
+    /// The message this one answers, as the server lets the viewer see it.
+    /// Null when it is not a reply.
+    @JsonKey(fromJson: _replyQuoteFromJson, includeToJson: false)
+    ReplyQuote? replyTo,
+
+    /// One per person who reacted, the same for both sides.
+    @JsonKey(fromJson: _reactionsFromJson, includeToJson: false)
+    @Default(<MessageReaction>[])
+    List<MessageReaction> reactions,
 
     /// Orders updates to this message: one is applied only if it is newer.
     @Default(0) int revision,
@@ -311,21 +326,250 @@ class MessageModel with _$MessageModel {
   MessageModel applying(MessageUpdate update) {
     if (update.revision <= revision) return this;
     final recalledAt = update.recalledAt;
-    if (recalledAt == null) return copyWith(revision: update.revision);
+    if (recalledAt == null) {
+      return copyWith(
+        revision: update.revision,
+        reactions: update.reactions ?? reactions,
+      );
+    }
     return copyWith(
       revision: update.revision,
       recalledAt: recalledAt,
       content: _messagePlaceholder(type: null, recalled: true)!,
       sticker: null,
       image: null,
+      video: null,
+      reactions: const [],
     );
   }
+
+  /// [userId]'s reaction, or null.
+  String? reactionOf(String? userId) =>
+      reactions.where((r) => r.userId == userId).firstOrNull?.emoji;
+
+  /// The reactions with [userId]'s set to [emoji], or taken away for null:
+  /// what the screen shows while the server is asked.
+  List<MessageReaction> reactionsWith(String userId, String? emoji) => [
+    for (final r in reactions)
+      if (r.userId != userId) r,
+    if (emoji != null) MessageReaction(userId: userId, emoji: emoji),
+  ];
+
+  /// Something is left to quote or react to: not on its way, not taken back.
+  bool get canBeRepliedTo => !pending && !recalled;
+
+  /// How this message reads inside a reply to it.
+  ReplyQuote asQuote() => ReplyQuote(
+    messageId: id,
+    state: ReplyQuoteState.ok,
+    senderId: senderId,
+    type: type,
+    content: type == MessageType.sticker ? null : content,
+    sticker: sticker,
+    image: image,
+    video: video,
+  );
 
   /// What the conversation list shows for this message. A picture's caption
   /// stays out of it, the same rule the server applies to its own preview.
   String get previewText =>
       type == MessageType.image && !recalled ? 'Photo' : content;
 }
+
+/// The six reactions chat-service accepts (`MessageServiceImpl.REACTIONS`),
+/// in the order they are offered. Anything else is refused.
+const chatReactions = [
+  '❤️',
+  '\u{1F602}',
+  '\u{1F62E}',
+  '\u{1F622}',
+  '\u{1F621}',
+  '\u{1F44D}',
+];
+
+/// One person's reaction to a message.
+class MessageReaction {
+  const MessageReaction({required this.userId, required this.emoji});
+
+  static MessageReaction? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final userId = json['userId'];
+    final emoji = json['emoji'];
+    if (userId == null || emoji is! String) return null;
+    return MessageReaction(userId: userId.toString(), emoji: emoji);
+  }
+
+  final String userId;
+  final String emoji;
+
+  @override
+  bool operator ==(Object other) =>
+      other is MessageReaction &&
+      other.userId == userId &&
+      other.emoji == emoji;
+
+  @override
+  int get hashCode => Object.hash(userId, emoji);
+}
+
+/// One pill under a message: an emoji, how many chose it, and whether the
+/// viewer is one of them.
+typedef ReactionGroup = ({String emoji, int count, bool mine});
+
+/// Reactions grouped for the pills under a message, in the order offered.
+List<ReactionGroup> groupReactions(
+  List<MessageReaction> reactions,
+  String? me,
+) {
+  final counts = <String, int>{};
+  final mine = <String>{};
+  for (final r in reactions) {
+    counts[r.emoji] = (counts[r.emoji] ?? 0) + 1;
+    if (r.userId == me) mine.add(r.emoji);
+  }
+  int rank(String emoji) {
+    final at = chatReactions.indexOf(emoji);
+    return at < 0 ? chatReactions.length : at;
+  }
+
+  final emojis = counts.keys.toList()
+    ..sort((a, b) => rank(a).compareTo(rank(b)));
+  return [
+    for (final e in emojis)
+      (emoji: e, count: counts[e]!, mine: mine.contains(e)),
+  ];
+}
+
+List<MessageReaction> _reactionsFromJson(Object? json) => [
+  if (json is List)
+    for (final item in json) ?MessageReaction.fromJson(item),
+];
+
+/// Whether the viewer may see the message a reply points at.
+enum ReplyQuoteState {
+  ok,
+
+  /// Taken back by its sender, for everyone.
+  recalled,
+
+  /// Deleted from the viewer's side, or never found.
+  unavailable,
+}
+
+/// The message a reply answers, as the server resolved it for this viewer.
+/// Only [ReplyQuoteState.ok] carries anything to show.
+class ReplyQuote {
+  const ReplyQuote({
+    required this.messageId,
+    required this.state,
+    this.senderId,
+    this.type,
+    this.content,
+    this.sticker,
+    this.image,
+    this.video,
+  });
+
+  static ReplyQuote? fromJson(Object? json) {
+    if (json is! Map<String, dynamic>) return null;
+    final id = json['messageId'];
+    if (id is! String) return null;
+    final sticker = json['sticker'];
+    final image = json['image'];
+    return ReplyQuote(
+      messageId: id,
+      state: switch (json['state']) {
+        'RECALLED' => ReplyQuoteState.recalled,
+        'UNAVAILABLE' => ReplyQuoteState.unavailable,
+        _ => ReplyQuoteState.ok,
+      },
+      senderId: json['senderId']?.toString(),
+      type: _messageTypeOf(json['type']),
+      content: json['content'] as String?,
+      sticker: sticker is Map<String, dynamic>
+          ? StickerModel.fromJson(sticker)
+          : null,
+      image: image is Map<String, dynamic>
+          ? ChatImageModel.fromJson(image)
+          : null,
+      video: _videoCardFromJson(json['video']),
+    );
+  }
+
+  final String messageId;
+  final ReplyQuoteState state;
+  final String? senderId;
+  final MessageType? type;
+  final String? content;
+  final StickerModel? sticker;
+  final ChatImageModel? image;
+  final ChatVideoCard? video;
+
+  bool get visible => state == ReplyQuoteState.ok;
+
+  /// One line for the quote: the text, or what kind of message it was.
+  String get text {
+    if (state == ReplyQuoteState.recalled) return 'Message unsent';
+    if (state == ReplyQuoteState.unavailable) return 'Message unavailable';
+    final words = (content ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
+    String labelled(String kind) => words.isEmpty ? kind : '$kind · $words';
+    return switch (type) {
+      MessageType.sticker => 'Sticker',
+      MessageType.image => labelled('Photo'),
+      MessageType.video => labelled('Video'),
+      MessageType.storyReply => labelled('Story reply'),
+      _ => words,
+    };
+  }
+}
+
+ReplyQuote? _replyQuoteFromJson(Object? json) => ReplyQuote.fromJson(json);
+
+MessageType? _messageTypeOf(Object? wire) => switch (wire) {
+  'TEXT' => MessageType.text,
+  'STICKER' => MessageType.sticker,
+  'VIDEO' => MessageType.video,
+  'STORY_REPLY' => MessageType.storyReply,
+  'IMAGE' => MessageType.image,
+  null => null,
+  _ => MessageType.unknown,
+};
+
+/// A video shared into a chat, as chat-service resolved it for the viewer
+/// (`VideoCard`). Only an [available] one can be opened.
+class ChatVideoCard {
+  const ChatVideoCard({
+    this.videoId,
+    required this.state,
+    this.thumbnailUrl,
+    this.title,
+    this.durationSeconds,
+  });
+
+  static ChatVideoCard? fromJson(Object? json) {
+    if (json is! Map) return null;
+    return ChatVideoCard(
+      videoId: json['videoId']?.toString(),
+      state: json['state'] as String? ?? 'UNKNOWN',
+      thumbnailUrl: json['thumbnailUrl'] as String?,
+      title: json['title'] as String?,
+      durationSeconds: (json['durationSeconds'] as num?)?.toInt(),
+    );
+  }
+
+  final String? videoId;
+
+  /// AVAILABLE, UNAVAILABLE (deleted, private, blocked) or UNKNOWN (the
+  /// server could not ask just now).
+  final String state;
+  final String? thumbnailUrl;
+  final String? title;
+  final int? durationSeconds;
+
+  bool get available => state == 'AVAILABLE' && videoId != null;
+}
+
+ChatVideoCard? _videoCardFromJson(Object? json) => ChatVideoCard.fromJson(json);
 
 /// What a message shows when the server sends no text: a sticker, a shared
 /// video, or a message its sender took back. A picture's missing caption is
@@ -497,6 +741,7 @@ class MessageUpdate {
     required this.conversationId,
     required this.revision,
     this.recalledAt,
+    this.reactions,
   });
 
   factory MessageUpdate.fromJson(Map<String, dynamic> json) => MessageUpdate(
@@ -506,12 +751,19 @@ class MessageUpdate {
     recalledAt: json['recalledAt'] == null
         ? null
         : DateTime.parse(json['recalledAt'] as String),
+    reactions: json['reactions'] is List
+        ? _reactionsFromJson(json['reactions'])
+        : null,
   );
 
   final String messageId;
   final String conversationId;
   final int revision;
   final DateTime? recalledAt;
+
+  /// Everyone's reactions after the change. Null when the frame said nothing
+  /// about them.
+  final List<MessageReaction>? reactions;
 }
 
 /// The kinds of `/user/queue/chat` frame this app acts on. Anything else

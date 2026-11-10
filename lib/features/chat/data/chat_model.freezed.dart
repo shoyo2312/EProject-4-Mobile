@@ -1341,7 +1341,21 @@ mixin _$MessageModel {
   MessageType get type => throw _privateConstructorUsedError;
   StickerModel? get sticker => throw _privateConstructorUsedError;
   ChatImageModel? get image => throw _privateConstructorUsedError;
+
+  /// A video from the app, as this viewer may see it right now. Set on
+  /// [MessageType.video] only.
+  @JsonKey(fromJson: _videoCardFromJson, includeToJson: false)
+  ChatVideoCard? get video => throw _privateConstructorUsedError;
   DateTime? get recalledAt => throw _privateConstructorUsedError;
+
+  /// The message this one answers, as the server lets the viewer see it.
+  /// Null when it is not a reply.
+  @JsonKey(fromJson: _replyQuoteFromJson, includeToJson: false)
+  ReplyQuote? get replyTo => throw _privateConstructorUsedError;
+
+  /// One per person who reacted, the same for both sides.
+  @JsonKey(fromJson: _reactionsFromJson, includeToJson: false)
+  List<MessageReaction> get reactions => throw _privateConstructorUsedError;
 
   /// Orders updates to this message: one is applied only if it is newer.
   int get revision => throw _privateConstructorUsedError;
@@ -1377,7 +1391,13 @@ abstract class $MessageModelCopyWith<$Res> {
     @JsonKey(unknownEnumValue: MessageType.unknown) MessageType type,
     StickerModel? sticker,
     ChatImageModel? image,
+    @JsonKey(fromJson: _videoCardFromJson, includeToJson: false)
+    ChatVideoCard? video,
     DateTime? recalledAt,
+    @JsonKey(fromJson: _replyQuoteFromJson, includeToJson: false)
+    ReplyQuote? replyTo,
+    @JsonKey(fromJson: _reactionsFromJson, includeToJson: false)
+    List<MessageReaction> reactions,
     int revision,
     @JsonKey(includeFromJson: false, includeToJson: false) bool pending,
   });
@@ -1409,7 +1429,10 @@ class _$MessageModelCopyWithImpl<$Res, $Val extends MessageModel>
     Object? type = null,
     Object? sticker = freezed,
     Object? image = freezed,
+    Object? video = freezed,
     Object? recalledAt = freezed,
+    Object? replyTo = freezed,
+    Object? reactions = null,
     Object? revision = null,
     Object? pending = null,
   }) {
@@ -1447,10 +1470,22 @@ class _$MessageModelCopyWithImpl<$Res, $Val extends MessageModel>
                 ? _value.image
                 : image // ignore: cast_nullable_to_non_nullable
                       as ChatImageModel?,
+            video: freezed == video
+                ? _value.video
+                : video // ignore: cast_nullable_to_non_nullable
+                      as ChatVideoCard?,
             recalledAt: freezed == recalledAt
                 ? _value.recalledAt
                 : recalledAt // ignore: cast_nullable_to_non_nullable
                       as DateTime?,
+            replyTo: freezed == replyTo
+                ? _value.replyTo
+                : replyTo // ignore: cast_nullable_to_non_nullable
+                      as ReplyQuote?,
+            reactions: null == reactions
+                ? _value.reactions
+                : reactions // ignore: cast_nullable_to_non_nullable
+                      as List<MessageReaction>,
             revision: null == revision
                 ? _value.revision
                 : revision // ignore: cast_nullable_to_non_nullable
@@ -1511,7 +1546,13 @@ abstract class _$$MessageModelImplCopyWith<$Res>
     @JsonKey(unknownEnumValue: MessageType.unknown) MessageType type,
     StickerModel? sticker,
     ChatImageModel? image,
+    @JsonKey(fromJson: _videoCardFromJson, includeToJson: false)
+    ChatVideoCard? video,
     DateTime? recalledAt,
+    @JsonKey(fromJson: _replyQuoteFromJson, includeToJson: false)
+    ReplyQuote? replyTo,
+    @JsonKey(fromJson: _reactionsFromJson, includeToJson: false)
+    List<MessageReaction> reactions,
     int revision,
     @JsonKey(includeFromJson: false, includeToJson: false) bool pending,
   });
@@ -1544,7 +1585,10 @@ class __$$MessageModelImplCopyWithImpl<$Res>
     Object? type = null,
     Object? sticker = freezed,
     Object? image = freezed,
+    Object? video = freezed,
     Object? recalledAt = freezed,
+    Object? replyTo = freezed,
+    Object? reactions = null,
     Object? revision = null,
     Object? pending = null,
   }) {
@@ -1582,10 +1626,22 @@ class __$$MessageModelImplCopyWithImpl<$Res>
             ? _value.image
             : image // ignore: cast_nullable_to_non_nullable
                   as ChatImageModel?,
+        video: freezed == video
+            ? _value.video
+            : video // ignore: cast_nullable_to_non_nullable
+                  as ChatVideoCard?,
         recalledAt: freezed == recalledAt
             ? _value.recalledAt
             : recalledAt // ignore: cast_nullable_to_non_nullable
                   as DateTime?,
+        replyTo: freezed == replyTo
+            ? _value.replyTo
+            : replyTo // ignore: cast_nullable_to_non_nullable
+                  as ReplyQuote?,
+        reactions: null == reactions
+            ? _value._reactions
+            : reactions // ignore: cast_nullable_to_non_nullable
+                  as List<MessageReaction>,
         revision: null == revision
             ? _value.revision
             : revision // ignore: cast_nullable_to_non_nullable
@@ -1612,10 +1668,15 @@ class _$MessageModelImpl extends _MessageModel {
     this.type = MessageType.text,
     this.sticker,
     this.image,
+    @JsonKey(fromJson: _videoCardFromJson, includeToJson: false) this.video,
     this.recalledAt,
+    @JsonKey(fromJson: _replyQuoteFromJson, includeToJson: false) this.replyTo,
+    @JsonKey(fromJson: _reactionsFromJson, includeToJson: false)
+    final List<MessageReaction> reactions = const <MessageReaction>[],
     this.revision = 0,
     @JsonKey(includeFromJson: false, includeToJson: false) this.pending = false,
-  }) : super._();
+  }) : _reactions = reactions,
+       super._();
 
   factory _$MessageModelImpl.fromJson(Map<String, dynamic> json) =>
       _$$MessageModelImplFromJson(json);
@@ -1638,8 +1699,32 @@ class _$MessageModelImpl extends _MessageModel {
   final StickerModel? sticker;
   @override
   final ChatImageModel? image;
+
+  /// A video from the app, as this viewer may see it right now. Set on
+  /// [MessageType.video] only.
+  @override
+  @JsonKey(fromJson: _videoCardFromJson, includeToJson: false)
+  final ChatVideoCard? video;
   @override
   final DateTime? recalledAt;
+
+  /// The message this one answers, as the server lets the viewer see it.
+  /// Null when it is not a reply.
+  @override
+  @JsonKey(fromJson: _replyQuoteFromJson, includeToJson: false)
+  final ReplyQuote? replyTo;
+
+  /// One per person who reacted, the same for both sides.
+  final List<MessageReaction> _reactions;
+
+  /// One per person who reacted, the same for both sides.
+  @override
+  @JsonKey(fromJson: _reactionsFromJson, includeToJson: false)
+  List<MessageReaction> get reactions {
+    if (_reactions is EqualUnmodifiableListView) return _reactions;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_reactions);
+  }
 
   /// Orders updates to this message: one is applied only if it is newer.
   @override
@@ -1654,7 +1739,7 @@ class _$MessageModelImpl extends _MessageModel {
 
   @override
   String toString() {
-    return 'MessageModel(id: $id, conversationId: $conversationId, senderId: $senderId, content: $content, sentAt: $sentAt, type: $type, sticker: $sticker, image: $image, recalledAt: $recalledAt, revision: $revision, pending: $pending)';
+    return 'MessageModel(id: $id, conversationId: $conversationId, senderId: $senderId, content: $content, sentAt: $sentAt, type: $type, sticker: $sticker, image: $image, video: $video, recalledAt: $recalledAt, replyTo: $replyTo, reactions: $reactions, revision: $revision, pending: $pending)';
   }
 
   @override
@@ -1672,8 +1757,14 @@ class _$MessageModelImpl extends _MessageModel {
             (identical(other.type, type) || other.type == type) &&
             (identical(other.sticker, sticker) || other.sticker == sticker) &&
             (identical(other.image, image) || other.image == image) &&
+            (identical(other.video, video) || other.video == video) &&
             (identical(other.recalledAt, recalledAt) ||
                 other.recalledAt == recalledAt) &&
+            (identical(other.replyTo, replyTo) || other.replyTo == replyTo) &&
+            const DeepCollectionEquality().equals(
+              other._reactions,
+              _reactions,
+            ) &&
             (identical(other.revision, revision) ||
                 other.revision == revision) &&
             (identical(other.pending, pending) || other.pending == pending));
@@ -1691,7 +1782,10 @@ class _$MessageModelImpl extends _MessageModel {
     type,
     sticker,
     image,
+    video,
     recalledAt,
+    replyTo,
+    const DeepCollectionEquality().hash(_reactions),
     revision,
     pending,
   );
@@ -1720,7 +1814,13 @@ abstract class _MessageModel extends MessageModel {
     @JsonKey(unknownEnumValue: MessageType.unknown) final MessageType type,
     final StickerModel? sticker,
     final ChatImageModel? image,
+    @JsonKey(fromJson: _videoCardFromJson, includeToJson: false)
+    final ChatVideoCard? video,
     final DateTime? recalledAt,
+    @JsonKey(fromJson: _replyQuoteFromJson, includeToJson: false)
+    final ReplyQuote? replyTo,
+    @JsonKey(fromJson: _reactionsFromJson, includeToJson: false)
+    final List<MessageReaction> reactions,
     final int revision,
     @JsonKey(includeFromJson: false, includeToJson: false) final bool pending,
   }) = _$MessageModelImpl;
@@ -1747,8 +1847,25 @@ abstract class _MessageModel extends MessageModel {
   StickerModel? get sticker;
   @override
   ChatImageModel? get image;
+
+  /// A video from the app, as this viewer may see it right now. Set on
+  /// [MessageType.video] only.
+  @override
+  @JsonKey(fromJson: _videoCardFromJson, includeToJson: false)
+  ChatVideoCard? get video;
   @override
   DateTime? get recalledAt;
+
+  /// The message this one answers, as the server lets the viewer see it.
+  /// Null when it is not a reply.
+  @override
+  @JsonKey(fromJson: _replyQuoteFromJson, includeToJson: false)
+  ReplyQuote? get replyTo;
+
+  /// One per person who reacted, the same for both sides.
+  @override
+  @JsonKey(fromJson: _reactionsFromJson, includeToJson: false)
+  List<MessageReaction> get reactions;
 
   /// Orders updates to this message: one is applied only if it is newer.
   @override

@@ -81,12 +81,14 @@ class ChatRepository {
     String conversationId,
     String content, {
     String? clientRequestId,
+    String? replyToMessageId,
   }) async {
     try {
       return await _remoteDatasource.sendMessage(
         conversationId,
         content,
         clientRequestId: clientRequestId,
+        replyToMessageId: replyToMessageId,
       );
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
@@ -129,13 +131,53 @@ class ChatRepository {
     String conversationId,
     String stickerId, {
     required String clientRequestId,
+    String? replyToMessageId,
   }) async {
     try {
       return await _remoteDatasource.sendSticker(
         conversationId,
         stickerId,
         clientRequestId: clientRequestId,
+        replyToMessageId: replyToMessageId,
       );
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<MessageModel> sendVideo(
+    String conversationId,
+    String videoId, {
+    String? note,
+    required String clientRequestId,
+  }) async {
+    try {
+      return await _remoteDatasource.sendVideo(
+        conversationId,
+        videoId,
+        note: note,
+        clientRequestId: clientRequestId,
+      );
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<MessageUpdate> react(
+    String conversationId,
+    String messageId,
+    String emoji,
+  ) async {
+    try {
+      return await _remoteDatasource.react(conversationId, messageId, emoji);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
+  Future<MessageUpdate> unreact(String conversationId, String messageId) async {
+    try {
+      return await _remoteDatasource.unreact(conversationId, messageId);
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }

@@ -168,9 +168,14 @@ _$MessageModelImpl _$$MessageModelImplFromJson(Map<String, dynamic> json) =>
       image: json['image'] == null
           ? null
           : ChatImageModel.fromJson(json['image'] as Map<String, dynamic>),
+      video: _videoCardFromJson(json['video']),
       recalledAt: json['recalledAt'] == null
           ? null
           : DateTime.parse(json['recalledAt'] as String),
+      replyTo: _replyQuoteFromJson(json['replyTo']),
+      reactions: json['reactions'] == null
+          ? const <MessageReaction>[]
+          : _reactionsFromJson(json['reactions']),
       revision: (json['revision'] as num?)?.toInt() ?? 0,
     );
 

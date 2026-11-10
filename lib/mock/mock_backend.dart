@@ -1390,14 +1390,19 @@ class _MockChatRepository extends ChatRepository {
     String conversationId,
     String content, {
     String? clientRequestId,
+    String? replyToMessageId,
   }) async {
     await _latency();
+    final original = _messages
+        .where((m) => m.id == replyToMessageId)
+        .firstOrNull;
     final message = MessageModel(
       id: 'm${_messages.length + 1}',
       conversationId: conversationId,
       senderId: _meId,
       content: content,
       sentAt: DateTime.now(),
+      replyTo: original?.asQuote(),
     );
     _messages.insert(0, message);
     return message;
@@ -1446,6 +1451,35 @@ class _MockChatRepository extends ChatRepository {
       conversationId: conversationId,
       revision: (at < 0 ? 0 : _messages[at].revision) + 1,
       recalledAt: DateTime.now(),
+    );
+    if (at >= 0) _messages[at] = _messages[at].applying(update);
+    return update;
+  }
+
+  @override
+  Future<MessageUpdate> react(
+    String conversationId,
+    String messageId,
+    String emoji,
+  ) => _setReaction(conversationId, messageId, emoji);
+
+  @override
+  Future<MessageUpdate> unreact(String conversationId, String messageId) =>
+      _setReaction(conversationId, messageId, null);
+
+  Future<MessageUpdate> _setReaction(
+    String conversationId,
+    String messageId,
+    String? emoji,
+  ) async {
+    await _latency();
+    final at = _messages.indexWhere((m) => m.id == messageId);
+    final current = at < 0 ? null : _messages[at];
+    final update = MessageUpdate(
+      messageId: messageId,
+      conversationId: conversationId,
+      revision: (current?.revision ?? 0) + 1,
+      reactions: current?.reactionsWith(_meId, emoji) ?? const [],
     );
     if (at >= 0) _messages[at] = _messages[at].applying(update);
     return update;

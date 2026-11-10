@@ -25,10 +25,15 @@ class ReportConversationScreen extends ConsumerStatefulWidget {
     super.key,
     required this.conversationId,
     required this.otherUserId,
+    this.messageId,
   });
 
   final String conversationId;
   final String otherUserId;
+
+  /// Set when the report starts from one message (its long-press menu): that
+  /// message comes already picked, and nothing else does.
+  final String? messageId;
 
   @override
   ConsumerState<ReportConversationScreen> createState() =>
@@ -63,6 +68,11 @@ class _ReportConversationScreenState
   void _preselect(List<MessageModel> messages) {
     if (_preselected) return;
     _preselected = true;
+    final start = widget.messageId;
+    if (start != null && messages.any((m) => m.id == start && _reportable(m))) {
+      _selected.add(start);
+      return;
+    }
     _selected.addAll(
       messages
           .where((m) => _reportable(m) && m.senderId == widget.otherUserId)

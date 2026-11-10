@@ -100,13 +100,33 @@ class ChatRemoteDatasource {
   ///
   /// [clientRequestId] makes a retry after a lost response answer with the
   /// first message instead of posting a second one.
+  ///
+  /// [replyToMessageId] makes it a reply. Only the id travels: the server
+  /// reads the quote back from the original, which must still be there.
   Future<MessageModel> sendMessage(
     String conversationId,
     String content, {
     String? clientRequestId,
+    String? replyToMessageId,
   }) => _send(conversationId, {
     'content': content,
     'clientRequestId': ?clientRequestId,
+    'replyToMessageId': ?replyToMessageId,
+  });
+
+  /// A video from the app, into one conversation, with an optional note of
+  /// up to 300 characters. The server checks the recipient may watch it
+  /// (`VIDEO_NOT_SHAREABLE_TO_RECIPIENT`) and counts the share itself.
+  Future<MessageModel> sendVideo(
+    String conversationId,
+    String videoId, {
+    String? note,
+    required String clientRequestId,
+  }) => _send(conversationId, {
+    'type': 'VIDEO',
+    'videoId': videoId,
+    if (note != null && note.trim().isNotEmpty) 'content': note.trim(),
+    'clientRequestId': clientRequestId,
   });
 
   /// The sticker catalog. Every pack the server offers; a sticker that is no
@@ -160,10 +180,12 @@ class ChatRemoteDatasource {
     String conversationId,
     String stickerId, {
     required String clientRequestId,
+    String? replyToMessageId,
   }) => _send(conversationId, {
     'type': 'STICKER',
     'stickerId': stickerId,
     'clientRequestId': clientRequestId,
+    'replyToMessageId': ?replyToMessageId,
   });
 
   /// A reply to somebody's story, delivered to their direct messages. The
@@ -288,6 +310,33 @@ class ChatRemoteDatasource {
   Future<MessageUpdate> recall(String conversationId, String messageId) async {
     final response = await _apiClient.post<Map<String, dynamic>>(
       '/conversations/$conversationId/messages/$messageId/recall',
+    );
+    return MessageUpdate.fromJson(
+      response.data!['data'] as Map<String, dynamic>,
+    );
+  }
+
+  /// Sets the caller's one reaction on a message, replacing any other of
+  /// theirs. Only [chatReactions] are accepted (`INVALID_REACTION`), and only
+  /// where the caller may send (`REACTION_NOT_ALLOWED`).
+  Future<MessageUpdate> react(
+    String conversationId,
+    String messageId,
+    String emoji,
+  ) async {
+    final response = await _apiClient.put<Map<String, dynamic>>(
+      '/conversations/$conversationId/messages/$messageId/reaction',
+      data: {'emoji': emoji},
+    );
+    return MessageUpdate.fromJson(
+      response.data!['data'] as Map<String, dynamic>,
+    );
+  }
+
+  /// Takes the caller's reaction back. Always allowed.
+  Future<MessageUpdate> unreact(String conversationId, String messageId) async {
+    final response = await _apiClient.delete<Map<String, dynamic>>(
+      '/conversations/$conversationId/messages/$messageId/reaction',
     );
     return MessageUpdate.fromJson(
       response.data!['data'] as Map<String, dynamic>,
