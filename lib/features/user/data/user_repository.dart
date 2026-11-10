@@ -157,6 +157,14 @@ class UserRepository {
     }
   }
 
+  Future<UserProfileModel> getProfileByUsername(String username) async {
+    try {
+      return await _remoteDatasource.getProfileByUsername(username);
+    } on DioException catch (e) {
+      throw AppException.fromDioException(e);
+    }
+  }
+
   Future<PageResponse<UserProfileModel>> getFollowers(
     String userId, {
     int page = 0,

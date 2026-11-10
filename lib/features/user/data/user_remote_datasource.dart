@@ -66,6 +66,15 @@ class UserRemoteDatasource {
     return _unwrap(response.data!, UserProfileModel.fromJson);
   }
 
+  /// The account with this @handle, case-insensitively — what a tapped tag
+  /// in a comment opens. 404 for no such handle.
+  Future<UserProfileModel> getProfileByUsername(String username) async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/users/by-username/${Uri.encodeComponent(username)}',
+    );
+    return _unwrap(response.data!, UserProfileModel.fromJson);
+  }
+
   /// Many profiles in one request. The array can come back **shorter** than
   /// [ids] — ids that do not exist, or that a block relation hides, are simply
   /// dropped — so callers must key the result by `userId` and never zip it

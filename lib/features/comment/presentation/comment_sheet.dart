@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tiktok_mobile/core/network/app_exception.dart';
@@ -15,13 +17,16 @@ import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/auth/data/user_model.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
+import 'package:tiktok_mobile/features/comment/data/comment_mentions.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_model.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_report_reasons.dart';
 import 'package:tiktok_mobile/features/comment/presentation/comment_provider.dart';
 import 'package:tiktok_mobile/features/comment/presentation/comment_sticker_sheet.dart';
+import 'package:tiktok_mobile/features/comment/presentation/mention_provider.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_flow.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_provider.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_ring.dart';
+import 'package:tiktok_mobile/features/user/data/user_profile_model.dart';
 import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
 /// Opens the sheet over whatever is on screen. Every video has comments, so
@@ -176,6 +181,8 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
     final text = _controller.text.trim();
     if (text.isEmpty || _sending || _disabled) return;
     final editing = _editing;
+    if (!await _mentionsAllowed(text, original: editing?.text)) return;
+    if (!mounted) return;
     if (editing != null) {
       await _saveEdit(editing, text);
     } else {
@@ -189,7 +196,94 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
     if (_sending || _disabled || _editing != null) return;
     final sticker = await showCommentStickerSheet(context);
     if (sticker == null || !mounted) return;
-    await _post(_controller.text.trim(), stickerId: sticker.stickerId);
+    final caption = _controller.text.trim();
+    if (!await _mentionsAllowed(caption) || !mounted) return;
+    await _post(caption, stickerId: sticker.stickerId);
+  }
+
+  /// The `@word` the cursor is in, while one is being typed.
+  ({int start, String query})? _mentionToken() {
+    final selection = _controller.selection;
+    if (!selection.isValid || !selection.isCollapsed) return null;
+    return mentionTokenAt(_controller.text, selection.baseOffset);
+  }
+
+  /// A suggestion picked: the `@word` being typed becomes their handle.
+  void _pickMention(UserProfileModel friend) {
+    final token = _mentionToken();
+    final handle = mentionHandle(friend);
+    if (token == null || handle == null) return;
+    final applied = applyMention(
+      _controller.text,
+      token.start,
+      _controller.selection.baseOffset,
+      handle,
+    );
+    _controller.value = TextEditingValue(
+      text: applied.text,
+      selection: TextSelection.collapsed(offset: applied.cursor),
+    );
+  }
+
+  /// The @ button: starts a tag where the cursor is.
+  void _startMention() {
+    final value = _controller.value;
+    final text = value.text;
+    final at = value.selection.isValid
+        ? value.selection.baseOffset
+        : text.length;
+    final needsSpace = at > 0 && !RegExp(r'\s').hasMatch(text[at - 1]);
+    final insert = needsSpace ? ' @' : '@';
+    _controller.value = TextEditingValue(
+      text: text.replaceRange(
+        at,
+        value.selection.isValid ? value.selection.extentOffset : at,
+        insert,
+      ),
+      selection: TextSelection.collapsed(offset: at + insert.length),
+    );
+    _focusNode.requestFocus();
+  }
+
+  /// Only friends — people the viewer follows who follow them back — can be
+  /// tagged. The server reads any `@handle` as a tag, so the rule is kept
+  /// here before the comment goes up. A tag already in a comment being
+  /// edited is left alone. When the friend list cannot be read, the comment
+  /// goes up as written rather than being held back by an outage.
+  Future<bool> _mentionsAllowed(String text, {String? original}) async {
+    final handles = mentionedHandles(text);
+    if (handles.isEmpty) return true;
+    final toast = NowaToast.of(context);
+    if (handles.length > maxMentions) {
+      toast.error('You can tag up to $maxMentions people in one comment');
+      return false;
+    }
+    final kept = original == null
+        ? const <String>{}
+        : mentionedHandles(original).toSet();
+    final List<UserProfileModel> friends;
+    final keep = ref.listenManual(mentionFriendsProvider, (_, _) {});
+    try {
+      friends = await ref.read(mentionFriendsProvider.future);
+    } catch (_) {
+      return true;
+    } finally {
+      keep.close();
+    }
+    final allowed = {
+      for (final f in friends)
+        if (mentionHandle(f) case final handle?) handle.toLowerCase(),
+    };
+    final refused = [
+      for (final h in handles)
+        if (!allowed.contains(h) && !kept.contains(h)) h,
+    ];
+    if (refused.isEmpty) return true;
+    toast.error(
+      'You can only tag friends who follow you back. Remove @${refused.first}',
+      key: const Key('comment_mention_refused'),
+    );
+    return false;
   }
 
   Future<void> _post(String text, {String? stickerId}) async {
@@ -320,23 +414,30 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
     }
   }
 
+  /// The web's report sheet: a scenario, then the rules it covers, then
+  /// Submit. The sheet stays up while the report is sent, so a failure can be
+  /// tried again without picking the reason a second time.
   Future<void> _report(CommentModel comment) async {
-    final reason = await _pickReason(
-      context,
-      title: 'Why are you reporting this comment?',
-      keyPrefix: 'comment_report_reason',
+    final notifier = _notifier;
+    final sent = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
+      ),
+      backgroundColor: NowaColors.surfaceHigh,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _ReportSheet(
+        onSubmit: (reason) => notifier.report(comment.id, reason),
+      ),
     );
-    if (reason == null || !mounted) return;
-    final toast = NowaToast.of(context);
-    try {
-      await _notifier.report(comment.id, reason);
-      toast.success(
-        "Thanks for reporting. We'll review this comment.",
-        key: const Key('comment_report_sent'),
-      );
-    } on AppException catch (e) {
-      toast.error(e.message);
-    }
+    if (sent != true || !mounted) return;
+    NowaToast.of(context).success(
+      "Thanks for reporting. We'll review this comment.",
+      key: const Key('comment_report_sent'),
+    );
   }
 
   /// Top-level comments, each followed by its open thread (or the button
@@ -447,10 +548,18 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
               },
             ),
           ),
+          if (!_disabled && isLoggedIn)
+            if (_mentionToken() case final token?)
+              _MentionSuggestions(
+                friends: ref.watch(mentionFriendsProvider),
+                query: token.query,
+                onPick: _pickMention,
+              ),
           if (_disabled)
             const _CommentsClosed()
           else if (isLoggedIn)
             _Composer(
+              onMention: _startMention,
               controller: _controller,
               focusNode: _focusNode,
               replyingTo: _replyTo?.name,
@@ -562,6 +671,191 @@ Future<String?> _pickReason(
       ),
     ),
   );
+}
+
+/// Reporting a comment, as on the web: pick a scenario, read back what it
+/// covers ("We don't allow the following"), then Submit. Pops true once the
+/// server has the report.
+class _ReportSheet extends StatefulWidget {
+  const _ReportSheet({required this.onSubmit});
+
+  final Future<void> Function(String reason) onSubmit;
+
+  @override
+  State<_ReportSheet> createState() => _ReportSheetState();
+}
+
+class _ReportSheetState extends State<_ReportSheet> {
+  CommentReportReason? _picked;
+  bool _sending = false;
+
+  Future<void> _submit() async {
+    final picked = _picked;
+    if (picked == null || _sending) return;
+    setState(() => _sending = true);
+    try {
+      await widget.onSubmit(picked.label);
+      if (mounted) Navigator.of(context).pop(true);
+    } on AppException catch (e) {
+      if (mounted) NowaToast.of(context).error(e.message);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final picked = _picked;
+    final text = NowaColors.text;
+    return SafeArea(
+      child: Column(
+        key: const Key('comment_report_sheet'),
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            height: 56,
+            child: Row(
+              children: [
+                if (picked != null)
+                  IconButton(
+                    key: const Key('comment_report_back'),
+                    tooltip: 'Back',
+                    onPressed: _sending
+                        ? null
+                        : () => setState(() => _picked = null),
+                    icon: Icon(Icons.chevron_left, color: text),
+                  )
+                else
+                  const SizedBox(width: 20),
+                Expanded(child: Text('Report', style: sora(size: 17))),
+                IconButton(
+                  tooltip: 'Close',
+                  onPressed: _sending
+                      ? null
+                      : () => Navigator.of(context).pop(false),
+                  icon: Icon(Icons.close, size: 20, color: text),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: NowaColors.hairline),
+          Flexible(
+            child: SingleChildScrollView(
+              child: picked == null ? _scenarios() : _rules(picked),
+            ),
+          ),
+          if (picked != null) ...[
+            const Divider(height: 1, color: NowaColors.hairline),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+              child: SizedBox(
+                height: 46,
+                child: FilledButton(
+                  key: const Key('comment_report_submit'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: NowaColors.accent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: _sending ? null : _submit,
+                  child: _sending
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          'Submit',
+                          style: sora(size: 14, color: Colors.white),
+                        ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _scenarios() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+          child: Text(
+            'Please select a scenario',
+            style: work(
+              size: 13,
+              color: NowaColors.text.withValues(alpha: 0.6),
+            ),
+          ),
+        ),
+        for (var i = 0; i < commentReportScenarios.length; i++)
+          ListTile(
+            key: Key('comment_report_reason_$i'),
+            title: Text(
+              commentReportScenarios[i].label,
+              style: work(size: 14.5),
+            ),
+            trailing: Icon(
+              Icons.chevron_right,
+              size: 18,
+              color: NowaColors.text.withValues(alpha: 0.4),
+            ),
+            onTap: () => setState(() => _picked = commentReportScenarios[i]),
+          ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Widget _rules(CommentReportReason picked) {
+    return Column(
+      key: const Key('comment_report_rules'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          color: NowaColors.text.withValues(alpha: 0.07),
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+          child: Text(picked.label, style: work(size: 16, height: 1.35)),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Text(
+            "We don't allow the following",
+            style: work(size: 14.5, weight: FontWeight.w600),
+          ),
+        ),
+        for (final rule in picked.bullets)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 6, 20, 0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('•  ', style: work(size: 14, height: 1.4)),
+                Expanded(
+                  child: Text(
+                    rule,
+                    style: work(
+                      size: 14,
+                      height: 1.4,
+                      color: NowaColors.text.withValues(alpha: 0.85),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
 }
 
 class _Header extends StatelessWidget {
@@ -748,7 +1042,7 @@ class _Row extends ConsumerWidget {
     );
 
     final sticker = comment.sticker;
-    return Row(
+    final row = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _AuthorAvatar(
@@ -783,7 +1077,10 @@ class _Row extends ConsumerWidget {
               ),
               if (comment.text.isNotEmpty) ...[
                 const SizedBox(height: 4),
-                Text(comment.text, style: work()),
+                _CommentText(
+                  key: Key('comment_text_${comment.id}'),
+                  text: comment.text,
+                ),
               ],
               if (sticker != null) ...[
                 const SizedBox(height: 6),
@@ -809,17 +1106,6 @@ class _Row extends ConsumerWidget {
                     'Reply',
                     () => onReply(comment, name),
                   ),
-                  if (onEdit != null)
-                    action('comment_edit_${comment.id}', 'Edit', onEdit!),
-                  if (onDelete != null)
-                    action(
-                      'comment_delete_${comment.id}',
-                      'Delete',
-                      onDelete!,
-                      color: NowaColors.accent,
-                    ),
-                  if (onReport != null)
-                    action('comment_report_${comment.id}', 'Report', onReport!),
                 ],
               ),
             ],
@@ -857,6 +1143,144 @@ class _Row extends ConsumerWidget {
           ),
         ),
       ],
+    );
+    // Copy, Edit, Report and Delete wait behind a long press, so the row
+    // itself only carries Reply. The row is lit while its menu is open.
+    return _PressHighlight(
+      key: Key('comment_row_${comment.id}'),
+      onLongPress: () => _openActions(context, name),
+      child: row,
+    );
+  }
+
+  Future<void> _openActions(BuildContext context, String name) async {
+    HapticFeedback.mediumImpact();
+    final text = comment.text.trim();
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: NowaColors.surfaceHigh,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheet) {
+        Widget tile(
+          String value,
+          IconData icon,
+          String label, {
+          Color color = NowaColors.text,
+        }) => ListTile(
+          key: Key('comment_${value}_${comment.id}'),
+          leading: Icon(icon, size: 22, color: color),
+          title: Text(label, style: work(size: 14.5, color: color)),
+          onTap: () => Navigator.of(sheet).pop(value),
+        );
+        return SafeArea(
+          top: false,
+          child: Column(
+            key: Key('comment_actions_${comment.id}'),
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Which comment the menu is about.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(text: '$name  ', style: sora(size: 13)),
+                      TextSpan(
+                        text: text.isEmpty ? 'Sticker' : text,
+                        style: work(
+                          size: 13,
+                          color: NowaColors.text.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const Divider(height: 1, color: NowaColors.hairline),
+              tile('menu_reply', Icons.reply_rounded, 'Reply'),
+              if (text.isNotEmpty) tile('copy', Icons.copy_rounded, 'Copy'),
+              if (onEdit != null) tile('edit', Icons.edit_outlined, 'Edit'),
+              if (onReport != null)
+                tile('report', Icons.flag_outlined, 'Report'),
+              if (onDelete != null)
+                tile(
+                  'delete',
+                  Icons.delete_outline,
+                  'Delete',
+                  color: NowaColors.danger,
+                ),
+              const SizedBox(height: 6),
+            ],
+          ),
+        );
+      },
+    );
+    if (!context.mounted) return;
+    switch (choice) {
+      case 'menu_reply':
+        onReply(comment, name);
+      case 'copy':
+        await Clipboard.setData(ClipboardData(text: text));
+        if (context.mounted) NowaToast.of(context).success('Comment copied');
+      case 'edit':
+        onEdit?.call();
+      case 'report':
+        onReport?.call();
+      case 'delete':
+        onDelete?.call();
+    }
+  }
+}
+
+/// A comment row that answers a long press and stays lit until what the
+/// press opened is closed, so it is plain which comment the menu is for.
+class _PressHighlight extends StatefulWidget {
+  const _PressHighlight({
+    super.key,
+    required this.onLongPress,
+    required this.child,
+  });
+
+  final Future<void> Function() onLongPress;
+  final Widget child;
+
+  @override
+  State<_PressHighlight> createState() => _PressHighlightState();
+}
+
+class _PressHighlightState extends State<_PressHighlight> {
+  bool _lit = false;
+
+  Future<void> _press() async {
+    setState(() => _lit = true);
+    try {
+      await widget.onLongPress();
+    } finally {
+      if (mounted) setState(() => _lit = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onLongPress: _press,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          color: _lit
+              ? NowaColors.text.withValues(alpha: 0.07)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: widget.child,
+      ),
     );
   }
 }
@@ -913,6 +1337,8 @@ class _AuthorAvatar extends ConsumerWidget {
     if (ring == null) {
       return GestureDetector(
         onTap: () => _openProfile(context, userId),
+        // Claimed here so the comment's own long-press menu stays off it.
+        onLongPress: () => _openProfile(context, userId),
         child: SizedBox(
           width: size,
           height: size,
@@ -1032,6 +1458,7 @@ class _Composer extends StatelessWidget {
     required this.onSend,
     required this.onCancel,
     required this.onSticker,
+    this.onMention,
     this.replyingTo,
     this.editing = false,
   });
@@ -1039,6 +1466,9 @@ class _Composer extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final VoidCallback onSend;
+
+  /// The @ button: starts tagging a friend.
+  final VoidCallback? onMention;
 
   /// Leaves reply or edit mode.
   final VoidCallback onCancel;
@@ -1131,6 +1561,18 @@ class _Composer extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (onMention != null)
+                        IconButton(
+                          key: const Key('comment_mention_button'),
+                          tooltip: 'Tag a friend',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: onMention,
+                          icon: Icon(
+                            Icons.alternate_email_rounded,
+                            size: 19,
+                            color: NowaColors.text.withValues(alpha: 0.55),
+                          ),
+                        ),
                       // An edit changes the text only; the sticker stays.
                       if (!editing)
                         IconButton(
@@ -1172,6 +1614,192 @@ class _Composer extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The colour of a tag in a comment, the same as the web's `--tt-mention`.
+const _mentionColor = Color(0xFF20D5EC);
+
+/// A comment's text with its `@handle` tags drawn as links: a tap opens that
+/// account, found by its handle.
+class _CommentText extends StatefulWidget {
+  const _CommentText({super.key, required this.text});
+
+  final String text;
+
+  @override
+  State<_CommentText> createState() => _CommentTextState();
+}
+
+class _CommentTextState extends State<_CommentText> {
+  final _taps = <TapGestureRecognizer>[];
+
+  @override
+  void dispose() {
+    _clear();
+    super.dispose();
+  }
+
+  void _clear() {
+    for (final tap in _taps) {
+      tap.dispose();
+    }
+    _taps.clear();
+  }
+
+  Future<void> _open(String handle) async {
+    final router = GoRouter.of(context);
+    final toast = NowaToast.of(context);
+    try {
+      final profile = await ProviderScope.containerOf(
+        context,
+        listen: false,
+      ).read(userRepositoryProvider).getProfileByUsername(handle);
+      router.push('/profile/${profile.userId}');
+    } on AppException {
+      toast.error('Couldn\'t find @$handle');
+    }
+  }
+
+  TapGestureRecognizer _tap(String handle) {
+    final tap = TapGestureRecognizer()..onTap = () => _open(handle);
+    _taps.add(tap);
+    return tap;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final runs = splitMentions(widget.text);
+    if (runs.every((r) => r.handle == null)) {
+      return Text(widget.text, style: work());
+    }
+    _clear();
+    return Text.rich(
+      TextSpan(
+        style: work(),
+        children: [
+          for (final run in runs)
+            if (run.handle case final handle?)
+              TextSpan(
+                text: run.text,
+                style: work(color: _mentionColor, weight: FontWeight.w500),
+                recognizer: _tap(handle),
+              )
+            else
+              TextSpan(text: run.text),
+        ],
+      ),
+    );
+  }
+}
+
+/// Friends whose handle or name matches the `@word` being typed, over the
+/// composer. Only friends are offered: they are the only people who can be
+/// tagged.
+class _MentionSuggestions extends StatelessWidget {
+  const _MentionSuggestions({
+    required this.friends,
+    required this.query,
+    required this.onPick,
+  });
+
+  final AsyncValue<List<UserProfileModel>> friends;
+  final String query;
+  final ValueChanged<UserProfileModel> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final hint = work(
+      size: 12.5,
+      color: NowaColors.text.withValues(alpha: 0.5),
+    );
+    final Widget body;
+    if (friends.isLoading && !friends.hasValue) {
+      body = Padding(
+        padding: const EdgeInsets.all(14),
+        child: Text('Loading friends…', style: hint),
+      );
+    } else if (friends.hasError && !friends.hasValue) {
+      body = Padding(
+        padding: const EdgeInsets.all(14),
+        child: Text('Couldn\'t load your friends', style: hint),
+      );
+    } else {
+      final matches = matchMentions(friends.requireValue, query);
+      body = matches.isEmpty
+          ? Padding(
+              key: const Key('comment_mention_empty'),
+              padding: const EdgeInsets.all(14),
+              child: Text(
+                friends.requireValue.isEmpty
+                    ? 'You can tag friends — people you follow who follow you back'
+                    : 'No friends match "@$query"',
+                style: hint,
+              ),
+            )
+          : ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              children: [
+                for (final friend in matches)
+                  InkWell(
+                    key: Key('comment_mention_${friend.userId}'),
+                    onTap: () => onPick(friend),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 7,
+                      ),
+                      child: Row(
+                        children: [
+                          NowaAvatar(
+                            url: friend.avatarUrl,
+                            size: 34,
+                            radius: 17,
+                            border: false,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  friend.displayName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: work(size: 13.5, height: 1.2),
+                                ),
+                                Text(
+                                  '@${mentionHandle(friend)}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: work(
+                                    size: 12,
+                                    height: 1.2,
+                                    color: NowaColors.text.withValues(
+                                      alpha: 0.5,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            );
+    }
+    return Container(
+      key: const Key('comment_mention_suggestions'),
+      constraints: const BoxConstraints(maxHeight: 220),
+      decoration: const BoxDecoration(
+        color: NowaColors.surface,
+        border: Border(top: BorderSide(color: NowaColors.hairline)),
+      ),
+      child: body,
     );
   }
 }

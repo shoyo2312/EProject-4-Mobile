@@ -26,6 +26,13 @@ class MockCommentRepository extends Mock implements CommentRepository {}
 
 class MockUserRepository extends Mock implements UserRepository {}
 
+/// Long-presses a comment to bring up Edit / Report / Delete.
+Future<void> openActions(WidgetTester tester, String commentId) async {
+  await tester.longPress(find.byKey(Key('comment_text_$commentId')));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
+}
+
 void main() {
   /// Sheet backed by one existing comment and a resolvable author.
   Future<MockCommentRepository> pumpSheet(
@@ -202,6 +209,13 @@ void main() {
     testWidgets('a viewer can report it but not delete it', (tester) async {
       await pumpSheet(tester, videoOwnerId: 'someone-else');
 
+      // Under the comment there is only Reply; the rest is a long press away.
+      expect(find.byKey(const Key('comment_reply_c1')), findsOneWidget);
+      expect(find.byKey(const Key('comment_report_c1')), findsNothing);
+      await openActions(tester, 'c1');
+      expect(find.byKey(const Key('comment_actions_c1')), findsOneWidget);
+      expect(find.byKey(const Key('comment_menu_reply_c1')), findsOneWidget);
+      expect(find.byKey(const Key('comment_copy_c1')), findsOneWidget);
       expect(find.byKey(const Key('comment_delete_c1')), findsNothing);
       expect(find.byKey(const Key('comment_report_c1')), findsOneWidget);
     });
@@ -210,6 +224,7 @@ void main() {
       final repository = await pumpSheet(tester, videoOwnerId: '1');
       when(() => repository.deleteComment('v1', 'c1')).thenAnswer((_) async {});
 
+      await openActions(tester, 'c1');
       await tester.tap(find.byKey(const Key('comment_delete_c1')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('comment_confirm_delete')));
@@ -238,6 +253,7 @@ void main() {
         () => repository.removeCommentAsAdmin('v1', 'c1', any()),
       ).thenAnswer((_) async {});
 
+      await openActions(tester, 'c1');
       await tester.tap(find.byKey(const Key('comment_delete_c1')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('comment_remove_reason_1')));
@@ -262,9 +278,16 @@ void main() {
         () => repository.reportComment('v1', 'c1', any()),
       ).thenAnswer((_) async {});
 
+      await openActions(tester, 'c1');
       await tester.tap(find.byKey(const Key('comment_report_c1')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('comment_report_reason_5')));
+      await tester.pumpAndSettle();
+      // As on the web: the rules for that scenario, read back before Submit.
+      expect(find.byKey(const Key('comment_report_rules')), findsOneWidget);
+      expect(find.text("We don't allow the following"), findsOneWidget);
+      verifyNever(() => repository.reportComment(any(), any(), any()));
+      await tester.tap(find.byKey(const Key('comment_report_submit')));
       await tester.pumpAndSettle();
 
       verify(
@@ -378,9 +401,16 @@ void main() {
     ) async {
       await pumpThread(tester);
 
+      await openActions(tester, 'mine');
       expect(find.byKey(const Key('comment_edit_mine')), findsOneWidget);
       expect(find.byKey(const Key('comment_delete_mine')), findsOneWidget);
       expect(find.byKey(const Key('comment_report_mine')), findsNothing);
+      Navigator.of(
+        tester.element(find.byKey(const Key('comment_actions_mine'))),
+      ).pop();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      await openActions(tester, 'theirs');
       expect(find.byKey(const Key('comment_edit_theirs')), findsNothing);
       expect(find.byKey(const Key('comment_report_theirs')), findsOneWidget);
     });
@@ -394,6 +424,7 @@ void main() {
             mine.copyWith(text: 'better words', editedAt: DateTime(2026, 1, 2)),
       );
 
+      await openActions(tester, 'mine');
       await tester.tap(find.byKey(const Key('comment_edit_mine')));
       await tester.pump();
       expect(find.text('Editing comment'), findsOneWidget);
@@ -426,6 +457,7 @@ void main() {
         ),
       );
 
+      await openActions(tester, 'mine');
       await tester.tap(find.byKey(const Key('comment_edit_mine')));
       await tester.pump();
       await tester.enterText(

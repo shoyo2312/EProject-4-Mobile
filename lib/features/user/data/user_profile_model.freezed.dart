@@ -22,7 +22,8 @@ UserProfileModel _$UserProfileModelFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$UserProfileModel {
   @JsonKey(fromJson: _idFromJson)
-  String get userId => throw _privateConstructorUsedError;
+  String get userId => throw _privateConstructorUsedError; // The @handle; null on accounts made before handles existed.
+  String? get username => throw _privateConstructorUsedError;
   String get displayName => throw _privateConstructorUsedError;
   String? get bio => throw _privateConstructorUsedError;
   String? get avatarUrl => throw _privateConstructorUsedError;
@@ -54,6 +55,7 @@ abstract class $UserProfileModelCopyWith<$Res> {
   @useResult
   $Res call({
     @JsonKey(fromJson: _idFromJson) String userId,
+    String? username,
     String displayName,
     String? bio,
     String? avatarUrl,
@@ -80,6 +82,7 @@ class _$UserProfileModelCopyWithImpl<$Res, $Val extends UserProfileModel>
   @override
   $Res call({
     Object? userId = null,
+    Object? username = freezed,
     Object? displayName = null,
     Object? bio = freezed,
     Object? avatarUrl = freezed,
@@ -94,6 +97,10 @@ class _$UserProfileModelCopyWithImpl<$Res, $Val extends UserProfileModel>
                 ? _value.userId
                 : userId // ignore: cast_nullable_to_non_nullable
                       as String,
+            username: freezed == username
+                ? _value.username
+                : username // ignore: cast_nullable_to_non_nullable
+                      as String?,
             displayName: null == displayName
                 ? _value.displayName
                 : displayName // ignore: cast_nullable_to_non_nullable
@@ -139,6 +146,7 @@ abstract class _$$UserProfileModelImplCopyWith<$Res>
   @useResult
   $Res call({
     @JsonKey(fromJson: _idFromJson) String userId,
+    String? username,
     String displayName,
     String? bio,
     String? avatarUrl,
@@ -164,6 +172,7 @@ class __$$UserProfileModelImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? userId = null,
+    Object? username = freezed,
     Object? displayName = null,
     Object? bio = freezed,
     Object? avatarUrl = freezed,
@@ -178,6 +187,10 @@ class __$$UserProfileModelImplCopyWithImpl<$Res>
             ? _value.userId
             : userId // ignore: cast_nullable_to_non_nullable
                   as String,
+        username: freezed == username
+            ? _value.username
+            : username // ignore: cast_nullable_to_non_nullable
+                  as String?,
         displayName: null == displayName
             ? _value.displayName
             : displayName // ignore: cast_nullable_to_non_nullable
@@ -216,6 +229,7 @@ class __$$UserProfileModelImplCopyWithImpl<$Res>
 class _$UserProfileModelImpl implements _UserProfileModel {
   const _$UserProfileModelImpl({
     @JsonKey(fromJson: _idFromJson) required this.userId,
+    this.username,
     required this.displayName,
     this.bio,
     this.avatarUrl,
@@ -231,6 +245,9 @@ class _$UserProfileModelImpl implements _UserProfileModel {
   @override
   @JsonKey(fromJson: _idFromJson)
   final String userId;
+  // The @handle; null on accounts made before handles existed.
+  @override
+  final String? username;
   @override
   final String displayName;
   @override
@@ -252,7 +269,7 @@ class _$UserProfileModelImpl implements _UserProfileModel {
 
   @override
   String toString() {
-    return 'UserProfileModel(userId: $userId, displayName: $displayName, bio: $bio, avatarUrl: $avatarUrl, followerCount: $followerCount, followingCount: $followingCount, displayNameChangeableAt: $displayNameChangeableAt, birthDate: $birthDate)';
+    return 'UserProfileModel(userId: $userId, username: $username, displayName: $displayName, bio: $bio, avatarUrl: $avatarUrl, followerCount: $followerCount, followingCount: $followingCount, displayNameChangeableAt: $displayNameChangeableAt, birthDate: $birthDate)';
   }
 
   @override
@@ -261,6 +278,8 @@ class _$UserProfileModelImpl implements _UserProfileModel {
         (other.runtimeType == runtimeType &&
             other is _$UserProfileModelImpl &&
             (identical(other.userId, userId) || other.userId == userId) &&
+            (identical(other.username, username) ||
+                other.username == username) &&
             (identical(other.displayName, displayName) ||
                 other.displayName == displayName) &&
             (identical(other.bio, bio) || other.bio == bio) &&
@@ -284,6 +303,7 @@ class _$UserProfileModelImpl implements _UserProfileModel {
   int get hashCode => Object.hash(
     runtimeType,
     userId,
+    username,
     displayName,
     bio,
     avatarUrl,
@@ -313,6 +333,7 @@ class _$UserProfileModelImpl implements _UserProfileModel {
 abstract class _UserProfileModel implements UserProfileModel {
   const factory _UserProfileModel({
     @JsonKey(fromJson: _idFromJson) required final String userId,
+    final String? username,
     required final String displayName,
     final String? bio,
     final String? avatarUrl,
@@ -327,7 +348,9 @@ abstract class _UserProfileModel implements UserProfileModel {
 
   @override
   @JsonKey(fromJson: _idFromJson)
-  String get userId;
+  String get userId; // The @handle; null on accounts made before handles existed.
+  @override
+  String? get username;
   @override
   String get displayName;
   @override

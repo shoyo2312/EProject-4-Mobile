@@ -11,6 +11,8 @@ String _idFromJson(Object? value) => value.toString();
 class UserProfileModel with _$UserProfileModel {
   const factory UserProfileModel({
     @JsonKey(fromJson: _idFromJson) required String userId,
+    // The @handle; null on accounts made before handles existed.
+    String? username,
     required String displayName,
     String? bio,
     String? avatarUrl,
