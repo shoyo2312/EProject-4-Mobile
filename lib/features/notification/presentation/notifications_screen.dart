@@ -117,7 +117,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(inboxProvider),
+        onRefresh: () async => ref
+          ..invalidate(inboxProvider)
+          ..invalidate(unreadCountProvider),
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [

@@ -56,6 +56,7 @@ class InboxScreen extends ConsumerWidget {
     return RefreshIndicator(
       onRefresh: () async {
         ref.invalidate(inboxProvider);
+        ref.invalidate(unreadCountProvider);
         ref.invalidate(conversationsProvider);
         ref.invalidate(messageRequestsProvider);
         ref.invalidate(storyTrayProvider);
@@ -125,7 +126,9 @@ class _ActivityEntry extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final all = ref.watch(inboxProvider).valueOrNull ?? const [];
-    final unread = all.where((n) => !n.read).length;
+    // The server's total, same number as the nav bar badge: the list is only
+    // the newest page, so counting it stops at that page's size.
+    final unread = ref.watch(unreadCountProvider).valueOrNull ?? 0;
     final latest = all.isEmpty ? null : all.first;
 
     return GestureDetector(

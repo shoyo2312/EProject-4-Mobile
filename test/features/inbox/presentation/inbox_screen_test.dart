@@ -11,6 +11,7 @@ import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_model.dart';
 import 'package:tiktok_mobile/features/chat/data/chat_repository.dart';
 import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
+import 'package:tiktok_mobile/features/chat/presentation/report_conversation_screen.dart';
 import 'package:tiktok_mobile/features/inbox/presentation/inbox_screen.dart';
 import 'package:tiktok_mobile/features/notification/data/notification_model.dart';
 import 'package:tiktok_mobile/features/notification/data/notification_repository.dart';
@@ -156,25 +157,29 @@ void main() {
     expect(find.text('lol'), findsOneWidget);
   });
 
-  testWidgets('the Activity entry counts unread notifications', (tester) async {
-    when(() => notifications.list()).thenAnswer(
-      (_) async => [
-        notification('n1', title: 'a'),
-        notification('n2', title: 'b'),
-        notification('n3', title: 'c', read: true),
-      ],
-    );
+  testWidgets(
+    'the Activity entry shows the server unread total, not the loaded page',
+    (tester) async {
+      // Only the newest page is loaded; the server knows of 150 unread.
+      when(() => notifications.list()).thenAnswer(
+        (_) async => [
+          notification('n1', title: 'a'),
+          notification('n2', title: 'b'),
+        ],
+      );
+      when(() => notifications.unreadCount()).thenAnswer((_) async => 150);
 
-    await pumpInbox(tester);
+      await pumpInbox(tester);
 
-    expect(
-      find.descendant(
-        of: find.byKey(const Key('inbox_activity_unread')),
-        matching: find.text('2'),
-      ),
-      findsOneWidget,
-    );
-  });
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('inbox_activity_unread')),
+          matching: find.text('99+'),
+        ),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('no badge when everything is read', (tester) async {
     when(
@@ -322,6 +327,48 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('profile 2002'), findsOneWidget);
+    });
+
+    testWidgets('delete asks first, then drops the row', (tester) async {
+      when(() => chat.deleteForMe('c1')).thenAnswer((_) async {});
+
+      await longPress(tester);
+      await tester.tap(find.byKey(const Key('conversation_action_delete')));
+      await tester.pumpAndSettle();
+      verifyNever(() => chat.deleteForMe(any()));
+
+      await tester.tap(find.byKey(const Key('conversation_delete_confirm')));
+      await tester.pumpAndSettle();
+
+      verify(() => chat.deleteForMe('c1')).called(1);
+      expect(find.byKey(const Key('conversation_c1')), findsNothing);
+    });
+
+    testWidgets('a thread the caller blocked offers unblock', (tester) async {
+      when(() => chat.listConversations()).thenAnswer(
+        (_) async => [
+          conversation(
+            'c1',
+          ).copyWith(blockedByViewer: true, messagingBlocked: true),
+        ],
+      );
+      when(() => users.unblock('2002')).thenAnswer((_) async {});
+
+      await longPress(tester);
+      expect(find.text('Unblock'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('conversation_action_block')));
+      await tester.pumpAndSettle();
+
+      verify(() => users.unblock('2002')).called(1);
+      verifyNever(() => users.block(any()));
+    });
+
+    testWidgets('report opens the report flow', (tester) async {
+      await longPress(tester);
+      await tester.tap(find.byKey(const Key('conversation_action_report')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ReportConversationScreen), findsOneWidget);
     });
   });
 

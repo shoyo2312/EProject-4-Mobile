@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +14,7 @@ import 'package:tiktok_mobile/features/feed/presentation/feed_screen.dart';
 import 'package:tiktok_mobile/features/inbox/presentation/inbox_screen.dart';
 import 'package:tiktok_mobile/features/notification/presentation/notification_provider.dart';
 import 'package:tiktok_mobile/features/user/presentation/profile_screen.dart';
+import 'package:tiktok_mobile/features/user/presentation/user_provider.dart';
 
 /// The five tabs behind the floating nav bar. An IndexedStack keeps each
 /// tab's scroll position and provider subscriptions alive across switches —
@@ -72,10 +75,48 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     ).info('Press back again to exit', key: const Key('exit_app_toast'));
   }
 
-  void _go(int i) => setState(() {
-    _index = i;
-    _visited.add(i);
-  });
+  /// New notifications, relayed by chat-service on the shared socket the
+  /// moment notification-service stores them. Each one reloads the badge and,
+  /// if it is open, the Activity list — refetched rather than patched, so the
+  /// count stays the server's.
+  late final StreamSubscription<Map<String, dynamic>> _notifications;
+
+  @override
+  void initState() {
+    super.initState();
+    _notifications = ref
+        .read(chatSocketProvider)
+        .topic('/user/queue/notifications')
+        .listen((frame) {
+          ref
+            ..invalidate(unreadCountProvider)
+            ..invalidate(inboxProvider);
+          // Someone followed me, or accepted my request: my Followers or
+          // Following count just moved.
+          if (_followTypes.contains(frame['type'])) {
+            ref.invalidate(myProfileProvider);
+          }
+        });
+  }
+
+  static const _followTypes = {'NEW_FOLLOWER', 'FOLLOW_REQUEST_ACCEPTED'};
+
+  @override
+  void dispose() {
+    _notifications.cancel();
+    super.dispose();
+  }
+
+  void _go(int i) {
+    // Opening Inbox is when the badge has to match what is inside.
+    if (i == 3 && _index != 3) ref.invalidate(unreadCountProvider);
+    // Unfollows send no event, so opening "You" is when the counts catch up.
+    if (i == 4 && _index != 4) ref.invalidate(myProfileProvider);
+    setState(() {
+      _index = i;
+      _visited.add(i);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
