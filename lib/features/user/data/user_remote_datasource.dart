@@ -40,7 +40,7 @@ class UserRemoteDatasource {
     File file, {
     required String contentType,
   }) async {
-    final response = await _apiClient.post<Map<String, dynamic>>(
+    final response = await _apiClient.dio.post<Map<String, dynamic>>(
       '/users/me/avatar',
       data: FormData.fromMap({
         'file': await MultipartFile.fromFile(
@@ -48,6 +48,13 @@ class UserRemoteDatasource {
           contentType: DioMediaType.parse(contentType),
         ),
       }),
+      // The server stores and resizes the photo before it answers: the 10s
+      // ApiClient default gave up while it was still working, and the save
+      // was reported as failed although the avatar did change.
+      options: Options(
+        sendTimeout: Duration.zero,
+        receiveTimeout: const Duration(seconds: 60),
+      ),
     );
     return _unwrap(response.data!, UserProfileModel.fromJson);
   }

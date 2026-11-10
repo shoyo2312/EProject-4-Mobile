@@ -166,7 +166,14 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     if (_isSaving) return;
     final XFile? picked;
     try {
-      picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+      // An avatar is drawn small: a camera original is megabytes of upload
+      // and server work for nothing.
+      picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1080,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
     } on Exception {
       // A refused photo-library permission arrives as an exception, not null.
       if (mounted) setState(() => _avatarError = 'Photo access was refused.');
@@ -229,19 +236,12 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
       _isSaving = true;
     });
     try {
-      // The photo first: picking only previewed a local file. Then the
-      // profile text — only what changed, because an empty string on this
-      // endpoint deletes the field. The rename goes last, so a taken handle
-      // (the most likely failure) leaves everything else already saved.
+      // The profile text first — quick, and only what changed, because an
+      // empty string on this endpoint deletes the field. Then the photo, the
+      // slow step: if it fails, the text is already saved. The rename goes
+      // last, so a taken handle (the most likely failure) leaves everything
+      // else already saved.
       final profile = ref.read(myProfileProvider.notifier);
-      if (_avatarFile != null) {
-        await profile.uploadAvatar(
-          _avatarFile!,
-          contentType: _avatarContentType!,
-        );
-        if (mounted) setState(() => _avatarFile = null);
-      }
-
       final patch = <String, dynamic>{
         if (changes.displayName != null) 'displayName': changes.displayName,
         if (changes.bio != null) 'bio': changes.bio,
@@ -250,6 +250,14 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
       if (patch.isNotEmpty) {
         await profile.updateProfile(patch);
         if (mounted) setState(() => _birthDate = null);
+      }
+
+      if (_avatarFile != null) {
+        await profile.uploadAvatar(
+          _avatarFile!,
+          contentType: _avatarContentType!,
+        );
+        if (mounted) setState(() => _avatarFile = null);
       }
 
       if (changes.username != null) {
