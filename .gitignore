@@ -64,3 +64,6 @@ app.*.map.json
 
 # FVM: the pinned SDK lives in .fvm/ (machine-local); .fvmrc is the shared pin
 .fvm/
+
+# Logs from scripts/run_android_prod.ps1
+/logs/
