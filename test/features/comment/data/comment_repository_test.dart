@@ -6,7 +6,8 @@ import 'package:tiktok_mobile/features/comment/data/comment_model.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_remote_datasource.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_repository.dart';
 
-class MockCommentRemoteDatasource extends Mock implements CommentRemoteDatasource {}
+class MockCommentRemoteDatasource extends Mock
+    implements CommentRemoteDatasource {}
 
 void main() {
   late MockCommentRemoteDatasource remoteDatasource;
@@ -27,7 +28,8 @@ void main() {
 
   test('fetchComments returns items and cursor', () async {
     when(() => remoteDatasource.fetchComments('v1', cursor: null)).thenAnswer(
-      (_) async => CommentPage(items: [comment], hasMore: false, nextCursor: null),
+      (_) async =>
+          CommentPage(items: [comment], hasMore: false, nextCursor: null),
     );
 
     final result = await repository.fetchComments('v1');
@@ -42,12 +44,17 @@ void main() {
         response: Response(
           requestOptions: RequestOptions(path: '/videos/v1/comments'),
           statusCode: 500,
-          data: {'error': {'message': 'empty comment'}},
+          data: {
+            'error': {'message': 'empty comment'},
+          },
         ),
         type: DioExceptionType.badResponse,
       ),
     );
 
-    expect(() => repository.postComment('v1', ''), throwsA(isA<ServerException>()));
+    expect(
+      () => repository.postComment('v1', ''),
+      throwsA(isA<ServerException>()),
+    );
   });
 }

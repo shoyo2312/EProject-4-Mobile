@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +14,7 @@ import 'package:tiktok_mobile/core/widgets/loading_view.dart';
 import 'package:tiktok_mobile/core/widgets/nowa_toast.dart';
 import 'package:tiktok_mobile/features/auth/data/user_model.dart';
 import 'package:tiktok_mobile/features/auth/presentation/auth_provider.dart';
+import 'package:tiktok_mobile/features/chat/presentation/chat_provider.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_model.dart';
 import 'package:tiktok_mobile/features/comment/data/comment_report_reasons.dart';
 import 'package:tiktok_mobile/features/comment/presentation/comment_provider.dart';
@@ -102,16 +105,39 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
   /// Set while the composer edits one of the viewer's own comments.
   CommentModel? _editing;
 
+  /// The video's comment total as the server last pushed it; null until the
+  /// first push, when [CommentSheet.totalCount] stands in.
+  int? _liveCount;
+  late final List<StreamSubscription<Map<String, dynamic>>> _live;
+
   @override
   void initState() {
     super.initState();
     // Send button turns accent-coloured only once there is something to send.
     _controller.addListener(() => setState(() {}));
     _scrollController.addListener(_onScroll);
+    // Live while open, as on web: new, deleted and liked comments, and the
+    // total — a snapshot pushed on every change, so it never drifts.
+    final socket = ref.read(chatSocketProvider);
+    final topic = '/topic/videos.${widget.videoId}';
+    _live = [
+      socket
+          .topic('$topic.comments')
+          .listen((frame) => _notifier.applyRealtime(frame)),
+      socket.topic(topic).listen((frame) {
+        final count = frame['commentCount'];
+        if (frame['type'] == 'counts' && count is int && mounted) {
+          setState(() => _liveCount = count);
+        }
+      }),
+    ];
   }
 
   @override
   void dispose() {
+    for (final sub in _live) {
+      sub.cancel();
+    }
     _controller.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
@@ -345,7 +371,8 @@ class _CommentSheetState extends ConsumerState<CommentSheet> {
     final isLoggedIn = myId != null;
     final isAdmin = me?.role == UserRole.admin;
     final ownsVideo = isLoggedIn && myId == widget.videoOwnerId;
-    final count = widget.totalCount ?? commentsState.valueOrNull?.length;
+    final count =
+        _liveCount ?? widget.totalCount ?? commentsState.valueOrNull?.length;
 
     Widget row(CommentModel comment) {
       final mine = isLoggedIn && comment.userId == myId;

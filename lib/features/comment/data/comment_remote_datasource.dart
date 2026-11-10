@@ -39,11 +39,11 @@ class CommentRemoteDatasource {
   /// (interaction doc 3.5, `sort=top`). The cursor only works with the same
   /// `sort`, which is why it is fixed here.
   Future<CommentPage> fetchComments(String videoId, {String? cursor}) => _page(
-        '/interactions/videos/$videoId/comments',
-        cursor: cursor,
-        size: 20,
-        sort: 'top',
-      );
+    '/interactions/videos/$videoId/comments',
+    cursor: cursor,
+    size: 20,
+    sort: 'top',
+  );
 
   /// One thread's replies, oldest first. Needs a token (interaction doc 3.5b).
   Future<CommentPage> fetchReplies(
@@ -51,12 +51,11 @@ class CommentRemoteDatasource {
     String parentId, {
     String? cursor,
     int size = 10,
-  }) =>
-      _page(
-        '/interactions/videos/$videoId/comments/$parentId/replies',
-        cursor: cursor,
-        size: size,
-      );
+  }) => _page(
+    '/interactions/videos/$videoId/comments/$parentId/replies',
+    cursor: cursor,
+    size: size,
+  );
 
   Future<CommentPage> _page(
     String path, {
@@ -66,11 +65,7 @@ class CommentRemoteDatasource {
   }) async {
     final response = await _apiClient.get<Map<String, dynamic>>(
       path,
-      queryParameters: {
-        'cursor': ?cursor,
-        'size': size,
-        'sort': ?sort,
-      },
+      queryParameters: {'cursor': ?cursor, 'size': size, 'sort': ?sort},
     );
     final body = response.data!['data'] as Map<String, dynamic>;
     final items = (body['items'] as List)
@@ -104,7 +99,9 @@ class CommentRemoteDatasource {
         'stickerId': ?stickerId,
       },
     );
-    return CommentModel.fromJson(response.data!['data'] as Map<String, dynamic>);
+    return CommentModel.fromJson(
+      response.data!['data'] as Map<String, dynamic>,
+    );
   }
 
   /// The author's own comment only. Answers the updated comment, `editedAt`
@@ -119,13 +116,16 @@ class CommentRemoteDatasource {
       '/interactions/videos/$videoId/comments/$commentId',
       data: {'content': text},
     );
-    return CommentModel.fromJson(response.data!['data'] as Map<String, dynamic>);
+    return CommentModel.fromJson(
+      response.data!['data'] as Map<String, dynamic>,
+    );
   }
 
   /// The sticker catalog chat-service serves; comments use the same stickers.
   Future<List<StickerPack>> listStickerPacks() async {
-    final response =
-        await _apiClient.get<Map<String, dynamic>>('/conversations/stickers');
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/conversations/stickers',
+    );
     return (response.data!['data'] as List)
         .map((e) => StickerPack.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -159,8 +159,9 @@ class CommentRemoteDatasource {
   /// not decoration — a mismatched pair answers `COMMENT_NOT_FOUND`
   /// (interaction doc 3.6).
   Future<void> deleteComment(String videoId, String commentId) {
-    return _apiClient
-        .delete<void>('/interactions/videos/$videoId/comments/$commentId');
+    return _apiClient.delete<void>(
+      '/interactions/videos/$videoId/comments/$commentId',
+    );
   }
 
   /// Admin only (ROLE_ADMIN, else 403). Goes through admin-service so the

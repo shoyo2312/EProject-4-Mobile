@@ -23,8 +23,11 @@ class CommentRepository {
     String? cursor,
   }) async {
     try {
-      return await _remoteDatasource.fetchReplies(videoId, parentId,
-          cursor: cursor);
+      return await _remoteDatasource.fetchReplies(
+        videoId,
+        parentId,
+        cursor: cursor,
+      );
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }
@@ -37,8 +40,12 @@ class CommentRepository {
     String? stickerId,
   }) async {
     try {
-      return await _remoteDatasource.postComment(videoId, text,
-          parentId: parentId, stickerId: stickerId);
+      return await _remoteDatasource.postComment(
+        videoId,
+        text,
+        parentId: parentId,
+        stickerId: stickerId,
+      );
     } on DioException catch (e) {
       throw AppException.fromDioException(e);
     }
@@ -64,7 +71,10 @@ class CommentRepository {
     }
   }
 
-  Future<CommentLikeResult> likeComment(String videoId, String commentId) async {
+  Future<CommentLikeResult> likeComment(
+    String videoId,
+    String commentId,
+  ) async {
     try {
       return await _remoteDatasource.likeComment(videoId, commentId);
     } on DioException catch (e) {

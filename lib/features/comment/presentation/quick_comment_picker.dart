@@ -21,11 +21,12 @@ Future<String?> showQuickCommentPicker(
     barrierLabel: 'Dismiss quick comments',
     barrierColor: Colors.black.withValues(alpha: 0.25),
     transitionDuration: const Duration(milliseconds: 160),
-    pageBuilder: (dialogContext, _, _) =>
-        _QuickCommentPicker(anchor: anchor),
+    pageBuilder: (dialogContext, _, _) => _QuickCommentPicker(anchor: anchor),
     transitionBuilder: (_, animation, _, child) {
-      final curved =
-          CurvedAnimation(parent: animation, curve: Curves.easeOutBack);
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutBack,
+      );
       return FadeTransition(
         opacity: animation,
         child: ScaleTransition(

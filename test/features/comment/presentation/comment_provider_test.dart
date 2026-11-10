@@ -21,20 +21,21 @@ void main() {
   late ProviderContainer container;
 
   CommentModel makeComment(String id) => CommentModel(
-        id: id,
-        videoId: 'v1',
-        userId: 'u1',
-        text: 'comment $id',
-        createdAt: DateTime(2026, 1, 1),
-      );
+    id: id,
+    videoId: 'v1',
+    userId: 'u1',
+    text: 'comment $id',
+    createdAt: DateTime(2026, 1, 1),
+  );
 
   setUp(() {
     commentRepository = MockCommentRepository();
     // The notifier resolves comment authors through the profile cache; without
     // this it would reach for a real ApiClient.
     final userRepository = MockUserRepository();
-    when(() => userRepository.getProfiles(any()))
-        .thenAnswer((_) async => <String, UserProfileModel>{});
+    when(
+      () => userRepository.getProfiles(any()),
+    ).thenAnswer((_) async => <String, UserProfileModel>{});
     container = ProviderContainer(
       overrides: [
         commentRepositoryProvider.overrideWithValue(commentRepository),
@@ -49,7 +50,11 @@ void main() {
 
   test('build(videoId) loads the first page for that video', () async {
     when(() => commentRepository.fetchComments('v1', cursor: null)).thenAnswer(
-      (_) async => CommentPage(items: [makeComment('c1')], hasMore: false, nextCursor: null),
+      (_) async => CommentPage(
+        items: [makeComment('c1')],
+        hasMore: false,
+        nextCursor: null,
+      ),
     );
 
     final result = await container.read(commentNotifierProvider('v1').future);
@@ -59,13 +64,20 @@ void main() {
 
   test('postComment() appends the new comment to the front', () async {
     when(() => commentRepository.fetchComments('v1', cursor: null)).thenAnswer(
-      (_) async => CommentPage(items: [makeComment('c1')], hasMore: false, nextCursor: null),
+      (_) async => CommentPage(
+        items: [makeComment('c1')],
+        hasMore: false,
+        nextCursor: null,
+      ),
     );
     await container.read(commentNotifierProvider('v1').future);
-    when(() => commentRepository.postComment('v1', 'new comment'))
-        .thenAnswer((_) async => makeComment('c2'));
+    when(
+      () => commentRepository.postComment('v1', 'new comment'),
+    ).thenAnswer((_) async => makeComment('c2'));
 
-    await container.read(commentNotifierProvider('v1').notifier).postComment('new comment');
+    await container
+        .read(commentNotifierProvider('v1').notifier)
+        .postComment('new comment');
 
     final result = container.read(commentNotifierProvider('v1')).value!;
     expect(result.map((c) => c.id), ['c2', 'c1']);
@@ -73,7 +85,11 @@ void main() {
 
   test('postComment() leaves a held comment out of the thread', () async {
     when(() => commentRepository.fetchComments('v1', cursor: null)).thenAnswer(
-      (_) async => CommentPage(items: [makeComment('c1')], hasMore: false, nextCursor: null),
+      (_) async => CommentPage(
+        items: [makeComment('c1')],
+        hasMore: false,
+        nextCursor: null,
+      ),
     );
     await container.read(commentNotifierProvider('v1').future);
     when(() => commentRepository.postComment('v1', 'held')).thenAnswer(
@@ -89,33 +105,44 @@ void main() {
     expect(result.map((c) => c.id), ['c1']);
   });
 
-  test('removeAsAdmin() drops the comment once admin-service accepts', () async {
+  test(
+    'removeAsAdmin() drops the comment once admin-service accepts',
+    () async {
+      when(
+        () => commentRepository.fetchComments('v1', cursor: null),
+      ).thenAnswer(
+        (_) async => CommentPage(
+          items: [makeComment('c1'), makeComment('c2')],
+          hasMore: false,
+          nextCursor: null,
+        ),
+      );
+      await container.read(commentNotifierProvider('v1').future);
+      when(
+        () => commentRepository.removeCommentAsAdmin('v1', 'c1', 'spam'),
+      ).thenAnswer((_) async {});
+
+      await container
+          .read(commentNotifierProvider('v1').notifier)
+          .removeAsAdmin('c1', 'spam');
+
+      final result = container.read(commentNotifierProvider('v1')).value!;
+      expect(result.map((c) => c.id), ['c2']);
+    },
+  );
+
+  test('a refused admin removal keeps the comment', () async {
     when(() => commentRepository.fetchComments('v1', cursor: null)).thenAnswer(
       (_) async => CommentPage(
-        items: [makeComment('c1'), makeComment('c2')],
+        items: [makeComment('c1')],
         hasMore: false,
         nextCursor: null,
       ),
     );
     await container.read(commentNotifierProvider('v1').future);
-    when(() => commentRepository.removeCommentAsAdmin('v1', 'c1', 'spam'))
-        .thenAnswer((_) async {});
-
-    await container
-        .read(commentNotifierProvider('v1').notifier)
-        .removeAsAdmin('c1', 'spam');
-
-    final result = container.read(commentNotifierProvider('v1')).value!;
-    expect(result.map((c) => c.id), ['c2']);
-  });
-
-  test('a refused admin removal keeps the comment', () async {
-    when(() => commentRepository.fetchComments('v1', cursor: null)).thenAnswer(
-      (_) async => CommentPage(items: [makeComment('c1')], hasMore: false, nextCursor: null),
-    );
-    await container.read(commentNotifierProvider('v1').future);
-    when(() => commentRepository.removeCommentAsAdmin('v1', 'c1', 'spam'))
-        .thenThrow(const ServerException(403, 'Forbidden'));
+    when(
+      () => commentRepository.removeCommentAsAdmin('v1', 'c1', 'spam'),
+    ).thenThrow(const ServerException(403, 'Forbidden'));
 
     await expectLater(
       container
@@ -128,37 +155,46 @@ void main() {
     expect(result.map((c) => c.id), ['c1']);
   });
 
-  test('loadMore keeps going through a page emptied by deleted comments',
-      () async {
-    // A page can come back empty while hasMore is still true: deleted rows are
-    // filtered after Cassandra cut the page (interaction doc 3.5). Stopping
-    // there would end the list early.
-    when(() => commentRepository.fetchComments('v1', cursor: null)).thenAnswer(
-      (_) async => CommentPage(
-        items: [makeComment('c1')],
-        hasMore: true,
-        nextCursor: 'cur1',
-      ),
-    );
-    await container.read(commentNotifierProvider('v1').future);
-    when(() => commentRepository.fetchComments('v1', cursor: 'cur1')).thenAnswer(
-      (_) async => const CommentPage(items: [], hasMore: true, nextCursor: 'cur2'),
-    );
-    when(() => commentRepository.fetchComments('v1', cursor: 'cur2')).thenAnswer(
-      (_) async => CommentPage(
-        items: [makeComment('c2')],
-        hasMore: false,
-        nextCursor: null,
-      ),
-    );
+  test(
+    'loadMore keeps going through a page emptied by deleted comments',
+    () async {
+      // A page can come back empty while hasMore is still true: deleted rows are
+      // filtered after Cassandra cut the page (interaction doc 3.5). Stopping
+      // there would end the list early.
+      when(
+        () => commentRepository.fetchComments('v1', cursor: null),
+      ).thenAnswer(
+        (_) async => CommentPage(
+          items: [makeComment('c1')],
+          hasMore: true,
+          nextCursor: 'cur1',
+        ),
+      );
+      await container.read(commentNotifierProvider('v1').future);
+      when(
+        () => commentRepository.fetchComments('v1', cursor: 'cur1'),
+      ).thenAnswer(
+        (_) async =>
+            const CommentPage(items: [], hasMore: true, nextCursor: 'cur2'),
+      );
+      when(
+        () => commentRepository.fetchComments('v1', cursor: 'cur2'),
+      ).thenAnswer(
+        (_) async => CommentPage(
+          items: [makeComment('c2')],
+          hasMore: false,
+          nextCursor: null,
+        ),
+      );
 
-    await container.read(commentNotifierProvider('v1').notifier).loadMore();
+      await container.read(commentNotifierProvider('v1').notifier).loadMore();
 
-    expect(
-      container.read(commentNotifierProvider('v1')).value!.map((c) => c.id),
-      ['c1', 'c2'],
-    );
-  });
+      expect(
+        container.read(commentNotifierProvider('v1')).value!.map((c) => c.id),
+        ['c1', 'c2'],
+      );
+    },
+  );
 
   test('loadMore drops a comment the re-ranked next page repeats', () async {
     // The server ranks again on every page: a comment liked in between can
@@ -171,8 +207,9 @@ void main() {
       ),
     );
     await container.read(commentNotifierProvider('v1').future);
-    when(() => commentRepository.fetchComments('v1', cursor: 'top.2'))
-        .thenAnswer(
+    when(
+      () => commentRepository.fetchComments('v1', cursor: 'top.2'),
+    ).thenAnswer(
       (_) async => CommentPage(
         items: [makeComment('c2'), makeComment('c3')],
         hasMore: false,
@@ -197,10 +234,13 @@ void main() {
       ),
     );
     await container.read(commentNotifierProvider('v1').future);
-    when(() => commentRepository.deleteComment('v1', 'c1'))
-        .thenAnswer((_) async {});
+    when(
+      () => commentRepository.deleteComment('v1', 'c1'),
+    ).thenAnswer((_) async {});
 
-    await container.read(commentNotifierProvider('v1').notifier).deleteComment('c1');
+    await container
+        .read(commentNotifierProvider('v1').notifier)
+        .deleteComment('c1');
 
     expect(
       container.read(commentNotifierProvider('v1')).value!.map((c) => c.id),
@@ -211,14 +251,20 @@ void main() {
   test('the server tally replaces the optimistic guess', () async {
     when(() => commentRepository.fetchComments('v1', cursor: null)).thenAnswer(
       (_) async => CommentPage(
-          items: [makeComment('c1')], hasMore: false, nextCursor: null),
+        items: [makeComment('c1')],
+        hasMore: false,
+        nextCursor: null,
+      ),
     );
     // Two other people liked it between the render and the tap.
-    when(() => commentRepository.likeComment('v1', 'c1'))
-        .thenAnswer((_) async => const CommentLikeResult(liked: true, likeCount: 3));
+    when(() => commentRepository.likeComment('v1', 'c1')).thenAnswer(
+      (_) async => const CommentLikeResult(liked: true, likeCount: 3),
+    );
     await container.read(commentNotifierProvider('v1').future);
 
-    await container.read(commentNotifierProvider('v1').notifier).toggleLike('c1');
+    await container
+        .read(commentNotifierProvider('v1').notifier)
+        .toggleLike('c1');
 
     final result = container.read(commentNotifierProvider('v1')).value!.single;
     expect(result.likedByMe, isTrue);
@@ -228,13 +274,19 @@ void main() {
   test('a failed comment like empties the heart again', () async {
     when(() => commentRepository.fetchComments('v1', cursor: null)).thenAnswer(
       (_) async => CommentPage(
-          items: [makeComment('c1')], hasMore: false, nextCursor: null),
+        items: [makeComment('c1')],
+        hasMore: false,
+        nextCursor: null,
+      ),
     );
-    when(() => commentRepository.likeComment('v1', 'c1'))
-        .thenThrow(const NetworkException());
+    when(
+      () => commentRepository.likeComment('v1', 'c1'),
+    ).thenThrow(const NetworkException());
     await container.read(commentNotifierProvider('v1').future);
 
-    await container.read(commentNotifierProvider('v1').notifier).toggleLike('c1');
+    await container
+        .read(commentNotifierProvider('v1').notifier)
+        .toggleLike('c1');
 
     final result = container.read(commentNotifierProvider('v1')).value!.single;
     expect(result.likedByMe, isFalse);
@@ -243,18 +295,20 @@ void main() {
 
   group('replies', () {
     CommentModel reply(String id, {String parent = 'c1'}) => CommentModel(
-          id: id,
-          videoId: 'v1',
-          userId: 'u2',
-          text: 'reply $id',
-          parentId: parent,
-          createdAt: DateTime(2026, 1, 2),
-        );
+      id: id,
+      videoId: 'v1',
+      userId: 'u2',
+      text: 'reply $id',
+      parentId: parent,
+      createdAt: DateTime(2026, 1, 2),
+    );
 
     /// A thread c1 with [replyCount] replies; both notifiers kept alive the
     /// way the open sheet keeps them.
     Future<void> loadThread({int replyCount = 2}) async {
-      when(() => commentRepository.fetchComments('v1', cursor: null)).thenAnswer(
+      when(
+        () => commentRepository.fetchComments('v1', cursor: null),
+      ).thenAnswer(
         (_) async => CommentPage(
           items: [makeComment('c1').copyWith(replyCount: replyCount)],
           hasMore: false,
@@ -273,12 +327,18 @@ void main() {
 
     test('open() reads the first page, loadMore() the next', () async {
       await loadThread();
-      when(() => commentRepository.fetchReplies('v1', 'c1', cursor: null))
-          .thenAnswer((_) async => CommentPage(
-              items: [reply('r1')], hasMore: true, nextCursor: 'k'));
-      when(() => commentRepository.fetchReplies('v1', 'c1', cursor: 'k'))
-          .thenAnswer((_) async => CommentPage(
-              items: [reply('r2')], hasMore: false, nextCursor: null));
+      when(
+        () => commentRepository.fetchReplies('v1', 'c1', cursor: null),
+      ).thenAnswer(
+        (_) async =>
+            CommentPage(items: [reply('r1')], hasMore: true, nextCursor: 'k'),
+      );
+      when(
+        () => commentRepository.fetchReplies('v1', 'c1', cursor: 'k'),
+      ).thenAnswer(
+        (_) async =>
+            CommentPage(items: [reply('r2')], hasMore: false, nextCursor: null),
+      );
 
       final replies = container.read(commentRepliesProvider('v1').notifier);
       await replies.open('c1');
@@ -292,8 +352,9 @@ void main() {
 
     test('a posted reply joins its thread and counts on the parent', () async {
       await loadThread(replyCount: 0);
-      when(() => commentRepository.postComment('v1', 'hey', parentId: 'c1'))
-          .thenAnswer((_) async => reply('r9'));
+      when(
+        () => commentRepository.postComment('v1', 'hey', parentId: 'c1'),
+      ).thenAnswer((_) async => reply('r9'));
 
       await container
           .read(commentNotifierProvider('v1').notifier)
@@ -305,28 +366,95 @@ void main() {
       expect(threads()['c1']!.hasMore, isFalse);
     });
 
+    group('realtime', () {
+      CommentNotifier notifier() =>
+          container.read(commentNotifierProvider('v1').notifier);
+      Map<String, dynamic> created(String id, {String? parent}) => {
+        'type': 'comment.created',
+        'videoId': 'v1',
+        'commentId': id,
+        'userId': 'u3',
+        'content': 'live $id',
+        'createdAt': '2026-11-10T00:00:00Z',
+        'parentId': ?parent,
+      };
+
+      test('a new top-level comment goes on top', () async {
+        await loadThread();
+        notifier().applyRealtime(created('c2'));
+        expect(
+          container.read(commentNotifierProvider('v1')).value!.map((c) => c.id),
+          ['c2', 'c1'],
+        );
+      });
+
+      test('a reply to a collapsed thread only counts', () async {
+        await loadThread(replyCount: 1);
+        notifier().applyRealtime(created('r5', parent: 'c1'));
+        expect(top().replyCount, 2);
+        expect(threads(), isEmpty);
+      });
+
+      test('my own post and its frame count once, either order', () async {
+        await loadThread(replyCount: 0);
+        when(
+          () => commentRepository.postComment('v1', 'hey', parentId: 'c1'),
+        ).thenAnswer((_) async => reply('r9'));
+        notifier().applyRealtime(created('r9', parent: 'c1'));
+        await notifier().postComment('hey', parentId: 'c1');
+        notifier().applyRealtime(created('r9', parent: 'c1'));
+        expect(top().replyCount, 1);
+      });
+
+      test('likes and deletes from elsewhere land', () async {
+        await loadThread();
+        notifier().applyRealtime({
+          'type': 'comment.liked',
+          'commentId': 'c1',
+          'likeCount': 7,
+        });
+        expect(top().likeCount, 7);
+        notifier().applyRealtime({
+          'type': 'comment.deleted',
+          'commentId': 'c1',
+        });
+        expect(container.read(commentNotifierProvider('v1')).value, isEmpty);
+      });
+    });
+
     test('a reply posted here is not doubled when its page arrives', () async {
       await loadThread(replyCount: 1);
-      when(() => commentRepository.postComment('v1', 'hey', parentId: 'c1'))
-          .thenAnswer((_) async => reply('r9'));
-      when(() => commentRepository.fetchReplies('v1', 'c1', cursor: null))
-          .thenAnswer((_) async => CommentPage(
-              items: [reply('r1'), reply('r9')], hasMore: false, nextCursor: null));
+      when(
+        () => commentRepository.postComment('v1', 'hey', parentId: 'c1'),
+      ).thenAnswer((_) async => reply('r9'));
+      when(
+        () => commentRepository.fetchReplies('v1', 'c1', cursor: null),
+      ).thenAnswer(
+        (_) async => CommentPage(
+          items: [reply('r1'), reply('r9')],
+          hasMore: false,
+          nextCursor: null,
+        ),
+      );
 
       await container
           .read(commentNotifierProvider('v1').notifier)
           .postComment('hey', parentId: 'c1');
       expect(threads()['c1']!.hasMore, isTrue);
-      await container.read(commentRepliesProvider('v1').notifier).loadMore('c1');
+      await container
+          .read(commentRepliesProvider('v1').notifier)
+          .loadMore('c1');
 
       expect(threads()['c1']!.items.map((c) => c.id), ['r1', 'r9']);
     });
 
     test('a held reply goes nowhere and counts nothing', () async {
       await loadThread(replyCount: 0);
-      when(() => commentRepository.postComment('v1', 'hey', parentId: 'c1'))
-          .thenAnswer(
-              (_) async => reply('r9').copyWith(status: CommentStatus.held));
+      when(
+        () => commentRepository.postComment('v1', 'hey', parentId: 'c1'),
+      ).thenAnswer(
+        (_) async => reply('r9').copyWith(status: CommentStatus.held),
+      );
 
       await container
           .read(commentNotifierProvider('v1').notifier)
@@ -338,11 +466,15 @@ void main() {
 
     test('deleting a reply takes it off its thread and the count', () async {
       await loadThread(replyCount: 1);
-      when(() => commentRepository.fetchReplies('v1', 'c1', cursor: null))
-          .thenAnswer((_) async => CommentPage(
-              items: [reply('r1')], hasMore: false, nextCursor: null));
-      when(() => commentRepository.deleteComment('v1', 'r1'))
-          .thenAnswer((_) async {});
+      when(
+        () => commentRepository.fetchReplies('v1', 'c1', cursor: null),
+      ).thenAnswer(
+        (_) async =>
+            CommentPage(items: [reply('r1')], hasMore: false, nextCursor: null),
+      );
+      when(
+        () => commentRepository.deleteComment('v1', 'r1'),
+      ).thenAnswer((_) async {});
       await container.read(commentRepliesProvider('v1').notifier).open('c1');
 
       await container
@@ -355,11 +487,15 @@ void main() {
 
     test('deleting a top-level comment closes its thread', () async {
       await loadThread(replyCount: 1);
-      when(() => commentRepository.fetchReplies('v1', 'c1', cursor: null))
-          .thenAnswer((_) async => CommentPage(
-              items: [reply('r1')], hasMore: false, nextCursor: null));
-      when(() => commentRepository.deleteComment('v1', 'c1'))
-          .thenAnswer((_) async {});
+      when(
+        () => commentRepository.fetchReplies('v1', 'c1', cursor: null),
+      ).thenAnswer(
+        (_) async =>
+            CommentPage(items: [reply('r1')], hasMore: false, nextCursor: null),
+      );
+      when(
+        () => commentRepository.deleteComment('v1', 'c1'),
+      ).thenAnswer((_) async {});
       await container.read(commentRepliesProvider('v1').notifier).open('c1');
 
       await container
@@ -372,12 +508,19 @@ void main() {
 
     test('an edited reply is replaced in its thread', () async {
       await loadThread(replyCount: 1);
-      when(() => commentRepository.fetchReplies('v1', 'c1', cursor: null))
-          .thenAnswer((_) async => CommentPage(
-              items: [reply('r1')], hasMore: false, nextCursor: null));
-      when(() => commentRepository.editComment('v1', 'r1', 'better'))
-          .thenAnswer((_) async => reply('r1')
-              .copyWith(text: 'better', editedAt: DateTime(2026, 1, 3)));
+      when(
+        () => commentRepository.fetchReplies('v1', 'c1', cursor: null),
+      ).thenAnswer(
+        (_) async =>
+            CommentPage(items: [reply('r1')], hasMore: false, nextCursor: null),
+      );
+      when(
+        () => commentRepository.editComment('v1', 'r1', 'better'),
+      ).thenAnswer(
+        (_) async => reply(
+          'r1',
+        ).copyWith(text: 'better', editedAt: DateTime(2026, 1, 3)),
+      );
       await container.read(commentRepliesProvider('v1').notifier).open('c1');
 
       await container
@@ -393,14 +536,16 @@ void main() {
   test('an edit replaces the top-level row in place', () async {
     when(() => commentRepository.fetchComments('v1', cursor: null)).thenAnswer(
       (_) async => CommentPage(
-          items: [makeComment('c1'), makeComment('c2')],
-          hasMore: false,
-          nextCursor: null),
+        items: [makeComment('c1'), makeComment('c2')],
+        hasMore: false,
+        nextCursor: null,
+      ),
     );
     container.listen(commentRepliesProvider('v1'), (_, _) {});
     await container.read(commentNotifierProvider('v1').future);
-    when(() => commentRepository.editComment('v1', 'c2', 'new'))
-        .thenAnswer((_) async => makeComment('c2').copyWith(text: 'new'));
+    when(
+      () => commentRepository.editComment('v1', 'c2', 'new'),
+    ).thenAnswer((_) async => makeComment('c2').copyWith(text: 'new'));
 
     await container
         .read(commentNotifierProvider('v1').notifier)
@@ -416,10 +561,14 @@ void main() {
     );
     container.listen(commentRepliesProvider('v1'), (_, _) {});
     await container.read(commentNotifierProvider('v1').future);
-    when(() => commentRepository.postComment('v1', '', stickerId: 'cat'))
-        .thenAnswer((_) async => makeComment('c9').copyWith(
-            text: '',
-            sticker: const CommentSticker(stickerId: 'cat', url: 'http://x')));
+    when(
+      () => commentRepository.postComment('v1', '', stickerId: 'cat'),
+    ).thenAnswer(
+      (_) async => makeComment('c9').copyWith(
+        text: '',
+        sticker: const CommentSticker(stickerId: 'cat', url: 'http://x'),
+      ),
+    );
 
     await container
         .read(commentNotifierProvider('v1').notifier)

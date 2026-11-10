@@ -111,33 +111,47 @@ void main() {
     expect(comment.status, CommentStatus.visible);
   });
 
-  test('a reply and a sticker go up as parentId (a number) and stickerId',
-      () async {
-    final ctx = build({
-      'success': true,
-      'data': {
-        'commentId': 9,
-        'videoId': 2,
-        'userId': 3,
-        'content': '',
-        'createdAt': '2026-01-01T00:00:00Z',
+  test(
+    'a reply and a sticker go up as parentId (a number) and stickerId',
+    () async {
+      final ctx = build({
+        'success': true,
+        'data': {
+          'commentId': 9,
+          'videoId': 2,
+          'userId': 3,
+          'content': '',
+          'createdAt': '2026-01-01T00:00:00Z',
+          'parentId': 5,
+          'replyToUserId': 7,
+          'sticker': {
+            'stickerId': 'cat',
+            'url': 'http://x/cat.png',
+            'width': 160,
+            'height': 120,
+          },
+        },
+      });
+
+      final created = await ctx.datasource.postComment(
+        '2',
+        '',
+        parentId: '5',
+        stickerId: 'cat',
+      );
+
+      expect(ctx.adapter.lastRequest?.data, {
         'parentId': 5,
-        'replyToUserId': 7,
-        'sticker': {'stickerId': 'cat', 'url': 'http://x/cat.png', 'width': 160, 'height': 120},
-      },
-    });
-
-    final created = await ctx.datasource
-        .postComment('2', '', parentId: '5', stickerId: 'cat');
-
-    expect(ctx.adapter.lastRequest?.data, {'parentId': 5, 'stickerId': 'cat'});
-    expect(created.parentId, '5');
-    expect(created.replyToUserId, '7');
-    expect(created.isReply, isTrue);
-    expect(created.text, '');
-    expect(created.sticker?.stickerId, 'cat');
-    expect(created.sticker?.height, 120);
-  });
+        'stickerId': 'cat',
+      });
+      expect(created.parentId, '5');
+      expect(created.replyToUserId, '7');
+      expect(created.isReply, isTrue);
+      expect(created.text, '');
+      expect(created.sticker?.stickerId, 'cat');
+      expect(created.sticker?.height, 120);
+    },
+  );
 
   test('a plain comment sends only its content', () async {
     final ctx = build({
@@ -172,8 +186,10 @@ void main() {
     final updated = await ctx.datasource.editComment('11', '22', 'fixed');
 
     expect(ctx.adapter.lastRequest?.method, 'PATCH');
-    expect(ctx.adapter.lastRequest?.path,
-        endsWith('/interactions/videos/11/comments/22'));
+    expect(
+      ctx.adapter.lastRequest?.path,
+      endsWith('/interactions/videos/11/comments/22'),
+    );
     expect(ctx.adapter.lastRequest?.data, {'content': 'fixed'});
     expect(updated.editedAt, isNotNull);
   });
@@ -186,11 +202,16 @@ void main() {
 
     await ctx.datasource.fetchReplies('11', '22', cursor: 'abc');
 
-    expect(ctx.adapter.lastRequest?.path,
-        endsWith('/interactions/videos/11/comments/22/replies'));
+    expect(
+      ctx.adapter.lastRequest?.path,
+      endsWith('/interactions/videos/11/comments/22/replies'),
+    );
     expect(ctx.adapter.lastRequest?.queryParameters['cursor'], 'abc');
     // Replies read as a conversation, oldest first: never ranked.
-    expect(ctx.adapter.lastRequest?.queryParameters.containsKey('sort'), isFalse);
+    expect(
+      ctx.adapter.lastRequest?.queryParameters.containsKey('sort'),
+      isFalse,
+    );
   });
 
   test('the comment list asks for the most interaction first', () async {
@@ -201,8 +222,10 @@ void main() {
 
     await ctx.datasource.fetchComments('11', cursor: 'top.20');
 
-    expect(ctx.adapter.lastRequest?.path,
-        endsWith('/interactions/videos/11/comments'));
+    expect(
+      ctx.adapter.lastRequest?.path,
+      endsWith('/interactions/videos/11/comments'),
+    );
     expect(ctx.adapter.lastRequest?.queryParameters['sort'], 'top');
     expect(ctx.adapter.lastRequest?.queryParameters['cursor'], 'top.20');
   });

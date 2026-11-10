@@ -54,6 +54,7 @@ Future<void> _loadRings(Ref ref, List<String> userIds) async {
 class CommentNotifier extends _$CommentNotifier {
   String? _nextCursor;
   final _more = LoadMoreGuard();
+  final _inserted = <String>{};
 
   @override
   FutureOr<List<CommentModel>> build(String videoId) async {
@@ -81,22 +82,22 @@ class CommentNotifier extends _$CommentNotifier {
   }
 
   Future<void> loadMore() => _more.run(() async {
-        var comments = state.value ?? [];
-        // A page can legitimately add nothing (see _fetch), and a page that
-        // adds nothing never grows the list back to the scroll trigger. Try a
-        // few before giving this scroll up.
-        for (var attempt = 0; attempt < 3; attempt++) {
-          // The ranking is redone on every page, so a comment liked meanwhile
-          // can come round again.
-          final seen = {for (final c in comments) c.id};
-          comments = [
-            ...comments,
-            ...(await _fetch()).items.where((c) => !seen.contains(c.id)),
-          ];
-          if (comments.length > (state.value ?? []).length || _more.done) break;
-        }
-        state = AsyncData(comments);
-      });
+    var comments = state.value ?? [];
+    // A page can legitimately add nothing (see _fetch), and a page that
+    // adds nothing never grows the list back to the scroll trigger. Try a
+    // few before giving this scroll up.
+    for (var attempt = 0; attempt < 3; attempt++) {
+      // The ranking is redone on every page, so a comment liked meanwhile
+      // can come round again.
+      final seen = {for (final c in comments) c.id};
+      comments = [
+        ...comments,
+        ...(await _fetch()).items.where((c) => !seen.contains(c.id)),
+      ];
+      if (comments.length > (state.value ?? []).length || _more.done) break;
+    }
+    state = AsyncData(comments);
+  });
 
   /// Not retried on failure and the button stays disabled until this returns:
   /// the endpoint does not deduplicate, so a second send is a second comment
@@ -111,25 +112,77 @@ class CommentNotifier extends _$CommentNotifier {
     String? parentId,
     String? stickerId,
   }) async {
-    final created = await ref.read(commentRepositoryProvider).postComment(
-          videoId,
-          text,
-          parentId: parentId,
-          stickerId: stickerId,
-        );
+    final created = await ref
+        .read(commentRepositoryProvider)
+        .postComment(videoId, text, parentId: parentId, stickerId: stickerId);
     if (created.status == CommentStatus.held) return created;
-    unawaited(_loadAuthors(ref, [created]));
-    final threadId = created.parentId;
+    _insert(created, openThread: true);
+    return created;
+  }
+
+  /// Puts a new comment on screen once. The HTTP answer and the realtime
+  /// frame for the same post race each other, so whichever lands second is
+  /// dropped here — otherwise the thread's reply count would go up twice.
+  void _insert(CommentModel comment, {required bool openThread}) {
+    // [_inserted] too: a reply to a collapsed thread is counted but not kept
+    // anywhere [find] looks.
+    if (!_inserted.add(comment.id) || find(comment.id) != null) return;
+    unawaited(_loadAuthors(ref, [comment]));
+    final threadId = comment.parentId;
     if (threadId == null) {
-      state = AsyncData([created, ...state.value ?? <CommentModel>[]]);
-      return created;
+      state = AsyncData([comment, ...state.value ?? <CommentModel>[]]);
+      return;
     }
     final thread = _topLevel(threadId);
-    _replies.add(created, hadReplies: (thread?.replyCount ?? 0) > 0);
+    // Someone else's reply only joins a thread the viewer already opened; a
+    // collapsed one just shows "View N replies" with the new N.
+    if (openThread ||
+        ref.read(commentRepliesProvider(videoId)).containsKey(threadId)) {
+      _replies.add(comment, hadReplies: (thread?.replyCount ?? 0) > 0);
+    }
     if (thread != null) {
       _writeTopLevel(thread.copyWith(replyCount: thread.replyCount + 1));
     }
-    return created;
+  }
+
+  /// One frame from `/topic/videos.{id}.comments` (chat-service
+  /// `CommentFrame`): what happened to this thread while the sheet is open,
+  /// the viewer's own actions on another device included.
+  void applyRealtime(Map<String, dynamic> frame) {
+    final id = frame['commentId']?.toString();
+    // Before the first page lands there is no list to fold into; that page
+    // will already hold the change.
+    if (id == null || state.value == null) return;
+    switch (frame['type']) {
+      case 'comment.liked':
+        final likes = frame['likeCount'];
+        final comment = find(id);
+        if (comment != null && likes is int) {
+          _write(comment.copyWith(likeCount: likes));
+        }
+      case 'comment.deleted':
+        if (find(id) != null) _drop(id);
+      case 'comment.created':
+        final userId = frame['userId']?.toString();
+        final text = frame['content']?.toString() ?? '';
+        // ponytail: the frame names no sticker, so a sticker-only comment
+        // shows up on the next load instead; add stickerId to CommentFrame
+        // if that matters.
+        if (userId == null || text.isEmpty) return;
+        _insert(
+          CommentModel(
+            id: id,
+            videoId: videoId,
+            userId: userId,
+            text: text,
+            createdAt:
+                DateTime.tryParse('${frame['createdAt']}') ?? DateTime.now(),
+            parentId: frame['parentId']?.toString(),
+            replyToUserId: frame['replyToUserId']?.toString(),
+          ),
+          openThread: false,
+        );
+    }
   }
 
   /// The author's own comment. The row is replaced in place with what the
@@ -150,10 +203,12 @@ class CommentNotifier extends _$CommentNotifier {
     if (comment == null) return;
 
     final wantLiked = !comment.likedByMe;
-    _write(comment.copyWith(
-      likedByMe: wantLiked,
-      likeCount: comment.likeCount + (wantLiked ? 1 : -1),
-    ));
+    _write(
+      comment.copyWith(
+        likedByMe: wantLiked,
+        likeCount: comment.likeCount + (wantLiked ? 1 : -1),
+      ),
+    );
 
     final repository = ref.read(commentRepositoryProvider);
     try {
@@ -162,10 +217,9 @@ class CommentNotifier extends _$CommentNotifier {
           : await repository.unlikeComment(videoId, commentId);
       final latest = find(commentId);
       if (latest == null) return;
-      _write(latest.copyWith(
-        likedByMe: result.liked,
-        likeCount: result.likeCount,
-      ));
+      _write(
+        latest.copyWith(likedByMe: result.liked, likeCount: result.likeCount),
+      );
     } on AppException {
       if (find(commentId) != null) _write(comment);
     }
@@ -272,15 +326,14 @@ class ReplyThread {
     bool? loading,
     Object? error,
     Set<String>? localIds,
-  }) =>
-      ReplyThread(
-        items: items ?? this.items,
-        hasMore: hasMore ?? this.hasMore,
-        nextCursor: nextCursor ?? this.nextCursor,
-        loading: loading ?? this.loading,
-        error: error,
-        localIds: localIds ?? this.localIds,
-      );
+  }) => ReplyThread(
+    items: items ?? this.items,
+    hasMore: hasMore ?? this.hasMore,
+    nextCursor: nextCursor ?? this.nextCursor,
+    loading: loading ?? this.loading,
+    error: error,
+    localIds: localIds ?? this.localIds,
+  );
 }
 
 /// The open reply threads of one video, keyed by top-level comment id. A
@@ -372,9 +425,9 @@ class CommentReplies extends _$CommentReplies {
     if (thread == null) return;
     state = {
       ...state,
-      parentId!: thread.copyWith(items: [
-        for (final c in thread.items) c.id == reply.id ? reply : c,
-      ]),
+      parentId!: thread.copyWith(
+        items: [for (final c in thread.items) c.id == reply.id ? reply : c],
+      ),
     };
   }
 
@@ -385,7 +438,10 @@ class CommentReplies extends _$CommentReplies {
     state = {
       ...state,
       parentId!: thread.copyWith(
-        items: [for (final c in thread.items) if (c.id != reply.id) c],
+        items: [
+          for (final c in thread.items)
+            if (c.id != reply.id) c,
+        ],
         localIds: {...thread.localIds}..remove(reply.id),
       ),
     };
