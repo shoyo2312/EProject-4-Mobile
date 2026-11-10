@@ -26,8 +26,8 @@ class MusicPanel extends StatelessWidget {
   /// How long the edited video plays: the most of the song it can use.
   final double videoSeconds;
 
-  /// A level or the start moved; [seek] is true when the start did, so the
-  /// preview can jump to it.
+  /// A level or the start moved; [seek] is true once the start is let go of,
+  /// so the preview can jump to it and play.
   final void Function(EditMusic music, {bool seek}) onChanged;
   final VoidCallback onChange;
   final VoidCallback onRemove;
@@ -70,7 +70,10 @@ class MusicPanel extends StatelessWidget {
                   value: music.start.clamp(0, latestStart),
                   activeColor: NowaColors.accent,
                   inactiveColor: NowaColors.hairline,
-                  onChanged: (v) => onChanged(music.copyWith(start: v), seek: true),
+                  // The label follows the finger; the preview jumps there and
+                  // plays once it lets go, so the new start can be heard.
+                  onChanged: (v) => onChanged(music.copyWith(start: v)),
+                  onChangeEnd: (v) => onChanged(music.copyWith(start: v), seek: true),
                 ),
               ),
             if (hasOriginalSound)

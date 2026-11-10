@@ -208,7 +208,10 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
   void _setMusic(EditMusic music, {bool seek = false}) {
     setState(() => _music = music);
     _musicPlayer?.setVolume(music.volume);
-    if (seek) _musicPlayer?.seekTo(_seconds(music.start));
+    if (seek) {
+      _musicPlayer?.seekTo(_seconds(music.start));
+      _musicPlayer?.play();
+    }
   }
 
   Future<void> _removeMusic() async {

@@ -83,6 +83,34 @@ void main() {
       expect(find.byKey(const Key('music_start_slider')), findsNothing);
     });
 
+    testWidgets('the preview jumps to a new start only once it is let go of', (tester) async {
+      final seeks = <bool>[];
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: MusicPanel(
+            music: const EditMusic(trackId: '42', track: _calm),
+            videoSeconds: 15,
+            onChanged: (m, {seek = false}) => seeks.add(seek),
+            onChange: () {},
+            onRemove: () {},
+            onDone: () {},
+          ),
+        ),
+      ));
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('music_start_slider'))),
+      );
+      await gesture.moveBy(const Offset(40, 0));
+      await tester.pump();
+      expect(seeks, isNotEmpty);
+      expect(seeks, everyElement(isFalse));
+
+      await gesture.up();
+      await tester.pump();
+      expect(seeks.last, isTrue);
+    });
+
     testWidgets('turning the original down sets only its level', (tester) async {
       final changes = await show(tester, const EditMusic(trackId: '42', track: _calm));
 

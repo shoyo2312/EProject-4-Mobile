@@ -299,6 +299,8 @@ class _VideoPreviewScreenState extends State<VideoPreviewScreen> {
       // The song's new start, heard against the video's first frame.
       _controller.seekTo(_playback.rawAt(0));
       _musicPlayer?.seekTo(Duration(milliseconds: (music.start * 1000).round()));
+      // The song follows the video, so a paused preview would stay silent.
+      if (!_controller.value.isPlaying) _controller.play();
     }
   }
 

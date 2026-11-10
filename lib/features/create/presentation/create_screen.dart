@@ -17,7 +17,6 @@ import 'package:tiktok_mobile/features/create/data/video_filters.dart';
 import 'package:tiktok_mobile/features/create/presentation/upload_provider.dart';
 import 'package:tiktok_mobile/features/create/presentation/video_preview_screen.dart';
 import 'package:tiktok_mobile/features/create/presentation/widgets/filter_picker.dart';
-import 'package:tiktok_mobile/features/create/presentation/widgets/music_picker.dart';
 import 'package:tiktok_mobile/features/story/data/story_repository.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_flow.dart';
 import 'package:tiktok_mobile/features/story/presentation/story_provider.dart';
@@ -103,8 +102,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
   EditFilter? _filter;
   var _showFilters = false;
 
-  /// The song chosen with "Add sound", carried into the editor.
-  EditMusic? _sound;
   var _timer = 0;
   int? _countdown;
   Timer? _countdownTicker;
@@ -142,7 +139,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
     // Another app may want the camera while this one is in the background,
     // and the OS takes it away anyway. Not on `inactive`: that is also the
     // notification shade or a permission dialog, and would end a recording.
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
       _releaseCamera();
     } else if (state == AppLifecycleState.resumed && widget.visible) {
       _openCamera();
@@ -191,7 +189,9 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
       if (mounted) setState(() => _cameraError = _cameraMessage(e));
     } catch (_) {
       // No camera plugin at all — a test, or a platform without one.
-      if (mounted) setState(() => _cameraError = 'The camera could not be opened');
+      if (mounted) {
+        setState(() => _cameraError = 'The camera could not be opened');
+      }
     } finally {
       _opening = false;
     }
@@ -210,16 +210,14 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
   }
 
   String _cameraMessage(CameraException e) => switch (e.code) {
-        'CameraAccessDenied' ||
-        'CameraAccessDeniedWithoutPrompt' ||
-        'CameraAccessRestricted' =>
-          'Allow camera access in Settings to record',
-        'AudioAccessDenied' ||
-        'AudioAccessDeniedWithoutPrompt' ||
-        'AudioAccessRestricted' =>
-          'Allow microphone access in Settings to record',
-        _ => 'The camera could not be opened',
-      };
+    'CameraAccessDenied' ||
+    'CameraAccessDeniedWithoutPrompt' ||
+    'CameraAccessRestricted' => 'Allow camera access in Settings to record',
+    'AudioAccessDenied' ||
+    'AudioAccessDeniedWithoutPrompt' ||
+    'AudioAccessRestricted' => 'Allow microphone access in Settings to record',
+    _ => 'The camera could not be opened',
+  };
 
   Future<void> _flip() async {
     if (_cameras.length < 2 || _busy) return;
@@ -250,7 +248,10 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
   Duration get _played =>
       _session.played +
       (_recording
-          ? Duration(microseconds: (_clipWatch.elapsed.inMicroseconds / _speed).round())
+          ? Duration(
+              microseconds: (_clipWatch.elapsed.inMicroseconds / _speed)
+                  .round(),
+            )
           : Duration.zero);
 
   bool get _canRecord =>
@@ -335,7 +336,9 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
     _clipWatch.stop();
     if (mounted) {
       setState(() {
-        _session = _session.add(RecordedClip(length: _clipWatch.elapsed, speed: _speed));
+        _session = _session.add(
+          RecordedClip(length: _clipWatch.elapsed, speed: _speed),
+        );
         _recording = false;
       });
     }
@@ -416,7 +419,12 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
   /// holding it records a clip; either goes straight to the editor.
   Future<void> _storyPhoto() async {
     final camera = _camera;
-    if (camera == null || _busy || _storyRecording || ref.read(uploadNotifierProvider).busy) return;
+    if (camera == null ||
+        _busy ||
+        _storyRecording ||
+        ref.read(uploadNotifierProvider).busy) {
+      return;
+    }
     _busy = true;
     final XFile shot;
     try {
@@ -432,7 +440,12 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
 
   Future<void> _storyStartVideo() async {
     final camera = _camera;
-    if (camera == null || _busy || _storyRecording || ref.read(uploadNotifierProvider).busy) return;
+    if (camera == null ||
+        _busy ||
+        _storyRecording ||
+        ref.read(uploadNotifierProvider).busy) {
+      return;
+    }
     _busy = true;
     try {
       await camera.startVideoRecording();
@@ -475,7 +488,10 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
       unawaited(File(clip.path).delete().catchError((_) => File(clip.path)));
       return _storyPhoto();
     }
-    await _storyEdit(File(clip.path), storyContentTypeForPath(clip.path) ?? 'video/mp4');
+    await _storyEdit(
+      File(clip.path),
+      storyContentTypeForPath(clip.path) ?? 'video/mp4',
+    );
   }
 
   /// The editor and then the composer. The camera is closed meanwhile; back
@@ -530,18 +546,10 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
     await _review(File(picked.path), _withPicks(null));
   }
 
-  /// The filter and song chosen on the camera, added to what was shot.
+  /// The filter chosen on the camera, added to what was shot.
   VideoEdit? _withPicks(VideoEdit? edit) {
-    if (_filter == null && _sound == null) return edit;
-    return (edit ?? const VideoEdit()).copyWith(filter: _filter, music: _sound);
-  }
-
-  /// A song picked before shooting goes into the editor with the clip, where
-  /// its levels and start can be set.
-  Future<void> _pickSound() async {
-    final track = await showMusicPicker(context);
-    if (track == null || !mounted) return;
-    setState(() => _sound = EditMusic(trackId: track.id, track: track));
+    if (_filter == null) return edit;
+    return (edit ?? const VideoEdit()).copyWith(filter: _filter);
   }
 
   /// How much of the length limit [d] uses, 0 to 1.
@@ -612,49 +620,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
                   ),
                 ),
               ),
-              if (_storyMode)
-                const SizedBox.shrink()
-              else
-                Flexible(
-                  child: GestureDetector(
-                    key: const Key('create_add_sound'),
-                    onTap: _recording || _busy ? null : _pickSound,
-                    child: Glass(
-                      radius: 12,
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      child: SizedBox(
-                        height: 36,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.audiotrack,
-                              size: 14,
-                              color: NowaColors.supportInk,
-                            ),
-                            const SizedBox(width: 7),
-                            Flexible(
-                              child: Text(
-                                _sound?.track?.title ?? 'Add sound',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: sora(size: 12.5, weight: FontWeight.w500),
-                              ),
-                            ),
-                            if (_sound != null && !_recording) ...[
-                              const SizedBox(width: 6),
-                              GestureDetector(
-                                key: const Key('create_remove_sound'),
-                                onTap: () => setState(() => _sound = null),
-                                child: const Icon(Icons.close, size: 14, color: Colors.white70),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
               const SizedBox(width: 36),
             ],
           ),
@@ -704,8 +669,11 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
                     icon: Icons.timer_outlined,
                     label: _timer == 0 ? 'Timer' : '${_timer}s',
                     active: _timer != 0,
-                    onTap: () => setState(() => _timer =
-                        _timerOptions[(_timerOptions.indexOf(_timer) + 1) % _timerOptions.length]),
+                    onTap: () => setState(
+                      () => _timer =
+                          _timerOptions[(_timerOptions.indexOf(_timer) + 1) %
+                              _timerOptions.length],
+                    ),
                   ),
                 ],
               ],
@@ -716,7 +684,11 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
             child: Text(
               '$_countdown',
               key: const Key('create_countdown'),
-              style: sora(size: 96, weight: FontWeight.w700, color: Colors.white),
+              style: sora(
+                size: 96,
+                weight: FontWeight.w700,
+                color: Colors.white,
+              ),
             ),
           ),
         Positioned(
@@ -746,7 +718,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
                       child: Row(
                         children: [
                           for (final option in editorSpeeds) ...[
-                            if (option != editorSpeeds.first) const SizedBox(width: 6),
+                            if (option != editorSpeeds.first)
+                              const SizedBox(width: 6),
                             Chip2(
                               key: Key('create_speed_$option'),
                               label: _speedLabel(option),
@@ -785,7 +758,9 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
                               l,
                               style: sora(
                                 size: 12,
-                                weight: l == _len ? FontWeight.w600 : FontWeight.w500,
+                                weight: l == _len
+                                    ? FontWeight.w600
+                                    : FontWeight.w500,
                                 color: l == _len
                                     ? Colors.white
                                     : Colors.white.withValues(alpha: 0.65),
@@ -808,34 +783,38 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
                     child: _recording
                         ? null
                         : postTools && hasClips
-                            ? GestureDetector(
-                                key: const Key('create_discard_clip_button'),
-                                onTap: _discardLastClip,
-                                child: Glass(
-                                  radius: 14,
-                                  child: const Icon(Icons.backspace_outlined,
-                                      size: 18, color: Colors.white),
-                                ),
-                              )
-                            : GestureDetector(
-                                key: const Key('create_gallery_button'),
-                                onTap: () => _storyMode
-                                    ? _story(StoryMediaSource.gallery)
-                                    : _pickFromGallery(),
-                                child: Container(
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(
-                                        color: Colors.white.withValues(alpha: 0.2)),
-                                  ),
-                                  child: const Icon(
-                                    Icons.video_library_outlined,
-                                    size: 19,
-                                    color: Colors.white,
-                                  ),
+                        ? GestureDetector(
+                            key: const Key('create_discard_clip_button'),
+                            onTap: _discardLastClip,
+                            child: Glass(
+                              radius: 14,
+                              child: const Icon(
+                                Icons.backspace_outlined,
+                                size: 18,
+                                color: Colors.white,
+                              ),
+                            ),
+                          )
+                        : GestureDetector(
+                            key: const Key('create_gallery_button'),
+                            onTap: () => _storyMode
+                                ? _story(StoryMediaSource.gallery)
+                                : _pickFromGallery(),
+                            child: Container(
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.2),
                                 ),
                               ),
+                              child: const Icon(
+                                Icons.video_library_outlined,
+                                size: 19,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
                   ),
                   const SizedBox(width: 34),
                   GestureDetector(
@@ -858,14 +837,16 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
                       dimmed: upload.busy || _camera == null,
                       progress: _storyMode
                           ? (_storyRecording
-                              ? (_clipWatch.elapsed.inMilliseconds /
-                                      storyVideoMaxDuration.inMilliseconds)
-                                  .clamp(0.0, 1.0)
-                              : null)
+                                ? (_clipWatch.elapsed.inMilliseconds /
+                                          storyVideoMaxDuration.inMilliseconds)
+                                      .clamp(0.0, 1.0)
+                                : null)
                           : (_started || _recording)
-                              ? _fraction(_played)
-                              : null,
-                      marks: [for (final m in _session.playedMarks) _fraction(m)],
+                          ? _fraction(_played)
+                          : null,
+                      marks: [
+                        for (final m in _session.playedMarks) _fraction(m),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 34),
@@ -882,7 +863,11 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
                                 shape: BoxShape.circle,
                                 color: NowaColors.accent,
                               ),
-                              child: const Icon(Icons.check, size: 22, color: Colors.white),
+                              child: const Icon(
+                                Icons.check,
+                                size: 22,
+                                color: Colors.white,
+                              ),
                             ),
                           )
                         : null,
@@ -899,7 +884,9 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
                       child: GestureDetector(
                         key: Key('create_mode_${m.toLowerCase()}'),
                         // A recording in progress belongs to a post.
-                        onTap: _started ? null : () => setState(() => _mode = m),
+                        onTap: _started
+                            ? null
+                            : () => setState(() => _mode = m),
                         child: Text(
                           m,
                           style: sora(
@@ -920,7 +907,11 @@ class _CreateScreenState extends ConsumerState<CreateScreen>
                 Text(
                   '${_clock(_played)} / ${_clock(_maxLength)}',
                   key: const Key('create_record_time'),
-                  style: sora(size: 12, weight: FontWeight.w600, color: Colors.white),
+                  style: sora(
+                    size: 12,
+                    weight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
                 )
               else
                 _UploadStatus(state: upload),
@@ -1016,7 +1007,9 @@ class _Shutter extends StatelessWidget {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: dimmed ? NowaColors.accent.withValues(alpha: 0.35) : NowaColors.accent,
+              color: dimmed
+                  ? NowaColors.accent.withValues(alpha: 0.35)
+                  : NowaColors.accent,
               // The glow would sit under the ring; the ring says enough.
               boxShadow: progress != null
                   ? null
@@ -1033,7 +1026,9 @@ class _Shutter extends StatelessWidget {
               height: recording || dimmed ? 30 : 68,
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(recording || dimmed ? 9 : 34),
+                borderRadius: BorderRadius.circular(
+                  recording || dimmed ? 9 : 34,
+                ),
               ),
             ),
           ),
@@ -1080,7 +1075,11 @@ class _RingPainter extends CustomPainter {
             startAngle: 0,
             endAngle: 2 * math.pi,
             transform: const GradientRotation(top),
-            colors: const [NowaColors.accent, NowaColors.supportInk, NowaColors.accent],
+            colors: const [
+              NowaColors.accent,
+              NowaColors.supportInk,
+              NowaColors.accent,
+            ],
           ).createShader(rect),
       );
     }
@@ -1170,19 +1169,19 @@ class _UploadStatus extends StatelessWidget {
     if (state.phase == UploadPhase.idle) return const SizedBox.shrink();
     final (text, color) = switch (state.phase) {
       UploadPhase.uploading => (
-          state.progress < 0
-              ? 'Uploading…'
-              : 'Uploading · ${(state.progress * 100).round()}%',
-          NowaColors.accent,
-        ),
+        state.progress < 0
+            ? 'Uploading…'
+            : 'Uploading · ${(state.progress * 100).round()}%',
+        NowaColors.accent,
+      ),
       UploadPhase.publishing => ('Posting…', NowaColors.accent),
       // PROCESSING is not a wait the user has to sit through: the video is
       // saved, it just is not playable or on the feed until transcoding ends
       // (video doc 3.2).
       UploadPhase.processing => (
-          'Processing — it will appear on your profile when ready',
-          NowaColors.supportInk,
-        ),
+        'Processing — it will appear on your profile when ready',
+        NowaColors.supportInk,
+      ),
       UploadPhase.done => ('Posted', NowaColors.supportInk),
       UploadPhase.failed => (state.error ?? 'Upload failed', NowaColors.danger),
       UploadPhase.idle => ('', Colors.transparent),
